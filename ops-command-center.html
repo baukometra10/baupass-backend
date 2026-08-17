@@ -83,7 +83,7 @@
       0%, 100% { box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.2), 0 18px 48px rgba(0, 0, 0, 0.45); }
       50% { box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.4), 0 18px 48px rgba(0, 0, 0, 0.45); }
     }
-    @keyframes guardianRadar {
+    @keyframes guardianRadarSweep {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
@@ -91,18 +91,10 @@
       0%, 100% { opacity: 0.55; transform: scale(1); }
       50% { opacity: 1; transform: scale(1.06); }
     }
-    .guardian-card::before {
-      content: "";
-      position: absolute;
-      inset: -40% auto auto 55%;
-      width: 18rem; height: 18rem;
-      border-radius: 50%;
-      border: 1px dashed rgba(75, 227, 209, 0.22);
-      pointer-events: none;
-      animation: guardianRadar 28s linear infinite;
+    @keyframes guardianBlipPing {
+      0%, 100% { transform: scale(1); opacity: 0.95; }
+      50% { transform: scale(1.35); opacity: 0.55; }
     }
-    .guardian-card.degraded::before { border-color: rgba(251, 191, 36, 0.28); }
-    .guardian-card.down::before { border-color: rgba(248, 113, 113, 0.3); animation-duration: 12s; }
     .guardian-shell { position: relative; z-index: 1; }
     .guardian-head {
       display: grid;
@@ -121,7 +113,7 @@
     }
     @media (max-width: 720px) {
       .guardian-head { grid-template-columns: auto 1fr; }
-      .guardian-meta { grid-column: 1 / -1; }
+      .guardian-meta { grid-column: 1 / -1; justify-self: start; text-align: start; }
     }
     .guardian-mark {
       width: 3.6rem; height: 3.6rem; border-radius: 16px;
@@ -181,10 +173,122 @@
     .guardian-card.degraded .guardian-live { color: #fbbf24; border-color: rgba(251, 191, 36, 0.4); background: rgba(251, 191, 36, 0.08); }
     .guardian-card.down .guardian-live { color: #f87171; border-color: rgba(248, 113, 113, 0.4); background: rgba(248, 113, 113, 0.08); }
     .guardian-meta {
+      display: flex; flex-direction: column; align-items: flex-end; gap: 0.45rem;
       text-align: end; font-size: 0.72rem; color: var(--muted); line-height: 1.45;
-      min-width: 9rem;
+      min-width: 8.5rem;
     }
     .guardian-meta strong { display: block; color: #e8f2ff; font-size: 0.82rem; font-weight: 650; }
+    .guardian-radar {
+      width: 7.25rem;
+      flex: 0 0 auto;
+    }
+    .guardian-radar-screen {
+      position: relative;
+      width: 7.25rem; height: 7.25rem;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 1px solid rgba(75, 227, 209, 0.45);
+      background:
+        radial-gradient(circle at center, rgba(75, 227, 209, 0.16) 0 2px, transparent 3px),
+        radial-gradient(circle at center, rgba(8, 18, 26, 0.2), rgba(4, 10, 16, 0.95));
+      box-shadow:
+        inset 0 0 18px rgba(75, 227, 209, 0.12),
+        0 0 18px rgba(75, 227, 209, 0.1);
+    }
+    .guardian-card.degraded .guardian-radar-screen {
+      border-color: rgba(251, 191, 36, 0.5);
+      box-shadow: inset 0 0 18px rgba(251, 191, 36, 0.12), 0 0 18px rgba(251, 191, 36, 0.1);
+    }
+    .guardian-card.down .guardian-radar-screen {
+      border-color: rgba(248, 113, 113, 0.55);
+      box-shadow: inset 0 0 18px rgba(248, 113, 113, 0.14), 0 0 18px rgba(248, 113, 113, 0.12);
+    }
+    .guardian-radar-ring {
+      position: absolute; inset: 0; margin: auto;
+      border-radius: 50%;
+      border: 1px solid rgba(75, 227, 209, 0.22);
+      pointer-events: none;
+    }
+    .guardian-card.degraded .guardian-radar-ring { border-color: rgba(251, 191, 36, 0.28); }
+    .guardian-card.down .guardian-radar-ring { border-color: rgba(248, 113, 113, 0.3); }
+    .guardian-radar-ring.r1 { width: 32%; height: 32%; }
+    .guardian-radar-ring.r2 { width: 58%; height: 58%; }
+    .guardian-radar-ring.r3 { width: 84%; height: 84%; }
+    .guardian-radar-cross::before,
+    .guardian-radar-cross::after {
+      content: "";
+      position: absolute;
+      background: rgba(75, 227, 209, 0.18);
+      pointer-events: none;
+    }
+    .guardian-card.degraded .guardian-radar-cross::before,
+    .guardian-card.degraded .guardian-radar-cross::after { background: rgba(251, 191, 36, 0.22); }
+    .guardian-card.down .guardian-radar-cross::before,
+    .guardian-card.down .guardian-radar-cross::after { background: rgba(248, 113, 113, 0.24); }
+    .guardian-radar-cross::before { left: 50%; top: 8%; bottom: 8%; width: 1px; transform: translateX(-50%); }
+    .guardian-radar-cross::after { top: 50%; left: 8%; right: 8%; height: 1px; transform: translateY(-50%); }
+    .guardian-radar-sweep {
+      position: absolute; inset: 0;
+      background: conic-gradient(
+        from 0deg,
+        rgba(75, 227, 209, 0.0) 0deg,
+        rgba(75, 227, 209, 0.0) 300deg,
+        rgba(75, 227, 209, 0.08) 330deg,
+        rgba(75, 227, 209, 0.42) 360deg
+      );
+      animation: guardianRadarSweep 3.2s linear infinite;
+      transform-origin: center;
+    }
+    .guardian-card.degraded .guardian-radar-sweep {
+      background: conic-gradient(
+        from 0deg,
+        rgba(251, 191, 36, 0.0) 0deg,
+        rgba(251, 191, 36, 0.0) 300deg,
+        rgba(251, 191, 36, 0.1) 330deg,
+        rgba(251, 191, 36, 0.48) 360deg
+      );
+      animation-duration: 2.2s;
+    }
+    .guardian-card.down .guardian-radar-sweep {
+      background: conic-gradient(
+        from 0deg,
+        rgba(248, 113, 113, 0.0) 0deg,
+        rgba(248, 113, 113, 0.0) 300deg,
+        rgba(248, 113, 113, 0.12) 330deg,
+        rgba(248, 113, 113, 0.55) 360deg
+      );
+      animation-duration: 1.4s;
+    }
+    .guardian-radar-blip {
+      position: absolute;
+      width: 0.42rem; height: 0.42rem;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 8px currentColor;
+      animation: guardianBlipPing 1.6s ease-in-out infinite;
+    }
+    .guardian-radar-blip.ok { background: var(--accent); color: var(--accent); }
+    .guardian-radar-blip.fail { background: #f87171; color: #f87171; animation-duration: 0.9s; }
+    .guardian-radar-blip.warn { background: #fbbf24; color: #fbbf24; }
+    .guardian-radar-core {
+      position: absolute; left: 50%; top: 50%;
+      width: 0.45rem; height: 0.45rem;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--accent);
+      box-shadow: 0 0 10px rgba(75, 227, 209, 0.7);
+    }
+    .guardian-card.degraded .guardian-radar-core { background: #fbbf24; box-shadow: 0 0 10px rgba(251, 191, 36, 0.7); }
+    .guardian-card.down .guardian-radar-core { background: #f87171; box-shadow: 0 0 10px rgba(248, 113, 113, 0.7); }
+    .guardian-radar-caption {
+      margin-top: 0.35rem;
+      text-align: center;
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(148, 163, 184, 0.95);
+    }
     .guardian-body { padding: 0.85rem 1.15rem 1.05rem; }
     .guardian-alert {
       font-size: 0.86rem; font-weight: 650; color: #eaf3ff; margin-bottom: 0.35rem;
@@ -473,6 +577,8 @@
         guardianHealApplied: "{n} Fixes angewendet",
         guardianHealReady: "Bereit zu reparieren",
         guardianSecondPass: "Zweite Repair-Runde",
+        guardianRadarCaption: "Scan · Fix",
+        guardianRadarHint: "Fehler erkennen & heilen",
         statusOk: "OK",
         statusOffline: "Offline",
         statusDegraded: "Eingeschränkt",
@@ -621,6 +727,8 @@
         guardianHealApplied: "{n} fixes applied",
         guardianHealReady: "Ready to repair",
         guardianSecondPass: "Second repair pass",
+        guardianRadarCaption: "Scan · Fix",
+        guardianRadarHint: "Detect & heal faults",
         statusOk: "OK",
         statusOffline: "Offline",
         statusDegraded: "Degraded",
@@ -769,6 +877,8 @@
         guardianHealApplied: "{n} إصلاحات مطبّقة",
         guardianHealReady: "جاهز للإصلاح",
         guardianSecondPass: "جولة إصلاح ثانية",
+        guardianRadarCaption: "مسح · إصلاح",
+        guardianRadarHint: "اكتشاف الأعطال وإصلاحها",
         statusOk: "OK",
         statusOffline: "غير متصل",
         statusDegraded: "مقيد",
@@ -1063,6 +1173,45 @@
       </svg>`;
     }
 
+    function guardianRadarHtml({ failed = [], fixed = [], scanning = false } = {}) {
+      const failSlots = [
+        { left: "68%", top: "28%" },
+        { left: "78%", top: "58%" },
+        { left: "42%", top: "72%" },
+        { left: "24%", top: "38%" },
+      ];
+      const fixSlots = [
+        { left: "58%", top: "42%" },
+        { left: "34%", top: "54%" },
+        { left: "62%", top: "68%" },
+        { left: "30%", top: "30%" },
+      ];
+      const failBlips = (failed || []).slice(0, 4).map((_, i) => {
+        const s = failSlots[i];
+        return `<span class="guardian-radar-blip fail" style="left:${s.left};top:${s.top}" title="${String(failed[i] || "fault")}"></span>`;
+      }).join("");
+      const fixBlips = (fixed || []).slice(0, 4).map((_, i) => {
+        const s = fixSlots[i];
+        return `<span class="guardian-radar-blip ok" style="left:${s.left};top:${s.top}" title="${String(fixed[i] || "fix")}"></span>`;
+      }).join("");
+      const idleBlip = (!failed.length && !fixed.length)
+        ? `<span class="guardian-radar-blip ${scanning ? "warn" : "ok"}" style="left:62%;top:36%"></span>`
+        : "";
+      return `
+        <div class="guardian-radar" aria-hidden="true" title="${tr("guardianRadarHint")}">
+          <div class="guardian-radar-screen">
+            <div class="guardian-radar-ring r1"></div>
+            <div class="guardian-radar-ring r2"></div>
+            <div class="guardian-radar-ring r3"></div>
+            <div class="guardian-radar-cross"></div>
+            <div class="guardian-radar-sweep"></div>
+            ${failBlips}${fixBlips}${idleBlip}
+            <div class="guardian-radar-core"></div>
+          </div>
+          <div class="guardian-radar-caption">${tr("guardianRadarCaption")}</div>
+        </div>`;
+    }
+
     function renderGuardianCard(guardian, history) {
       const g = guardian && typeof guardian === "object" ? guardian : null;
       const hasData = Boolean(g && (g.timestamp || (Array.isArray(g.probes) && g.probes.length)));
@@ -1081,7 +1230,10 @@
                   <span class="guardian-live">${tr("guardianHealStrong")}</span>
                 </div>
               </div>
-              <div class="guardian-meta"><strong>${tr("guardianLive")}</strong>${tr("guardianUnavailableHint")}</div>
+              <div class="guardian-meta">
+                ${guardianRadarHtml({ scanning: true })}
+                <div><strong>${tr("guardianLive")}</strong>${tr("guardianUnavailableHint")}</div>
+              </div>
             </div>
             <div class="guardian-body">
               <div class="guardian-actions">
@@ -1141,10 +1293,12 @@
         return `<div class="guardian-history-row">${ts} · ${st}${fixes}</div>`;
       }).join("") || `<div class="guardian-history-row">—</div>`;
       const markColor = status === "ok" ? "var(--accent)" : status === "down" ? "#f87171" : "#fbbf24";
-      const appliedActions = (Array.isArray(remediation.actions) ? remediation.actions : [])
+      const appliedList = (Array.isArray(remediation.actions) ? remediation.actions : [])
         .filter((a) => a && a.ok && !a.skipped)
+        .map((a) => a.id || "fix");
+      const appliedActions = appliedList
         .slice(0, 8)
-        .map((a) => `<span class="guardian-probe ok">${a.id || "fix"}</span>`)
+        .map((id) => `<span class="guardian-probe ok">${id}</span>`)
         .join("");
       return `
         <div class="card guardian-card ${cls}" id="guardianCard">
@@ -1162,8 +1316,11 @@
                 </div>
               </div>
               <div class="guardian-meta">
-                <strong>${tr("guardianLive")}</strong>
-                ${host ? `${host}<br>` : ""}${checked ? `${checked} UTC` : "—"}
+                ${guardianRadarHtml({ failed, fixed: appliedList, scanning: status !== "ok" })}
+                <div>
+                  <strong>${tr("guardianLive")}</strong>
+                  ${host ? `${host}<br>` : ""}${checked ? `${checked} UTC` : "—"}
+                </div>
               </div>
             </div>
             <div class="guardian-body">
