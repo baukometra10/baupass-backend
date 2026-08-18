@@ -66,6 +66,9 @@
     try {
       if (global.BaupassSession?.restoreSupportSpectatorSession) {
         global.BaupassSession.restoreSupportSpectatorSession(home);
+      } else if (global.BaupassSession?.resetSpectatorMirrorRuntime) {
+        global.BaupassSession.resetSpectatorMirrorRuntime();
+        global.BaupassSession.refreshAll?.();
       } else if (global.BaupassSession?.refreshAll) {
         global.BaupassSession.refreshAll();
       }

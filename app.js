@@ -526,6 +526,8 @@ let spectatorMirrorSyncTimer = null;
 
 async function syncSpectatorMirrorData() {
   if (!isSupportSpectatorMirrorApp()) return;
+  if (spectatorMirrorDataSynced) return;
+  spectatorMirrorDataSynced = true;
   try {
     sessionKnownExpired = false;
     await loadAllData();
@@ -571,6 +573,13 @@ let supportAssistScrollTimer = null;
 let supportAssistEmbedMirror = { embedTab: "", opsEmbedPage: "", at: 0 };
 let lastAppliedSpectatorUiKey = "";
 let spectatorHomeSnapshot = null;
+let spectatorMirrorDataSynced = false;
+
+function resetSpectatorMirrorRuntime() {
+  spectatorMirrorDataSynced = false;
+  lastAppliedSpectatorUiKey = "";
+  supportAssistEmbedMirror = { embedTab: "", opsEmbedPage: "", at: 0 };
+}
 
 function snapshotSupportSpectatorHome() {
   if (spectatorHomeSnapshot) return spectatorHomeSnapshot;
@@ -584,8 +593,7 @@ function snapshotSupportSpectatorHome() {
 function restoreSupportSpectatorSession(home) {
   const snapshot = home && typeof home === "object" ? home : spectatorHomeSnapshot || {};
   spectatorHomeSnapshot = null;
-  lastAppliedSpectatorUiKey = "";
-  supportAssistEmbedMirror = { embedTab: "", opsEmbedPage: "", at: 0 };
+  resetSpectatorMirrorRuntime();
   clearSupportAssistLoginMirror();
   document.body.classList.remove(
     "support-assist-mirror-app",
@@ -617,7 +625,39 @@ function restoreSupportSpectatorSession(home) {
       5000,
     );
   }
-  syncSupportAssistSpectatorWatch();
+}
+
+function captureAdminV2EmbedStateFromDom() {
+  const iframe = document.getElementById("adminV2Frame");
+  try {
+    const doc = iframe?.contentWindow?.document;
+    if (!doc) return {};
+    const tab = String(doc.querySelector(".tab.active")?.dataset?.tab || "").trim();
+    const hash = String(iframe.contentWindow.location.hash || "").replace(/^#/, "").trim();
+    let opsEmbedPage = "";
+    const opsFrame = doc.querySelector("#operationsPanel iframe[data-ops-page], #operationsPanel .ops-embed-frame");
+    if (opsFrame) {
+      opsEmbedPage = String(opsFrame.getAttribute("data-ops-page") || opsFrame.getAttribute("src") || "").trim();
+      if (opsEmbedPage.includes("/")) {
+        try {
+          const u = new URL(opsEmbedPage, window.location.origin);
+          opsEmbedPage = u.pathname + u.search;
+        } catch {
+          // keep raw value
+        }
+      }
+    }
+    const activeOpsBtn = doc.querySelector("#operationsPanel .ops-embed-tab.active");
+    if (activeOpsBtn) {
+      opsEmbedPage = String(activeOpsBtn.getAttribute("data-ops-page") || opsEmbedPage).trim();
+    }
+    return {
+      embedTab: tab || hash || "",
+      opsEmbedPage,
+    };
+  } catch {
+    return {};
+  }
 }
 
 function captureAdminV2EmbedState() {
@@ -626,6 +666,13 @@ function captureAdminV2EmbedState() {
   }
   const cached = supportAssistEmbedMirror;
   const iframe = document.getElementById("adminV2Frame");
+  const fromDom = captureAdminV2EmbedStateFromDom();
+  if (fromDom.embedTab || fromDom.opsEmbedPage) {
+    return {
+      embedTab: fromDom.embedTab || cached.embedTab || "",
+      opsEmbedPage: fromDom.opsEmbedPage || cached.opsEmbedPage || "",
+    };
+  }
   try {
     const doc = iframe?.contentWindow?.document;
     if (doc) {
@@ -683,6 +730,37 @@ function applySupportAssistEmbedMirror(uiState) {
   }
   send();
   window.setTimeout(send, 250);
+  window.setTimeout(send, 900);
+  window.setTimeout(send, 2200);
+}
+
+function scheduleSpectatorEmbedTokenSync(iframe, viewName) {
+  if (!iframe || !token) return;
+  const sync = () => {
+    broadcastSessionToEmbeds();
+    const lang = getStoredUiLang();
+    try {
+      iframe.contentWindow?.postMessage({ type: "baupass-sync-lang", lang }, window.location.origin);
+      iframe.contentWindow?.postMessage(
+        {
+          type: "baupass-sync-token",
+          token,
+          companyId: getEffectiveUiCompanyId(),
+          lang,
+        },
+        window.location.origin,
+      );
+    } catch {
+      // iframe not ready
+    }
+    if (viewName === "admin-v2" && pendingAdminV2EinsatzplanFocus) {
+      scheduleAdminV2EinsatzplanFocus();
+    }
+  };
+  sync();
+  window.setTimeout(sync, 350);
+  window.setTimeout(sync, 1100);
+  window.setTimeout(sync, 2400);
 }
 
 function getSupportAssistViewLabel(viewName) {
@@ -794,8 +872,23 @@ function applySupportAssistUiState(uiState) {
   const viewChanged = Boolean(targetView && targetView !== getCurrentViewName());
   if (viewChanged) {
     setView(targetView);
+    if (watching && ENTERPRISE_EMBED_META[targetView]) {
+      const meta = ENTERPRISE_EMBED_META[targetView];
+      const iframe = document.getElementById(meta.frameId);
+      if (iframe) {
+        scheduleSpectatorEmbedTokenSync(iframe, targetView);
+      }
+    }
   } else if (targetView === "admin-v2") {
     applySupportAssistEmbedMirror(uiState);
+  } else if (targetView && ENTERPRISE_EMBED_META[targetView] && watching) {
+    const meta = ENTERPRISE_EMBED_META[targetView];
+    const iframe = document.getElementById(meta.frameId);
+    const src = String(iframe?.getAttribute("src") || "").trim();
+    if (!src || src === "about:blank" || src.startsWith("about:")) {
+      loadEnterpriseEmbed(targetView);
+    }
+    if (iframe) scheduleSpectatorEmbedTokenSync(iframe, targetView);
   }
 
   const sy = Number(uiState.scrollY);
@@ -822,10 +915,8 @@ function applySupportAssistUiState(uiState) {
     ].join("|");
     if (uiKey !== lastAppliedSpectatorUiKey) {
       lastAppliedSpectatorUiKey = uiKey;
-      if (agentLoggedIn) {
+      if (agentLoggedIn && !spectatorMirrorDataSynced) {
         scheduleSpectatorMirrorDataSync();
-      } else if (viewChanged) {
-        refreshAll();
       }
     }
     if (targetView === "admin-v2" && String(uiState.embedTab || "").trim()) {
@@ -19562,6 +19653,10 @@ function loadEnterpriseEmbed(viewName) {
       iframe.addEventListener("load", syncToken);
     }
     syncToken();
+    if (isSupportSpectatorMirrorApp()) {
+      window.setTimeout(syncToken, 400);
+      window.setTimeout(syncToken, 1400);
+    }
   }
   if (viewName === "admin-v2" && pendingAdminV2EinsatzplanFocus) {
     scheduleAdminV2EinsatzplanFocus();
@@ -20274,6 +20369,7 @@ window.BaupassSession = {
   showSupportSpectatorNotice,
   snapshotSupportSpectatorHome,
   restoreSupportSpectatorSession,
+  resetSpectatorMirrorRuntime,
 };
 
 function handleExpiredControlSession() {

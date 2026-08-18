@@ -513,6 +513,16 @@ window.addEventListener("message", (event) => {
     if (tab && document.querySelector(`.tab[data-tab="${tab}"]`)) {
       switchToTab(tab, { silent: true });
       refreshActiveTab().catch(notifyTabError);
+      return;
+    }
+    if (opsPage) {
+      const activeTab = document.querySelector(".tab.active")?.dataset?.tab || "";
+      if (activeTab === "operations") {
+        refreshActiveTab().catch(notifyTabError);
+      } else if (document.querySelector(`.tab[data-tab="operations"]`)) {
+        switchToTab("operations", { silent: true });
+        refreshActiveTab().catch(notifyTabError);
+      }
     }
     return;
   }
@@ -5687,6 +5697,7 @@ function initOpsEmbedTabs(panel, companyId) {
       btn.classList.add("active");
       frame.title = btn.textContent || "";
       ensureFrameSrc(page);
+      notifyParentEmbedTab("operations", { opsEmbedPage: page });
     });
   });
   // Lazy: load first embed after idle / click — saves bandwidth on slow links.
