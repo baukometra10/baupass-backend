@@ -521,7 +521,7 @@
     </nav>
   </header>
   <main id="grid"><p class="muted" id="gridLoading">Laden…</p></main>
-  <script src="/workpass-storage.js?v=20260818wp7"></script>
+  <script src="/workpass-storage.js?v=20260818wp8"></script>
   <script src="/embed-helpers.js?v=20260818embed4"></script>
   <script src="/sector-copy.js?v=20260818opsSector3"></script>
   <script src="/ops-center-i18n-extra.js?v=20260801lohn8"></script>
@@ -2316,7 +2316,9 @@
 
     async function loadLohnMessages() {
       try {
-        let url = "/api/payroll/accounting/messages?sync=1";
+        if (window.WorkPassStorage?.isAuthUnusable?.()) return [];
+        const sync = window.WorkPassStorage?.isSupportAssistQuietMode?.() ? "0" : "1";
+        let url = `/api/payroll/accounting/messages?sync=${sync}`;
         if (companyId) url += `&company_id=${encodeURIComponent(companyId)}`;
         const data = await apiSoft(url, { messages: [] }, 8000);
         return data.messages || [];

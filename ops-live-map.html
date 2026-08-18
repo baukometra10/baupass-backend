@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="utf-8" />
@@ -2248,7 +2248,7 @@
       </div>
     </div>
   </div>
-  <script src="/workpass-storage.js?v=20260818wp7"></script>
+  <script src="/workpass-storage.js?v=20260818wp8"></script>
   <script src="/embed-helpers.js?v=20260818embed4"></script>
   <script src="/sector-copy.js?v=20260818opsSector3"></script>
   <script src="/ops-live-map-i18n.js?v=20260818opsSector1"></script>
@@ -3859,6 +3859,7 @@
     }
 
     async function load(options = {}) {
+      if (window.WorkPassStorage?.isAuthUnusable?.()) return;
       if (!companyId) {
         document.getElementById("status").textContent = window.opsMapT("selectCompany");
         return;

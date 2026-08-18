@@ -2049,6 +2049,7 @@ async function preparePayslipPdf(batchId, statementId, { force = false, needSync
 }
 
 function schedulePayslipPdfPrep(batchId, statementId) {
+  if (isSupportReadOnlySession()) return;
   if (!batchId || !statementId) return;
   const key = payslipCaptureCacheKey(batchId, statementId);
   const cached = getFreshPayslipCapture(batchId, statementId);
@@ -2067,22 +2068,24 @@ function schedulePayslipPdfPrep(batchId, statementId) {
 }
 
 async function fetchPayslipPdfBlobUrl(batchId, statementId) {
-  const ready = getFreshPayslipCapture(batchId, statementId);
-  if (ready?.blobUrl) {
-    if (!ready.synced) {
-      ensurePayslipSyncedPdf(batchId, statementId).catch(() => {});
+  if (!isSupportReadOnlySession()) {
+    const ready = getFreshPayslipCapture(batchId, statementId);
+    if (ready?.blobUrl) {
+      if (!ready.synced) {
+        ensurePayslipSyncedPdf(batchId, statementId).catch(() => {});
+      }
+      return ready.blobUrl;
     }
-    return ready.blobUrl;
-  }
-  const prepared = await preparePayslipPdf(batchId, statementId, { needSync: false });
-  if (prepared?.blobUrl) {
-    if (!prepared.synced) {
-      ensurePayslipSyncedPdf(batchId, statementId).catch(() => {});
+    const prepared = await preparePayslipPdf(batchId, statementId, { needSync: false });
+    if (prepared?.blobUrl) {
+      if (!prepared.synced) {
+        ensurePayslipSyncedPdf(batchId, statementId).catch(() => {});
+      }
+      return prepared.blobUrl;
     }
-    return prepared.blobUrl;
+    await preparePayslipPdf(batchId, statementId, { needSync: true });
   }
-  await preparePayslipPdf(batchId, statementId, { needSync: true });
-  const token = wpGet(TOKEN_KEY);
+  const token = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || "").trim();
   const headers = { Accept: "application/pdf" };
   if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(
@@ -2104,6 +2107,9 @@ async function fetchPayslipPdfBlobUrl(batchId, statementId) {
 }
 
 async function syncPayslipStudioPdfFromHtml(batchId, statementId, { force = false } = {}) {
+  if (isSupportReadOnlySession()) {
+    return { ok: true, skipped: true };
+  }
   // Exact studio capture only — never fall back to a remade Chromium/Weasy PDF.
   const res = await preparePayslipPdf(batchId, statementId, { force, needSync: true });
   if (res?.cancelled) {
@@ -2643,7 +2649,7 @@ async function selectPayslipStatement(batchId, statementId) {
       };
       schedulePayslipPreviewFit();
     }
-    if (!isPayslipLocked(stmt) && payslipStudioState.inbox !== "archive") {
+    if (!isPayslipLocked(stmt) && payslipStudioState.inbox !== "archive" && !isSupportReadOnlySession()) {
       await api(
         `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/review-open`,
         { method: "POST", body: "{}" },
@@ -2661,6 +2667,7 @@ async function selectPayslipStatement(batchId, statementId) {
 }
 
 async function refreshPayslipStudio({ keepSelection = false } = {}) {
+  if (window.WorkPassStorage?.isAuthUnusable?.()) return;
   const cid = activeCompanyId();
   const inbox = payslipStudioState.inbox === "archive" ? "archive" : "open";
   const params = new URLSearchParams();
@@ -3017,6 +3024,7 @@ async function openLohnDrawer() {
     closeLohnDrawer();
     return;
   }
+  if (window.WorkPassStorage?.isAuthUnusable?.()) return;
   const drawer = $("lohnDrawer");
   const body = $("lohnDrawerBody");
   if (!drawer || !body) return;
@@ -3037,7 +3045,8 @@ async function openLohnDrawer() {
   }
 
   const cq = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
-  const msgUrl = `/api/payroll/accounting/messages?sync=1${cid ? `&company_id=${encodeURIComponent(cid)}` : ""}`;
+  const sync = isSupportReadOnlySession() ? "0" : "1";
+  const msgUrl = `/api/payroll/accounting/messages?sync=${sync}${cid ? `&company_id=${encodeURIComponent(cid)}` : ""}`;
   let messages = [];
   let alerts = [];
   let periodRequests = [];
@@ -8733,6 +8742,7 @@ let analyticsPeriod = "day";
 function trackFeatureUsage(featureId) {
   const fid = String(featureId || "").trim();
   if (!fid || superadminNeedsCompany()) return;
+  if (isSupportReadOnlySession() || window.WorkPassStorage?.isAuthUnusable?.()) return;
   if (globalThis.BaupassUsage?.track) {
     globalThis.BaupassUsage.track(fid, "admin-v2");
     return;

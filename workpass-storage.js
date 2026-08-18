@@ -362,6 +362,12 @@
     "/api/platform/enterprise-catalog",
   ];
 
+  const SUPPORT_WRITE_BLOCK = [
+    "/review-open",
+    "/payroll/statements/",
+    "/payroll/accounting/messages/",
+  ];
+
   const AUTH_UNUSABLE_KEY = "workpass-auth-unusable";
   const TTS_UNUSABLE_KEY = "workpass-tts-unavailable";
   const AUTH_UNUSABLE_TTL_MS = 120000;
@@ -484,9 +490,30 @@
     }));
   }
 
+  function requestMethod(input, init) {
+    if (init && init.method) return String(init.method).toUpperCase();
+    if (input && typeof input !== "string" && input.method) return String(input.method).toUpperCase();
+    return "GET";
+  }
+
   function shouldBlockSupportFetch(url) {
     const raw = String(url || "").toLowerCase();
     return SUPPORT_FETCH_BLOCK.some((part) => raw.includes(part));
+  }
+
+  function shouldBlockSupportWrite(url, input, init) {
+    const method = requestMethod(input, init);
+    if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return false;
+    const raw = String(url || "").toLowerCase();
+    return SUPPORT_WRITE_BLOCK.some((part) => raw.includes(part));
+  }
+
+  function syntheticReadOnlyResponse() {
+    return new Response(JSON.stringify({ error: "support_session_read_only" }), {
+      status: 403,
+      statusText: "Forbidden",
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   function syntheticAuthDeadResponse() {
@@ -567,6 +594,9 @@
       }
       if ((isSupportAssistQuietMode() || isTtsUnusable()) && String(url || "").toLowerCase().includes("/api/ai/speak")) {
         return Promise.resolve(syntheticSupportResponse(url));
+      }
+      if (isSupportAssistQuietMode() && shouldBlockSupportWrite(url, input, init)) {
+        return Promise.resolve(syntheticReadOnlyResponse());
       }
       if (isSupportAssistQuietMode() && shouldBlockSupportFetch(url)) {
         return Promise.resolve(syntheticSupportResponse(url));
