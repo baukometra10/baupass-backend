@@ -11,7 +11,7 @@
   }
 
   const VERSION = "20260725r";
-  const VOICE_UI_VERSION = "20260818voice14";
+  const VOICE_UI_VERSION = "20260818voice15";
   const HANDS_FREE_KEY = "baupass-ai-hands-free";
   const SESSION_STORE_KEY = "baupass-aio-session-id";
   const WELCOME_STORE_KEY = "baupass-aio-welcome";
@@ -1650,6 +1650,7 @@
 
   async function maybeSpeakWelcome() {
     if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) return;
+    if (isEmbeddedFrame() || shouldSkipPage()) return;
     if (!welcomeVoiceEnabled() || !voiceEnabled()) return;
     if (!isAdminSurfaceReady()) return;
     // Wait for company context so we don't greet under ":none" then again under real company.
@@ -1678,13 +1679,15 @@
         force: true,
         authHeaders: () => authHeaders(),
       });
+      let welcomeOk = false;
       try {
-        await spoken;
+        welcomeOk = Boolean(await spoken);
       } catch {
-        /* TTS best-effort */
+        welcomeOk = false;
       }
       if (!isAdminSurfaceReady()) return;
       if (hasPendingConfirmCard()) return;
+      if (!welcomeOk) return;
       // One morning briefing after login welcome only — not when browsing sections.
       try {
         await speakMorningBriefing();

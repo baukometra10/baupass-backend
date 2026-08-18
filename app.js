@@ -22469,6 +22469,7 @@ function syncCameraTabAfterRender(cameraCount) {
 function switchCameraSetupTab(tabName) {
   const tabs = ["live", "bulk", "single", "bridge"];
   const next = tabs.includes(tabName) ? tabName : resolveDefaultCameraTab();
+  const prev = _cameraActiveTab;
   _cameraActiveTab = next;
   tabs.forEach((name) => {
     const pane = document.getElementById(_cameraPaneId(name));
@@ -22477,8 +22478,7 @@ function switchCameraSetupTab(tabName) {
   document.querySelectorAll(".camera-setup-tab").forEach((btn) => {
     btn.classList.toggle("active", btn.getAttribute("data-camera-tab") === next);
   });
-  if (next === "live") {
-    // Manual tab switch: retry once even for cameras currently in backoff.
+  if (next === "live" && prev && prev !== "live") {
     _cameraSnapshotBackoff.clear();
     void refreshAllCameraLiveViews();
     document.getElementById("cameraLiveGrid")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -22492,6 +22492,13 @@ async function refreshCameraTileSnapshot(cameraId) {
   const img = tile?.querySelector(".camera-tile-image");
   const placeholder = tile?.querySelector(".camera-tile-placeholder");
   if (!img || !placeholder) return;
+  const cam = (state.siteCameras || []).find((c) => String(c.id) === String(cameraId));
+  if (cam && cam.hasSnapshot === false) {
+    img.classList.add("hidden");
+    placeholder.classList.remove("hidden");
+    placeholder.textContent = uiT("cameraNoSnapshot");
+    return;
+  }
   const role = String(getCurrentUser()?.role || "");
   if (role === "superadmin" && !superadminUiPreviewCompanyId) return;
   const backoffUntil = _cameraSnapshotBackoff.get(cameraId) || 0;
@@ -22542,7 +22549,11 @@ async function refreshAllCameraLiveViews() {
   const cameras = state.siteCameras || [];
   if (!cameras.length) return;
   if (!isCameraLiveGridVisible()) return;
-  await Promise.allSettled(cameras.map((cam) => refreshCameraTileSnapshot(cam.id)));
+  await Promise.allSettled(
+    cameras
+      .filter((cam) => cam?.hasSnapshot !== false)
+      .map((cam) => refreshCameraTileSnapshot(cam.id)),
+  );
 }
 
 function openCameraFullscreen(src, cameraId) {

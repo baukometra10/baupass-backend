@@ -590,18 +590,29 @@
     return segments;
   }
 
+  let openaiTtsUnavailable = false;
+
   function isOpenAiTtsBillingError(result) {
     const code = String(result?.error || "").trim();
-    if (["openai_quota_exceeded", "openai_auth_error", "openai_not_configured", "openai_rate_limit"].includes(code)) {
+    if (["openai_quota_exceeded", "openai_auth_error", "openai_not_configured", "openai_rate_limit", "tts_failed"].includes(code)) {
       return true;
     }
     const hint = String(result?.hint || "");
-    return /insufficient_quota|exceeded your current quota|invalid_api_key|authentication_error/i.test(hint);
+    return /insufficient_quota|exceeded your current quota|invalid_api_key|authentication_error|not_configured/i.test(hint);
+  }
+
+  function markOpenAiTtsUnavailable(result) {
+    if (isOpenAiTtsBillingError(result)) {
+      openaiTtsUnavailable = true;
+    }
   }
 
   function fetchTtsBlob(text, lang, options = {}) {
     if (isSupportReadonlySession()) {
       return Promise.reject(new Error("support_session_read_only"));
+    }
+    if (openaiTtsUnavailable) {
+      return Promise.resolve({ error: "openai_not_configured", hint: "", status: 0 });
     }
     const url = options.speakUrl || "/api/ai/speak";
     return fetch(url, {
@@ -623,6 +634,7 @@
             hint: payload?.hint || "",
             status: res.status,
           };
+          markOpenAiTtsUnavailable(detail);
           if (!options.suppressTtsErrorEvent) {
             global.dispatchEvent(new CustomEvent("baupass-ai-tts-error", { detail }));
           }
@@ -680,10 +692,18 @@
     let billingError = false;
     const segOpts = { ...options, suppressTtsErrorEvent: true };
     for (let i = startIdx; i < segments.length; i++) {
+      if (openaiTtsUnavailable) {
+        billingError = true;
+        break;
+      }
       dispatchSpeakingState(true, { preparing: true });
       const part = await fetchTtsBlob(segments[i], lang, segOpts);
       if (!part?.blob?.size) {
-        if (isOpenAiTtsBillingError(part)) billingError = true;
+        if (isOpenAiTtsBillingError(part)) {
+          billingError = true;
+          markOpenAiTtsUnavailable(part);
+          break;
+        }
         continue;
       }
       dispatchSpeakingState(true, { preparing: false });
