@@ -279,28 +279,69 @@ function loadStoredSessionToken() {
   }
 }
 
-function persistSessionToken(value) {
+function hasTabScopedSessionOverride() {
+  try {
+    return Boolean(
+      WP?.getSessionItem?.(SESSION_TOKEN_STORAGE_KEY)
+      || WP?.getSessionItem?.(ADMIN_TOKEN_STORAGE_KEY),
+    );
+  } catch {
+    return false;
+  }
+}
+
+function shouldUseTabScopedSession(userLike) {
+  const role = String(userLike?.role || state.currentUser?.role || "").toLowerCase();
+  return Boolean(
+    userLike?.support_read_only
+    || state.currentUser?.support_read_only
+    || state.supportLoginContext?.companyId
+    || loadSupportLoginContext()?.companyId
+    || hasTabScopedSessionOverride()
+    || role === "company-admin" && state.supportLoginContext?.companyId,
+  );
+}
+
+function persistSessionToken(value, { scoped = shouldUseTabScopedSession() } = {}) {
   try {
     const next = String(value || "").trim();
     if (next) {
+      if (scoped) {
+        WP?.setSessionItem?.(SESSION_TOKEN_STORAGE_KEY, next);
+        WP?.setSessionItem?.(ADMIN_TOKEN_STORAGE_KEY, next);
+        return;
+      }
       wpSet(SESSION_TOKEN_STORAGE_KEY, next);
       wpSet(ADMIN_TOKEN_STORAGE_KEY, next);
     } else {
-      wpRemove(SESSION_TOKEN_STORAGE_KEY);
-      wpRemove(ADMIN_TOKEN_STORAGE_KEY);
+      if (scoped || hasTabScopedSessionOverride()) {
+        WP?.removeSessionItem?.(SESSION_TOKEN_STORAGE_KEY);
+        WP?.removeSessionItem?.(ADMIN_TOKEN_STORAGE_KEY);
+      } else {
+        wpRemove(SESSION_TOKEN_STORAGE_KEY);
+        wpRemove(ADMIN_TOKEN_STORAGE_KEY);
+      }
     }
   } catch {
     // ignore storage failures (private mode / quota)
   }
 }
 
-function persistAdminSessionUser(user, { bootstrapE2E = false } = {}) {
+function persistAdminSessionUser(user, { bootstrapE2E = false, scoped = shouldUseTabScopedSession(user) } = {}) {
   const snapshot = user && typeof user === "object" ? user : null;
   try {
     if (snapshot?.id) {
-      wpSet(ADMIN_USER_STORAGE_KEY, JSON.stringify(snapshot));
+      if (scoped) {
+        WP?.setSessionItem?.(ADMIN_USER_STORAGE_KEY, JSON.stringify(snapshot));
+      } else {
+        wpSet(ADMIN_USER_STORAGE_KEY, JSON.stringify(snapshot));
+      }
     } else {
-      wpRemove(ADMIN_USER_STORAGE_KEY);
+      if (scoped || hasTabScopedSessionOverride()) {
+        WP?.removeSessionItem?.(ADMIN_USER_STORAGE_KEY);
+      } else {
+        wpRemove(ADMIN_USER_STORAGE_KEY);
+      }
     }
   } catch {
     // ignore storage failures
@@ -20349,8 +20390,13 @@ function clearSession() {
   sessionKnownExpired = true;
   sessionBootstrapInFlight = null;
   token = "";
-  persistSessionToken("");
-  wpRemove(ADMIN_USER_STORAGE_KEY);
+  const scoped = shouldUseTabScopedSession();
+  persistSessionToken("", { scoped });
+  if (scoped || hasTabScopedSessionOverride()) {
+    WP?.removeSessionItem?.(ADMIN_USER_STORAGE_KEY);
+  } else {
+    wpRemove(ADMIN_USER_STORAGE_KEY);
+  }
   state.currentUser = null;
   state.companyAccessBlocked = null;
   state.tenantWhiteLabel = { active: false, displayName: "", logoData: "" };
@@ -20439,11 +20485,11 @@ async function restoreSessionFromBootstrap() {
     state.companyAccessBlocked = bootstrap?.companyAccessBlocked || null;
     if (bootstrap?.token) {
       token = bootstrap.token;
-      persistSessionToken(token);
+      persistSessionToken(token, { scoped: shouldUseTabScopedSession(bootstrap?.user) });
     }
     if (bootstrap?.user) {
       state.currentUser = bootstrap.user;
-      persistAdminSessionUser(bootstrap.user, { bootstrapE2E: true });
+      persistAdminSessionUser(bootstrap.user, { bootstrapE2E: true, scoped: shouldUseTabScopedSession(bootstrap.user) });
       state.companyAccessBlocked = bootstrap.companyAccessBlocked || state.companyAccessBlocked || null;
       if (bootstrap.user.role === "superadmin") {
         const previewCid = String(bootstrap.user.preview_company_id || "").trim();
@@ -36180,9 +36226,9 @@ async function handleLoginSubmit(event) {
     state.loginSetupEmailPending = false;
     sessionKnownExpired = false;
     token = payload.token;
-    persistSessionToken(token);
+    persistSessionToken(token, { scoped: shouldUseTabScopedSession(payload.user) });
     state.currentUser = payload.user;
-    persistAdminSessionUser(payload.user, { bootstrapE2E: true });
+    persistAdminSessionUser(payload.user, { bootstrapE2E: true, scoped: shouldUseTabScopedSession(payload.user) });
     if (String(payload.user?.role || "").toLowerCase() === "superadmin") {
       superadminUiPreviewCompanyId = "";
       companyBrandingPreviewOverride = "";

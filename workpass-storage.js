@@ -95,14 +95,38 @@
 
   const SESSION_TOKEN_KEYS = [KEYS.SESSION_TOKEN, KEYS.ADMIN_TOKEN];
   const COMPANY_STORAGE_KEYS = [KEYS.PREVIEW_COMPANY_ID, KEYS.ADMIN_COMPANY];
+  const TAB_SCOPED_KEYS = new Set([
+    KEYS.SESSION_TOKEN,
+    KEYS.ADMIN_TOKEN,
+    KEYS.ADMIN_USER,
+    KEYS.ADMIN_SESSION,
+    KEYS.SUPPORT_LOGIN_CONTEXT,
+  ]);
 
   function legacyFor(canonicalKey) {
     return LEGACY_BY_CANONICAL[canonicalKey] || "";
   }
 
+  function isTabScopedKey(canonicalKey) {
+    return TAB_SCOPED_KEYS.has(canonicalKey);
+  }
+
+  function getSessionItem(canonicalKey) {
+    if (!canonicalKey || !isTabScopedKey(canonicalKey)) return null;
+    try {
+      return global.sessionStorage.getItem(canonicalKey);
+    } catch {
+      return null;
+    }
+  }
+
   function getItem(canonicalKey) {
     if (!canonicalKey) return null;
     try {
+      if (isTabScopedKey(canonicalKey)) {
+        const sessionValue = global.sessionStorage.getItem(canonicalKey);
+        if (sessionValue !== null && sessionValue !== "") return sessionValue;
+      }
       const current = global.localStorage.getItem(canonicalKey);
       if (current !== null && current !== "") return current;
       const legacyKey = legacyFor(canonicalKey);
@@ -129,12 +153,30 @@
     }
   }
 
+  function setSessionItem(canonicalKey, value) {
+    if (!canonicalKey || !isTabScopedKey(canonicalKey)) return;
+    try {
+      global.sessionStorage.setItem(canonicalKey, value);
+    } catch {
+      // ignore quota / private mode
+    }
+  }
+
   function removeItem(canonicalKey) {
     if (!canonicalKey) return;
     try {
       global.localStorage.removeItem(canonicalKey);
       const legacyKey = legacyFor(canonicalKey);
       if (legacyKey) global.localStorage.removeItem(legacyKey);
+    } catch {
+      // ignore
+    }
+  }
+
+  function removeSessionItem(canonicalKey) {
+    if (!canonicalKey || !isTabScopedKey(canonicalKey)) return;
+    try {
+      global.sessionStorage.removeItem(canonicalKey);
     } catch {
       // ignore
     }
@@ -218,16 +260,22 @@
 
   function clearSessionTokens() {
     SESSION_TOKEN_KEYS.forEach((key) => removeItem(key));
+    SESSION_TOKEN_KEYS.forEach((key) => removeSessionItem(key));
     removeItem(KEYS.ADMIN_USER);
+    removeSessionItem(KEYS.ADMIN_USER);
     removeItem(KEYS.ADMIN_SESSION);
+    removeSessionItem(KEYS.ADMIN_SESSION);
   }
 
   global.WorkPassStorage = {
     KEYS,
     LEGACY_BY_CANONICAL,
     getItem,
+    getSessionItem,
     setItem,
+    setSessionItem,
     removeItem,
+    removeSessionItem,
     migrateOnce,
     readSessionToken,
     persistSessionToken,
