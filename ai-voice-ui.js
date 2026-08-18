@@ -170,6 +170,8 @@
   }
 
   function isSupportReadonlySession() {
+    const WP = global.WorkPassStorage;
+    if (WP?.isSupportAssistQuietMode) return WP.isSupportAssistQuietMode();
     try {
       if (document.body?.classList?.contains("support-assist-spectator-active")) return true;
       const WP = global.WorkPassStorage;

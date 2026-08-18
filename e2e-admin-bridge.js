@@ -58,6 +58,8 @@
   }
 
   function isSupportReadonlySession() {
+    const WP = global.WorkPassStorage;
+    if (WP?.isSupportAssistQuietMode) return WP.isSupportAssistQuietMode();
     try {
       if (global.document?.body?.classList?.contains("support-assist-spectator-active")) return true;
       const rawUser = wpGet(WP?.KEYS?.ADMIN_USER || "workpass-admin-user") || "{}";

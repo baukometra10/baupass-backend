@@ -27,6 +27,8 @@
   }
 
   function isSupportReadonlySession() {
+    const WP = global.WorkPassStorage;
+    if (WP?.isSupportAssistQuietMode) return WP.isSupportAssistQuietMode();
     try {
       if (global.document?.body?.classList?.contains("support-assist-spectator-active")) return true;
       const USER_KEY = global.WorkPassStorage?.KEYS?.ADMIN_USER || "workpass-admin-user";
@@ -220,6 +222,7 @@
   }
 
   function startAdminGlobalRealtime() {
+    if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) return;
     if (adminRealtimeStop || isAdminChatPage()) return;
     const { token, companyId } = getAdminCredentials();
     if (!token || !companyId || !global.SUPPIXChatRealtime?.startAdminChatRealtime) return;

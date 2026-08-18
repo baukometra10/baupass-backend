@@ -561,6 +561,10 @@ window.addEventListener("message", (event) => {
   }
   const token = String(event.data.token || "").trim();
   if (!token) return;
+  const userFromParent = event.data.user;
+  if (userFromParent && typeof userFromParent === "object" && userFromParent.id) {
+    wpSet(USER_KEY, JSON.stringify(userFromParent));
+  }
   const prevToken = String(wpGet(TOKEN_KEY) || "").trim();
   const nextCid = String(event.data.companyId || "").trim();
   const prevCid = String(activeCompanyId() || "").trim();
@@ -746,6 +750,7 @@ function getUser() {
 
 function isSupportReadOnlySession() {
   try {
+    if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) return true;
     return Boolean(getUser()?.support_read_only);
   } catch {
     return false;

@@ -8718,6 +8718,15 @@ async function loadSectorTerminology() {
     window.__baupassSector = { sector: "construction", terms: {}, productLine: "" };
     return;
   }
+  if (
+    isSupportReadOnlyMode()
+    || loadSupportLoginContext()?.companyId
+    || getSupportAssistAgentState()
+    || window.WorkPassStorage?.isSupportAssistQuietMode?.()
+  ) {
+    window.__baupassSector = { sector: "construction", terms: {}, productLine: "" };
+    return;
+  }
   try {
     let url = `${API_BASE}/api/platform/sector-config?lang=${encodeURIComponent(getStoredUiLang())}`;
     const companyId = typeof getEffectiveUiCompanyId === "function"
@@ -19479,6 +19488,7 @@ function broadcastSessionToEmbeds() {
     token,
     companyId: getEffectiveUiCompanyId(),
     lang: getStoredUiLang(),
+    user: state.currentUser,
   });
 }
 
@@ -19688,6 +19698,7 @@ function loadEnterpriseEmbed(viewName) {
             token,
             companyId: getEffectiveUiCompanyId(),
             lang,
+            user: state.currentUser,
           },
           window.location.origin,
         );
@@ -21215,6 +21226,9 @@ async function openInboxMailDetail(inboxId, cardEl) {
 
 async function loadDocumentInbox(options = {}) {
   const { silent = false } = options;
+  if (isSupportReadOnlyMode()) {
+    return;
+  }
   const container = document.querySelector("#docInboxList");
   if (container && !silent) {
     container.innerHTML = `<div class="empty-state">${escapeHtml(uiT("statusLoading"))}</div>`;
@@ -40240,6 +40254,9 @@ async function exportLeaveCsv() {
  */
 async function loadLeaveRequests(filterStatus = null, options = {}) {
   const silent = Boolean(options.silent);
+  if (isSupportReadOnlyMode()) {
+    return;
+  }
   try {
     const sessionToken = loadStoredSessionToken();
     if (!sessionToken) {

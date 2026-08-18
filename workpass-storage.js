@@ -120,12 +120,52 @@
     }
   }
 
+  /** Support tab is active — do not leak main-tab credentials from localStorage. */
+  function hasActiveSupportTabScope() {
+    try {
+      const ctxRaw = global.sessionStorage.getItem(KEYS.SUPPORT_LOGIN_CONTEXT);
+      if (ctxRaw) {
+        const ctx = JSON.parse(ctxRaw);
+        if (ctx?.companyId) return true;
+      }
+      const userRaw = global.sessionStorage.getItem(KEYS.ADMIN_USER);
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        if (user?.support_read_only) return true;
+      }
+      const watchRaw = global.sessionStorage.getItem("baupass-support-assist-watch");
+      if (watchRaw) {
+        const watch = JSON.parse(watchRaw);
+        if (watch?.watchToken) return true;
+      }
+    } catch {
+      // ignore parse errors
+    }
+    return false;
+  }
+
+  function isSupportAssistQuietMode() {
+    try {
+      if (hasActiveSupportTabScope()) return true;
+      if (global.document?.body?.classList?.contains("support-assist-spectator-active")) return true;
+      const userRaw = getItem(KEYS.ADMIN_USER);
+      if (userRaw) {
+        const user = JSON.parse(userRaw);
+        if (user?.support_read_only) return true;
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  }
+
   function getItem(canonicalKey) {
     if (!canonicalKey) return null;
     try {
       if (isTabScopedKey(canonicalKey)) {
         const sessionValue = global.sessionStorage.getItem(canonicalKey);
         if (sessionValue !== null && sessionValue !== "") return sessionValue;
+        if (hasActiveSupportTabScope()) return sessionValue;
       }
       const current = global.localStorage.getItem(canonicalKey);
       if (current !== null && current !== "") return current;
@@ -226,6 +266,13 @@
   }
 
   function readSessionToken() {
+    if (hasActiveSupportTabScope()) {
+      for (const key of SESSION_TOKEN_KEYS) {
+        const val = String(getSessionItem(key) || "").trim();
+        if (val) return val;
+      }
+      return "";
+    }
     for (const key of SESSION_TOKEN_KEYS) {
       const val = String(getItem(key) || "").trim();
       if (val) return val;
@@ -284,6 +331,8 @@
     clearSessionTokens,
     SESSION_TOKEN_KEYS,
     COMPANY_STORAGE_KEYS,
+    hasActiveSupportTabScope,
+    isSupportAssistQuietMode,
   };
 
   migrateOnce();

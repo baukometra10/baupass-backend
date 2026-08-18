@@ -833,6 +833,8 @@
   }
 
   function isSupportReadonlySession() {
+    const WP = global.WorkPassStorage;
+    if (WP?.isSupportAssistQuietMode) return WP.isSupportAssistQuietMode();
     try {
       if (document.body?.classList?.contains("support-assist-spectator-active")) return true;
       const WP = global.WorkPassStorage;
@@ -1126,6 +1128,10 @@
   }
 
   function refreshVisibility() {
+    if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) {
+      setFabVisible(false);
+      return;
+    }
     const token = readToken() || "";
     const tip = token ? token.slice(-16) : "";
     if (tip !== lastWelcomeTokenTip) {
@@ -1532,6 +1538,10 @@
   }
 
   async function loadCompanyOperatorSettings() {
+    if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) {
+      companyOperatorEnabled = false;
+      return false;
+    }
     const now = Date.now();
     if (now - _lastSettingsProbe < 8000 && companySettingsLoaded) return companyOperatorEnabled;
     _lastSettingsProbe = now;
@@ -2324,6 +2334,7 @@
   }
 
   async function probeOpsPulse() {
+    if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) return;
     const now = Date.now();
     if (now - _lastPulseProbe < 45000) return;
     _lastPulseProbe = now;
@@ -2759,6 +2770,7 @@
 
   let _lastProbe = 0;
   async function probeSessionRole() {
+    if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) return;
     const now = Date.now();
     if (now - _lastProbe < 15000) return;
     _lastProbe = now;
