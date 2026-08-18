@@ -308,6 +308,7 @@
   function persistSessionToken(token) {
     const val = String(token || "").trim();
     if (!val) return;
+    clearAuthUnusable();
     if (hasActiveSupportTabScope()) {
       SESSION_TOKEN_KEYS.forEach((key) => setSessionItem(key, val));
       return;
@@ -358,11 +359,142 @@
     "/api/guardian/remediate",
     "/api/platform/sector-config",
     "/api/companies/current/branding",
+    "/api/platform/enterprise-catalog",
   ];
+
+  const AUTH_UNUSABLE_KEY = "workpass-auth-unusable";
+  const TTS_UNUSABLE_KEY = "workpass-tts-unavailable";
+  const AUTH_UNUSABLE_TTL_MS = 120000;
+  const AUTH_DEAD_ALLOW = [
+    "/api/login",
+    "/api/logout",
+    "/api/support-assist/",
+    "/api/public/",
+    "/api/health",
+  ];
+
+  function isAuthUnusable() {
+    try {
+      const at = Number(global.sessionStorage.getItem(AUTH_UNUSABLE_KEY) || 0);
+      return at > 0 && (Date.now() - at) < AUTH_UNUSABLE_TTL_MS;
+    } catch {
+      return false;
+    }
+  }
+
+  function markAuthUnusable() {
+    try {
+      global.sessionStorage.setItem(AUTH_UNUSABLE_KEY, String(Date.now()));
+    } catch {
+      // ignore
+    }
+  }
+
+  function getSharedRoot() {
+    try {
+      if (global.top && global.top !== global && global.top.sessionStorage) {
+        return global.top;
+      }
+    } catch {
+      // cross-origin iframe
+    }
+    return global;
+  }
+
+  function clearSharedAuthSessionProbe() {
+    try {
+      getSharedRoot().__wpAuthSessionProbe = null;
+    } catch {
+      // ignore
+    }
+  }
+
+  function clearAuthUnusable() {
+    try {
+      global.sessionStorage.removeItem(AUTH_UNUSABLE_KEY);
+    } catch {
+      // ignore
+    }
+    clearSharedAuthSessionProbe();
+  }
+
+  function isTtsUnusable() {
+    try {
+      return global.sessionStorage.getItem(TTS_UNUSABLE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function markTtsUnusable() {
+    try {
+      global.sessionStorage.setItem(TTS_UNUSABLE_KEY, "1");
+    } catch {
+      // ignore
+    }
+  }
+
+  function isApiUrl(url) {
+    return String(url || "").toLowerCase().includes("/api/");
+  }
+
+  function isAuthDeadAllowed(url) {
+    const raw = String(url || "").toLowerCase();
+    return AUTH_DEAD_ALLOW.some((part) => raw.includes(part));
+  }
+
+  function noteAuthFailure(res, url) {
+    if (!res || res.status !== 401 || !isApiUrl(url) || isAuthDeadAllowed(url)) return;
+    markAuthUnusable();
+  }
+
+  function isAuthSessionProbeUrl(url) {
+    return String(url || "").toLowerCase().includes("/api/v2/auth/session");
+  }
+
+  function shareAuthSessionProbe(run) {
+    const root = getSharedRoot();
+    if (root.__wpAuthSessionProbe) {
+      return replayAuthSessionProbe(root.__wpAuthSessionProbe);
+    }
+    const p = run().then(async (res) => {
+      let body = "{}";
+      try {
+        body = await res.clone().text();
+      } catch {
+        body = "{}";
+      }
+      if (res && res.status === 401) markAuthUnusable();
+      return { status: res.status, body, ok: Boolean(res.ok) };
+    });
+    root.__wpAuthSessionProbe = p;
+    p.finally(() => {
+      setTimeout(() => {
+        if (root.__wpAuthSessionProbe === p) root.__wpAuthSessionProbe = null;
+      }, 2000);
+    });
+    return replayAuthSessionProbe(p);
+  }
+
+  function replayAuthSessionProbe(p) {
+    return p.then((shared) => new Response(shared.body, {
+      status: shared.status,
+      statusText: shared.ok ? "OK" : "Unauthorized",
+      headers: { "Content-Type": "application/json" },
+    }));
+  }
 
   function shouldBlockSupportFetch(url) {
     const raw = String(url || "").toLowerCase();
     return SUPPORT_FETCH_BLOCK.some((part) => raw.includes(part));
+  }
+
+  function syntheticAuthDeadResponse() {
+    return new Response(JSON.stringify({ error: "unauthorized" }), {
+      status: 401,
+      statusText: "Unauthorized",
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   function syntheticSupportResponse(url) {
@@ -430,14 +562,34 @@
     const originalFetch = global.fetch.bind(global);
     global.fetch = function baupassSupportFetch(input, init) {
       const url = typeof input === "string" ? input : (input && input.url) || "";
+      if (isAuthUnusable() && isApiUrl(url) && !isAuthDeadAllowed(url)) {
+        return Promise.resolve(syntheticAuthDeadResponse());
+      }
+      if ((isSupportAssistQuietMode() || isTtsUnusable()) && String(url || "").toLowerCase().includes("/api/ai/speak")) {
+        return Promise.resolve(syntheticSupportResponse(url));
+      }
       if (isSupportAssistQuietMode() && shouldBlockSupportFetch(url)) {
         return Promise.resolve(syntheticSupportResponse(url));
       }
-      if (hasActiveSupportTabScope() || isSupportAssistQuietMode()) {
-        const next = withSupportAuth(input, init);
-        return originalFetch(next[0], next[1]);
+      const run = (nextInput, nextInit) => originalFetch(nextInput, nextInit).then((res) => {
+        noteAuthFailure(res, url);
+        if (res && !res.ok && String(url || "").toLowerCase().includes("/api/ai/speak")) {
+          markTtsUnusable();
+        }
+        return res;
+      });
+      const scoped = hasActiveSupportTabScope() || isSupportAssistQuietMode();
+      const exec = () => {
+        if (scoped) {
+          const next = withSupportAuth(input, init);
+          return run(next[0], next[1]);
+        }
+        return run(input, init);
+      };
+      if (isAuthSessionProbeUrl(url)) {
+        return shareAuthSessionProbe(exec);
       }
-      return originalFetch(input, init);
+      return exec();
     };
   }
 
@@ -460,6 +612,9 @@
     COMPANY_STORAGE_KEYS,
     hasActiveSupportTabScope,
     isSupportAssistQuietMode,
+    isAuthUnusable,
+    markAuthUnusable,
+    clearAuthUnusable,
   };
 
   migrateOnce();

@@ -17,9 +17,11 @@ class AuthDomainRoutesTest(unittest.TestCase):
         data = res.get_json()
         self.assertFalse(data.get("authenticated"))
 
-    def test_logout_requires_auth(self):
-        res = self.client.post("/api/logout")
-        self.assertIn(res.status_code, (401, 403))
+    def test_logout_is_idempotent_without_session(self):
+        res = self.client.post("/api/logout", json={})
+        self.assertEqual(res.status_code, 200)
+        data = res.get_json()
+        self.assertTrue(data.get("ok"))
 
     def test_login_route_registered(self):
         self.assertIn("/api/login", self.rules)

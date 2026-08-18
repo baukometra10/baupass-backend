@@ -11,7 +11,7 @@
   }
 
   const VERSION = "20260725r";
-  const VOICE_UI_VERSION = "20260818voice15";
+  const VOICE_UI_VERSION = "20260818voice16";
   const HANDS_FREE_KEY = "baupass-ai-hands-free";
   const SESSION_STORE_KEY = "baupass-aio-session-id";
   const WELCOME_STORE_KEY = "baupass-aio-welcome";
@@ -1650,6 +1650,11 @@
 
   async function maybeSpeakWelcome() {
     if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) return;
+    try {
+      if (global.sessionStorage?.getItem("workpass-tts-unavailable") === "1") return;
+    } catch {
+      // ignore
+    }
     if (isEmbeddedFrame() || shouldSkipPage()) return;
     if (!welcomeVoiceEnabled() || !voiceEnabled()) return;
     if (!isAdminSurfaceReady()) return;
@@ -2775,6 +2780,7 @@
   let _lastProbe = 0;
   async function probeSessionRole() {
     if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) return;
+    if (global.WorkPassStorage?.isAuthUnusable?.()) return;
     const now = Date.now();
     if (now - _lastProbe < 15000) return;
     _lastProbe = now;

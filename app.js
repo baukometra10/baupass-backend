@@ -306,6 +306,7 @@ function persistSessionToken(value, { scoped = shouldUseTabScopedSession() } = {
   try {
     const next = String(value || "").trim();
     if (next) {
+      WP?.clearAuthUnusable?.();
       if (scoped) {
         WP?.setSessionItem?.(SESSION_TOKEN_STORAGE_KEY, next);
         WP?.setSessionItem?.(ADMIN_TOKEN_STORAGE_KEY, next);

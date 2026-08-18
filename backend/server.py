@@ -10440,14 +10440,25 @@ def login():
     return perform_login()
 
 
-@require_auth
 def logout():
     from backend.app.domains.auth.service import AuthService
 
-    AuthService().logout(g.token, g.current_user)
-    response = jsonify({"ok": True})
+    token = get_auth_token_from_request()
     cookie_token = (request.cookies.get(SESSION_COOKIE_NAME, "") or "").strip()
-    if cookie_token and cookie_token == (g.token or ""):
+    if token:
+        try:
+            user = get_user_from_session_token(token) or {}
+            AuthService().logout(token, user)
+        except Exception:
+            try:
+                db = get_db()
+                db.execute("DELETE FROM sessions WHERE token = ?", (token,))
+                db.commit()
+            except Exception:
+                pass
+    response = jsonify({"ok": True})
+    # Cookie is origin-wide. An iframe with a dead Bearer must not wipe another tab's session cookie.
+    if not cookie_token or cookie_token == token:
         response.delete_cookie(SESSION_COOKIE_NAME)
     return response
 

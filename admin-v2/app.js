@@ -49,6 +49,9 @@ async function tryEmbedSessionFromControlPass() {
   if (tryEmbedSessionFromControlPass._cooldownUntil && Date.now() < tryEmbedSessionFromControlPass._cooldownUntil) {
     return false;
   }
+  if (WP?.isAuthUnusable?.()) {
+    return false;
+  }
   document.documentElement.classList.add("embed-document");
   document.body.classList.add("embed-mode", "admin-v2-embed");
   const parentToken = WP?.hasActiveSupportTabScope?.()
@@ -287,6 +290,7 @@ function clearSessionAndShowLogin(message) {
 
 async function probeSessionToken(token) {
   if (!token) return false;
+  if (window.WorkPassStorage?.isAuthUnusable?.()) return false;
   if (isSupportReadOnlySession() && probeSessionToken._ok) return true;
   if (probeSessionToken._cooldownUntil && Date.now() < probeSessionToken._cooldownUntil) {
     return Boolean(probeSessionToken._lastOk);
@@ -10500,12 +10504,17 @@ function waitForEmbedParentToken(timeoutMs) {
 async function bootSession() {
   showSessionBoot();
   const forceLoginForm = new URLSearchParams(location.search).get("login") === "1";
+  let embedSessionOk = false;
   if (isEmbedMode()) {
-    await tryEmbedSessionFromControlPass();
+    embedSessionOk = await tryEmbedSessionFromControlPass();
   }
-  let token = (wpGet(TOKEN_KEY) || "").trim();
+  let token = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || "").trim();
   if (forceLoginForm && !isEmbedMode()) {
     showLogin();
+    return;
+  }
+  if (isEmbedMode() && window.WorkPassStorage?.isAuthUnusable?.()) {
+    showEmbedAuthRequired(t("login.embedRequired"));
     return;
   }
   if (
@@ -10516,13 +10525,13 @@ async function bootSession() {
     token = await waitForEmbedParentToken(1600);
     if (token) wpSet(TOKEN_KEY, token);
   }
-  if (!token || !(await probeSessionToken(token))) {
+  if (!embedSessionOk && (!token || !(await probeSessionToken(token)))) {
     const adopted = await adoptControlPassTokenIfValid();
     if (adopted) {
       token = wpGet(TOKEN_KEY);
     }
   }
-  if (!token || !(await probeSessionToken(token))) {
+  if (!embedSessionOk && (!token || !(await probeSessionToken(token)))) {
     if (isEmbedMode()) {
       showEmbedAuthRequired(
         token ? t("login.sessionExpired") : t("login.embedRequired"),
@@ -10533,11 +10542,13 @@ async function bootSession() {
     return;
   }
   try {
-    const data = await api("/api/v2/auth/session");
-    if (data.user) {
-      wpSet(USER_KEY, JSON.stringify(data.user));
-      if (data.user.company_id && !wpGet(COMPANY_KEY)) {
-        wpSet(COMPANY_KEY, data.user.company_id);
+    if (!embedSessionOk) {
+      const data = await api("/api/v2/auth/session");
+      if (data.user) {
+        wpSet(USER_KEY, JSON.stringify(data.user));
+        if (data.user.company_id && !wpGet(COMPANY_KEY)) {
+          wpSet(COMPANY_KEY, data.user.company_id);
+        }
       }
     }
     await loadCompanies();

@@ -604,6 +604,11 @@
   function markOpenAiTtsUnavailable(result) {
     if (isOpenAiTtsBillingError(result)) {
       openaiTtsUnavailable = true;
+      try {
+        global.sessionStorage.setItem("workpass-tts-unavailable", "1");
+      } catch {
+        // ignore
+      }
     }
   }
 
@@ -611,8 +616,15 @@
     if (isSupportReadonlySession()) {
       return Promise.reject(new Error("support_session_read_only"));
     }
-    if (openaiTtsUnavailable) {
-      return Promise.resolve({ error: "openai_not_configured", hint: "", status: 0 });
+    try {
+      if (openaiTtsUnavailable || global.sessionStorage.getItem("workpass-tts-unavailable") === "1") {
+        openaiTtsUnavailable = true;
+        return Promise.resolve({ error: "openai_not_configured", hint: "", status: 0 });
+      }
+    } catch {
+      if (openaiTtsUnavailable) {
+        return Promise.resolve({ error: "openai_not_configured", hint: "", status: 0 });
+      }
     }
     const url = options.speakUrl || "/api/ai/speak";
     return fetch(url, {
