@@ -12,8 +12,10 @@ class _FakeDb:
         return None
 
 
-def test_start_session_and_poll_events():
+def test_start_session_and_poll_events(monkeypatch, tmp_path):
+    assist_service._STORE_OVERRIDE = tmp_path / "support_assist.db"
     assist_service._sessions.clear()
+    assist_service._schema_ready = False
     db = _FakeDb()
     started = assist_service.start_session(db, company_id="co-demo", actor_name="Support Team")
     assert started["watchToken"]
@@ -40,7 +42,8 @@ def test_start_session_and_poll_events():
         watch_token=started["watchToken"],
         since_seq=polled["seq"],
     )
-    assert any(evt["type"] == "mouse" for evt in polled2["events"])
+    assert polled2["lastMouse"]["x"] == 12
+    assert polled2["lastMouse"]["y"] == 34
 
     assert assist_service.get_active_session("co-demo")["watchToken"] == started["watchToken"]
 
@@ -56,8 +59,10 @@ def test_start_session_and_poll_events():
     assert any(evt["type"] == "session_end" for evt in ended["events"])
 
 
-def test_get_watch_session_validates_token():
+def test_get_watch_session_validates_token(tmp_path):
+    assist_service._STORE_OVERRIDE = tmp_path / "support_assist.db"
     assist_service._sessions.clear()
+    assist_service._schema_ready = False
     db = _FakeDb()
     started = assist_service.start_session(db, company_id="co-demo", actor_name="Support Team")
     row = assist_service.get_watch_session("co-demo", started["watchToken"])

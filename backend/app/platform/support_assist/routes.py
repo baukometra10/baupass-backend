@@ -27,10 +27,9 @@ def register_support_assist_blueprint(flask_app) -> None:
             return jsonify({"error": str(exc)}), 400
 
     @support_assist_bp.post("/support-assist/pulse")
-    @require_auth
     def support_assist_pulse():
         payload = request.get_json(silent=True) or {}
-        company_id = str(payload.get("companyId") or payload.get("company_id") or g.current_user.get("company_id") or "").strip()
+        company_id = str(payload.get("companyId") or payload.get("company_id") or "").strip()
         watch_token = str(payload.get("watchToken") or payload.get("watch_token") or "").strip()
         event_type = str(payload.get("type") or "pulse").strip()
         event_payload = payload.get("payload") if isinstance(payload.get("payload"), dict) else {}
@@ -50,7 +49,6 @@ def register_support_assist_blueprint(flask_app) -> None:
             return jsonify({"error": code}), status
 
     @support_assist_bp.post("/support-assist/end")
-    @require_auth
     def support_assist_end():
         payload = request.get_json(silent=True) or {}
         company_id = str(payload.get("companyId") or payload.get("company_id") or "").strip()

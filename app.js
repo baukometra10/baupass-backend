@@ -923,9 +923,26 @@ function syncSupportAssistSpectatorWatch() {
   }
 
   const role = String(getCurrentUser()?.role || "").toLowerCase();
-  if (role === "superadmin") {
+  if (role === "superadmin" || isSupportReadOnlyMode()) {
     assist.stopPublicSpectatorWatch?.();
     assist.stopPolling?.();
+    return;
+  }
+
+  if (state.supportLoginContext?.companyId || loadSupportLoginContext()?.companyId) {
+    assist.stopPublicSpectatorWatch?.();
+    assist.stopPolling?.();
+    return;
+  }
+
+  if (!token || !state.currentUser) {
+    const watch = assist.readWatchState?.();
+    if (watch?.watchToken && watch?.companyId && !watch?.agent) {
+      return;
+    }
+    assist.stopPublicSpectatorWatch?.();
+    assist.stopPolling?.();
+    assist.resetSpectatorUi?.();
     return;
   }
 
@@ -939,14 +956,10 @@ function syncSupportAssistSpectatorWatch() {
     assist.stopPublicSpectatorWatch?.();
     return;
   }
-  assist.rememberCompany?.(companyId);
 
-  if (role === "company-admin" && token) {
+  if (role === "company-admin") {
     void assist.checkActiveForCompanyAdmin?.(companyId, token);
-    return;
   }
-
-  assist.startPublicSpectatorWatch?.(companyId);
 }
 const UI_TRANSLATIONS = {
   de: {
@@ -36293,25 +36306,14 @@ async function handleLogout(options = {}) {
     prepareSupportLoginScreen();
     await pulseSupportAssist("login_screen", captureSupportAssistUiState({ authVisible: true, loggedIn: false }));
   }
-  try {
-    if (token) {
-      await apiRequest(API_BASE + "/api/logout", { method: "POST" });
-    }
-  } catch {
-    // ignore logout call failures
-  }
-
-  if (!preserveSupportContext) {
-    if (assistAgent) {
-      await pulseSupportAssist("session_end", { restoreCustomer: true });
-    }
+  if (assistAgent && !preserveSupportContext) {
+    await pulseSupportAssist("session_end", { restoreCustomer: true });
     if (window.BaupassSupportAssist?.resetAfterAgentLogout) {
       await window.BaupassSupportAssist.resetAfterAgentLogout(assistAgent);
-    } else if (assistAgent && window.BaupassSupportAssist?.stopAgentBroadcast) {
+    } else if (window.BaupassSupportAssist?.stopAgentBroadcast) {
       window.BaupassSupportAssist.stopAgentBroadcast(assistAgent);
-    } else {
-      window.BaupassSupportAssist?.resetSpectatorUi?.();
     }
+    window.BaupassSupportAssist?.resetSpectatorUi?.();
     clearSupportLoginContext();
     state.supportLoginContext = null;
     stripSupportLoginUrlParams();
@@ -36323,19 +36325,27 @@ async function handleLogout(options = {}) {
       "support-assist-spectator-login-ready",
     );
   }
+  try {
+    if (token) {
+      await apiRequest(API_BASE + "/api/logout", { method: "POST" });
+    }
+  } catch {
+    // ignore logout call failures
+  }
+
   clearSession();
   if (preserveSupportContext) {
     prepareSupportLoginScreen();
     refreshAll();
-    syncSupportAssistSpectatorWatch();
+    window.BaupassSupportAssist?.stopPublicSpectatorWatch?.();
     focusLoginInput({ force: true });
     return;
   }
   resetSupportLoginScopeUi();
   setView("dashboard");
   stopCamera();
+  window.BaupassSupportAssist?.resetSpectatorUi?.();
   refreshAll();
-  syncSupportAssistSpectatorWatch();
 }
 
 function setAccountFormFeedback(element, message, type = "info") {

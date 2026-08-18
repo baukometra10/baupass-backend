@@ -358,6 +358,9 @@
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
+        if (data.lastMouse) {
+          moveRemoteCursor({ ...data.lastMouse, actorName: data.actorName || state.actorName });
+        }
         handleAssistEvents(data.events || [], data.actorName || state.actorName);
         if (data.ended || data.active === false) {
           releaseSpectatorLock();
@@ -391,7 +394,7 @@
     setSpectatorMode(true, state?.actorName, "Support verbindet…");
     stopPolling();
     pollOnce();
-    pollTimer = global.setInterval(pollOnce, 180);
+    pollTimer = global.setInterval(pollOnce, 90);
   }
 
   function stopPolling() {
@@ -495,6 +498,7 @@
     fetch(`${apiBase()}/api/support-assist/pulse`, {
       method: "POST",
       credentials: "include",
+      keepalive: true,
       headers,
       body: JSON.stringify({
         companyId: state.companyId,
@@ -520,7 +524,7 @@
         agentMoveTimer = global.setTimeout(() => {
           agentMoveTimer = null;
           flushAgentMouse(state);
-        }, 35);
+        }, 24);
       }
     };
     global.document.addEventListener("mousemove", onMove, { passive: true });
@@ -662,12 +666,23 @@
   function resumeIfNeeded() {
     const urlState = resumeAgentFromUrl();
     if (urlState) {
+      const token = global.WorkPassStorage?.readSessionToken?.() || global.localStorage?.getItem("workpass-session-token") || "";
+      if (!token) {
+        writeWatchState(null);
+        return;
+      }
       startAgentBroadcast(urlState);
       return;
     }
     const state = readWatchState();
     if (!state?.companyId || !state?.watchToken) return;
     if (state.agent) {
+      const token = global.WorkPassStorage?.readSessionToken?.() || global.localStorage?.getItem("workpass-session-token") || "";
+      if (!token) {
+        writeWatchState(null);
+        resetSpectatorUi();
+        return;
+      }
       startAgentBroadcast(state);
       return;
     }
