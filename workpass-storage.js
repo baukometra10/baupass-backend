@@ -133,6 +133,10 @@
         const user = JSON.parse(userRaw);
         if (user?.support_read_only) return true;
       }
+      const tabToken =
+        global.sessionStorage.getItem(KEYS.SESSION_TOKEN)
+        || global.sessionStorage.getItem(KEYS.ADMIN_TOKEN);
+      if (tabToken) return true;
       const watchRaw = global.sessionStorage.getItem("baupass-support-assist-watch");
       if (watchRaw) {
         const watch = JSON.parse(watchRaw);
@@ -388,7 +392,14 @@
       || (input && typeof input !== "string" && input.headers)
       || undefined,
     );
-    if (token && !headers.has("Authorization")) {
+    const scoped = hasActiveSupportTabScope() || isSupportAssistQuietMode();
+    if (scoped) {
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      } else {
+        headers.delete("Authorization");
+      }
+    } else if (token && !headers.has("Authorization")) {
       headers.set("Authorization", `Bearer ${token}`);
     }
     try {
@@ -407,10 +418,10 @@
     } catch {
       // ignore
     }
-    if (!token && !headers.has("X-Support-Watch-Token")) {
-      return [input, init];
+    if (scoped || token || headers.has("X-Support-Watch-Token")) {
+      return [input, { ...(init || {}), headers }];
     }
-    return [input, { ...(init || {}), headers }];
+    return [input, init];
   }
 
   function installSupportFetchGuard() {

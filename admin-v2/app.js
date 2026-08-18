@@ -963,7 +963,7 @@ function apiBase() {
 }
 
 async function api(path, options = {}) {
-  const token = wpGet(TOKEN_KEY);
+  const token = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || "").trim();
   const headers = {
     Accept: "application/json",
     ...(options.headers || {}),

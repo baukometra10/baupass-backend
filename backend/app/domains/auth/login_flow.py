@@ -408,14 +408,13 @@ def _perform_login_core(srv, login_error):
             "preview_company_id": "",
         }
     response = jsonify({"ok": True, "token": token, "user": serialized_user})
-    # Tab-scoped support sessions use Bearer only. Writing baupass_session would
-    # overwrite the superadmin cookie in every tab on this origin.
-    if not support_read_only:
-        response.set_cookie(
-            srv.SESSION_COOKIE_NAME,
-            token,
-            httponly=True,
-            samesite="None" if srv.should_use_cross_site_cookie() else "Lax",
-            secure=srv.is_request_secure(),
-        )
+    # Iframes (Live-Map, Betrieb, Lohn) authenticate document/fetch via this cookie.
+    # Other tabs still send Bearer from localStorage, which wins over the cookie.
+    response.set_cookie(
+        srv.SESSION_COOKIE_NAME,
+        token,
+        httponly=True,
+        samesite="None" if srv.should_use_cross_site_cookie() else "Lax",
+        secure=srv.is_request_secure(),
+    )
     return response
