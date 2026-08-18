@@ -247,7 +247,17 @@ def test_memory_pressure_relief_playbook():
     assert "collected" in first
 
 
-def test_trim_dead_letter_below_threshold():
+def test_worker_check_tracks_dunning_mode(monkeypatch):
+    monkeypatch.setenv("BAUPASS_INVOICE_RETRY_MODE", "thread")
+    monkeypatch.setenv("BAUPASS_WORKER_SESSION_CLEANUP_MODE", "thread")
+    monkeypatch.setenv("BAUPASS_DAILY_JOBS_MODE", "thread")
+    monkeypatch.setenv("BAUPASS_DUNNING_MODE", "rq")
+    monkeypatch.setattr(runner, "get_worker_heartbeat_stats", lambda: {"active": 0})
+    check = runner._collect_worker_check()
+    assert check["rqModesEnabled"] is True
+    assert check["degraded"] is True
+    assert check["reason"] == "rq_enabled_but_no_heartbeat"
+
     playbooks.reset_playbook_state_for_tests()
     skipped = playbooks.trim_task_dead_letter(dead_letter_total=3)
     assert skipped.get("skipped") == "below_threshold"

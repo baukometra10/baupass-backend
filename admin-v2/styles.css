@@ -3805,6 +3805,31 @@ body.theme-white .platform-section-kicker {
   background-clip: padding-box;
 }
 
+@media (max-width: 1200px) {
+  #dashboardView {
+    height: auto;
+    min-height: 100dvh;
+    max-height: none;
+    overflow: auto;
+  }
+  #dashboardView .app-shell,
+  .app-shell {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+  .app-sidebar {
+    height: auto;
+    max-height: none;
+  }
+  .app-content {
+    overflow: visible;
+  }
+  .billing-tab-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* WorkPass Lohn — fast in-page inbox (avoids full Ops page cold start) */
 .lohn-drawer {
   position: fixed;

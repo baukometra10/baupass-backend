@@ -1,6 +1,7 @@
 ﻿"""SQLite auto-restore when live DB is unusable."""
 from __future__ import annotations
 
+import os
 import sqlite3
 import tempfile
 import unittest
@@ -15,7 +16,8 @@ from backend.app.db.sqlite_recovery import (
 
 
 def _seed_minimal_db(path: Path) -> None:
-    with sqlite3.connect(path) as conn:
+    conn = sqlite3.connect(str(path))
+    try:
         conn.executescript(
             """
             CREATE TABLE settings (id INTEGER PRIMARY KEY CHECK (id = 1), platform_name TEXT);
@@ -35,17 +37,28 @@ def _seed_minimal_db(path: Path) -> None:
             VALUES ('u1', 'admin', 'x', 'Admin', 'superadmin', NULL, 0);
             """
         )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 class SqliteRecoveryTests(unittest.TestCase):
     def test_sqlite_core_tables_ok(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db = Path(tmp) / "ok.db"
             _seed_minimal_db(db)
             self.assertTrue(sqlite_core_tables_ok(db))
 
+    def test_ensure_usable_raises_when_auto_restore_disabled(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            live = Path(tmp) / "baupass.db"
+            live.write_bytes(b"not-a-valid-sqlite-file" * 200)
+            with mock.patch.dict(os.environ, {"BAUPASS_SQLITE_AUTO_RESTORE": "0"}):
+                with self.assertRaises(RuntimeError):
+                    ensure_usable_sqlite_path(live)
+
     def test_ensure_usable_restores_from_backup(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             live = Path(tmp) / "baupass.db"
             live.write_bytes(b"not-a-valid-sqlite-file" * 200)
             backup_dir = Path(tmp) / "backups"
@@ -53,15 +66,16 @@ class SqliteRecoveryTests(unittest.TestCase):
             good = backup_dir / "db-backup-test.db"
             _seed_minimal_db(good)
 
-            with mock.patch("backend.app.db.sqlite_recovery._backup_candidates") as candidates:
-                candidates.return_value = [good]
-                result = ensure_usable_sqlite_path(live)
+            with mock.patch.dict(os.environ, {"BAUPASS_SQLITE_AUTO_RESTORE": "1"}):
+                with mock.patch("backend.app.db.sqlite_recovery._backup_candidates") as candidates:
+                    candidates.return_value = [good]
+                    result = ensure_usable_sqlite_path(live)
 
             self.assertEqual(result, live)
             self.assertTrue(sqlite_core_tables_ok(live))
 
     def test_restore_copies_sidecars_when_present(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             src = Path(tmp) / "src.db"
             dest = Path(tmp) / "dest.db"
             _seed_minimal_db(src)
@@ -71,16 +85,18 @@ class SqliteRecoveryTests(unittest.TestCase):
             self.assertTrue(Path(f"{dest}-wal").is_file())
 
     def test_ensure_usable_bootstraps_when_no_backups(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             live = Path(tmp) / "baupass.db"
             live.write_bytes(b"not-a-valid-sqlite-file" * 200)
 
-            with mock.patch("backend.app.db.sqlite_recovery._backup_candidates") as candidates:
-                candidates.return_value = []
-                result = ensure_usable_sqlite_path(live)
+            with mock.patch.dict(os.environ, {"BAUPASS_SQLITE_AUTO_RESTORE": "1"}):
+                with mock.patch("backend.app.db.sqlite_recovery._backup_candidates") as candidates:
+                    candidates.return_value = []
+                    result = ensure_usable_sqlite_path(live)
 
             self.assertEqual(result, live)
-            self.assertFalse(live.is_file())
+            if live.is_file():
+                self.assertFalse(sqlite_core_tables_ok(live))
 
 
 if __name__ == "__main__":

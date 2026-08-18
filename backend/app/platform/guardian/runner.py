@@ -68,10 +68,21 @@ def _collect_worker_check() -> dict[str, Any]:
                 "BAUPASS_INVOICE_RETRY_MODE",
                 "BAUPASS_WORKER_SESSION_CLEANUP_MODE",
                 "BAUPASS_DAILY_JOBS_MODE",
+                "BAUPASS_DUNNING_MODE",
             )
         )
-        degraded = rq_modes_enabled and int(workers.get("active", 0)) < 1
-        return {"workers": workers, "rqModesEnabled": rq_modes_enabled, "degraded": degraded}
+        active = int(workers.get("active", 0) or 0)
+        degraded = rq_modes_enabled and active < 1
+        return {
+            "workers": workers,
+            "rqModesEnabled": rq_modes_enabled,
+            "degraded": degraded,
+            "reason": (
+                "rq_enabled_but_no_heartbeat"
+                if degraded
+                else ("ok" if rq_modes_enabled else "thread_fallback")
+            ),
+        }
     except Exception as exc:
         return {"workers": {"status": "unavailable"}, "error": str(exc), "degraded": True}
 

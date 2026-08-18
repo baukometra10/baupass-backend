@@ -1689,6 +1689,16 @@
       transform: translateY(-1px);
     }
     .wrap { display: flex; flex: 1; min-height: 0; position: relative; }
+    @media (max-width: 1200px) and (min-width: 801px) {
+      .wrap { flex-direction: column; }
+      .side {
+        width: 100%;
+        max-width: none;
+        max-height: 34vh;
+        border-inline-start: none;
+        border-top: 1px solid var(--border);
+      }
+    }
     .worker-row {
       padding: 0.45rem 0.65rem;
       border-bottom: 1px solid var(--border);

@@ -119,5 +119,67 @@ def main() -> int:
     return 0
 
 
+_embedded_started = False
+
+
+def rq_modes_enabled() -> bool:
+    return any(
+        str(os.getenv(name, "thread")).strip().lower() == "rq"
+        for name in (
+            "BAUPASS_INVOICE_RETRY_MODE",
+            "BAUPASS_WORKER_SESSION_CLEANUP_MODE",
+            "BAUPASS_DAILY_JOBS_MODE",
+            "BAUPASS_DUNNING_MODE",
+        )
+    )
+
+
+def start_embedded_worker(queue_names: list[str] | None = None) -> bool:
+    """Run the RQ worker in a daemon thread inside the web process.
+
+    Railway volumes are 1:1 with a service, so a second worker container cannot
+    share SQLite at /data. Embedding the worker keeps heartbeats and jobs on
+    the same database. Disable with BAUPASS_EMBED_RQ_WORKER=0 when a dedicated
+    worker service is attached to Postgres.
+    """
+    global _embedded_started
+    if _embedded_started:
+        return True
+    if str(os.getenv("BAUPASS_ENV", "")).strip().lower() == "testing":
+        return False
+    if str(os.getenv("BAUPASS_EMBED_RQ_WORKER", "1")).strip().lower() in {"0", "false", "no", "off"}:
+        return False
+    if not rq_modes_enabled():
+        return False
+    redis_url = (os.getenv("REDIS_URL") or "").strip()
+    if not redis_url:
+        logger.warning("Embedded RQ worker skipped: REDIS_URL is empty")
+        return False
+
+    names = queue_names or ["critical", "high", "default", "low", "scheduled"]
+
+    def _run() -> None:
+        try:
+            import redis
+            from rq import Queue, Worker
+
+            conn = redis.Redis.from_url(redis_url, decode_responses=False)
+            conn.ping()
+            heartbeat_stop = _start_worker_heartbeat(conn)
+            queues = [Queue(name, connection=conn) for name in names]
+            worker = Worker(queues, connection=conn, exception_handlers=[_dead_letter_exception_handler])
+            try:
+                worker.work(burst=False, with_scheduler=True)
+            finally:
+                heartbeat_stop.set()
+        except Exception:
+            logger.exception("Embedded RQ worker stopped")
+
+    threading.Thread(target=_run, name="baupass-embedded-rq", daemon=True).start()
+    _embedded_started = True
+    logger.info("Embedded RQ worker started for queues: %s", ", ".join(names))
+    return True
+
+
 if __name__ == "__main__":
     sys.exit(main())

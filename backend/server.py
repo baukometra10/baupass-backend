@@ -27819,7 +27819,20 @@ def _normalize_imap_host_port(host_value, port_value):
 
 
 def _imap_login_with_fallback(conn, username, password):
-    """Try IMAP LOGIN first, then AUTHENTICATE PLAIN for stricter servers."""
+    """Try IMAP LOGIN, then AUTHENTICATE PLAIN, then XOAUTH2 when a token is set."""
+    oauth_token = (
+        os.getenv("BAUPASS_IMAP_OAUTH_ACCESS_TOKEN")
+        or os.getenv("SUPPIX_IMAP_OAUTH_ACCESS_TOKEN")
+        or ""
+    ).strip()
+    if oauth_token:
+        xoauth = f"user={username}\x01auth=Bearer {oauth_token}\x01\x01".encode("utf-8")
+        try:
+            conn.authenticate("XOAUTH2", lambda _challenge: xoauth)
+            return "XOAUTH2"
+        except Exception as oauth_exc:
+            if not password:
+                raise Exception(f"{oauth_exc} (XOAUTH2)") from oauth_exc
     try:
         conn.login(username, password)
         return "LOGIN"
@@ -27829,7 +27842,7 @@ def _imap_login_with_fallback(conn, username, password):
         if not auth_like:
             raise
 
-        auth_bytes = f"\0{username}\0{password}".encode("utf-8", errors="ignore")
+        auth_bytes = f"\0{username}\x00{password}".encode("utf-8", errors="ignore")
         try:
             conn.authenticate("PLAIN", lambda _challenge: auth_bytes)
             return "AUTHENTICATE_PLAIN"
@@ -27849,9 +27862,10 @@ def _imap_auth_hint(host, error_text):
     ):
         return (
             " (Microsoft 365/Outlook: Basic Auth ist abgeschaltet. "
-            "App-Passwort unter Konto > Sicherheit erzeugen, IMAP im Postfach aktivieren, "
-            "und als Benutzer die vollständige UPN-Adresse verwenden — nicht den Alias. "
-            "OAuth2/XOAUTH2 ist der unterstützte Weg; normales Kontopasswort reicht nicht.)"
+            "Setzen Sie BAUPASS_MAIL_INBOUND_PROVIDER=graph plus Graph-App "
+            "(Application Mail.Read, Client Secret, Mailbox-UPN) — "
+            "nicht das normale Kontopasswort und nicht das Entra-Login-Token. "
+            "IMAP XOAUTH2 nur mit gültigem Access-Token.)"
         )
     return (
         " (Outlook-IMAP: IMAP muss im Postfach aktiv sein; Shared Mailbox mit der Postfach-UPN anmelden.)"
@@ -27866,6 +27880,19 @@ def poll_imap_inbox():
     import imaplib
     import email as _email
     import email.policy as _email_policy
+
+    try:
+        from backend.app.platform.mail.graph_inbound import graph_inbound_configured, poll_graph_inbox
+    except Exception:
+        graph_inbound_configured = lambda: False  # type: ignore[assignment]
+        poll_graph_inbox = None  # type: ignore[assignment]
+    if graph_inbound_configured():
+        try:
+            with app.app_context():
+                db = get_db()
+                return poll_graph_inbox(db)
+        except Exception as graph_exc:
+            return {"status": "error", "newEmails": 0, "provider": "microsoft_graph", "error": str(graph_exc)}
 
     _result = {"status": "ok", "newEmails": 0}
     poll_id = f"imap-{secrets.token_hex(5)}"

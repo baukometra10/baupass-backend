@@ -308,11 +308,23 @@ def _prepare_runtime(mode: str) -> None:
         }
         print(f"[baupass] Background job modes: {rq_modes}", flush=True)
         if any(mode == "rq" for mode in rq_modes.values()):
-            print(
-                "[baupass] RQ modes active — run worker service: "
-                "python -m backend.app.tasks.worker",
-                flush=True,
-            )
+            try:
+                from backend.app.tasks.worker import start_embedded_worker
+
+                if start_embedded_worker():
+                    print(
+                        "[baupass] Embedded RQ worker started in this process "
+                        "(BAUPASS_EMBED_RQ_WORKER=0 to use a dedicated worker service)",
+                        flush=True,
+                    )
+                else:
+                    print(
+                        "[baupass] RQ modes active — start worker: "
+                        "python -m backend.app.tasks.worker",
+                        flush=True,
+                    )
+            except Exception as worker_exc:
+                print(f"[baupass] WARNING: embedded RQ worker failed: {worker_exc}", flush=True)
         schedule_archive = _env_flag("BAUPASS_SCHEDULE_ACCESS_ARCHIVE")
         if schedule_archive and task_queues_ready():
             try:

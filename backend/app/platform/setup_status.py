@@ -40,10 +40,17 @@ def _email_status_block() -> dict[str, Any]:
         or ""
     ).strip()
     imap_configured = bool(imap_host and imap_user and imap_pass)
+    try:
+        from backend.app.platform.mail.graph_inbound import graph_inbound_configured
+
+        graph_mail = graph_inbound_configured()
+    except Exception:
+        graph_mail = False
     return {
         "outboundConfigured": outbound,
-        "imapConfigured": imap_configured,
-        "configured": outbound or imap_configured,
+        "imapConfigured": imap_configured or graph_mail,
+        "graphInboundConfigured": graph_mail,
+        "configured": outbound or imap_configured or graph_mail,
         "smtp": outbound,
     }
 

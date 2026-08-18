@@ -308,16 +308,24 @@ def postgres_replica_preflight(config: Optional[dict[str, Any]] = None) -> dict[
 
 def get_database_health(config: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """Unified database health check for readiness and observability."""
-    if is_postgres_configured(config):
-        try:
-            from backend.app.db.runtime import postgres_runtime_enabled
+    pg_configured = is_postgres_configured(config)
+    runtime_on = False
+    try:
+        from backend.app.db.runtime import postgres_runtime_enabled
 
-            if postgres_runtime_enabled():
-                return {
-                    "backend": "postgres",
-                    **postgres_preflight(config),
-                    "read_replica": postgres_replica_preflight(config),
-                }
+        runtime_on = bool(postgres_runtime_enabled())
+    except Exception:
+        runtime_on = False
+
+    if pg_configured and runtime_on:
+        try:
+            return {
+                "backend": "postgres",
+                **postgres_preflight(config),
+                "read_replica": postgres_replica_preflight(config),
+                "postgresConfigured": True,
+                "postgresRuntime": True,
+            }
         except Exception:
             pass
 
@@ -335,7 +343,7 @@ def get_database_health(config: Optional[dict[str, Any]] = None) -> dict[str, An
                 )
             except sqlite3.Error:
                 pass
-        return {
+        payload = {
             "backend": "sqlite",
             "enabled": True,
             "status": "ok",
@@ -343,9 +351,25 @@ def get_database_health(config: Optional[dict[str, Any]] = None) -> dict[str, An
             "size_bytes": db_size,
             "companies_total": companies_total,
             "companies_active": companies_active,
+            "postgresConfigured": pg_configured,
+            "postgresRuntime": False,
         }
+        if pg_configured:
+            payload["cutover"] = "sqlite_active_postgres_provisioned"
+            payload["hint"] = (
+                "PostgreSQL is provisioned but unused. Run sqlite_to_postgres.py on a staging copy first. "
+                "Do not set BAUPASS_PG_REQUIRED=1 on live until runtime has been stable."
+            )
+        return payload
     except Exception as exc:
-        return {"backend": "sqlite", "enabled": True, "status": "error", "error": str(exc)}
+        return {
+            "backend": "sqlite",
+            "enabled": True,
+            "status": "error",
+            "error": str(exc),
+            "postgresConfigured": pg_configured,
+            "postgresRuntime": runtime_on,
+        }
 
 
 def get_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
