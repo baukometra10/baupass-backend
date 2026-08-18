@@ -16,8 +16,8 @@ import re
 from flask import Flask, Response, request
 
 # Bump when shipping FAB stability / voice prep fixes (cache bust for all pages).
-FAB_SCRIPT_VERSION = os.getenv("BAUPASS_AI_OPERATOR_FAB_VERSION", "20260817sector1").strip() or "20260817sector1"
-VOICE_UI_VERSION = os.getenv("BAUPASS_AI_VOICE_UI_VERSION", "20260725voice13").strip() or "20260725voice13"
+FAB_SCRIPT_VERSION = os.getenv("BAUPASS_AI_OPERATOR_FAB_VERSION", "20260818fab14").strip() or "20260818fab14"
+VOICE_UI_VERSION = os.getenv("BAUPASS_AI_VOICE_UI_VERSION", "20260818voice14").strip() or "20260818voice14"
 
 _SCRIPT_MARKER = "ai-operator-fab.js"
 _VOICE_MARKER = "ai-voice-ui.js"

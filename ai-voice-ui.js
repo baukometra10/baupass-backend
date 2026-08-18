@@ -169,6 +169,23 @@
     return Boolean(SpeechRecognition && global.isSecureContext);
   }
 
+  function isSupportReadonlySession() {
+    try {
+      if (document.body?.classList?.contains("support-assist-spectator-active")) return true;
+      const WP = global.WorkPassStorage;
+      const raw = String(
+        WP?.getItem?.(WP?.KEYS?.ADMIN_USER || "workpass-admin-user")
+        || localStorage.getItem("workpass-admin-user")
+        || sessionStorage.getItem("workpass-admin-user")
+        || ""
+      ).trim();
+      if (!raw) return false;
+      return Boolean(JSON.parse(raw)?.support_read_only);
+    } catch {
+      return false;
+    }
+  }
+
   function resolveLiveSpeechLang(options) {
     const uiLang = resolveLang(options?.lang);
     return LANG_MAP[uiLang] || resolveSpeechLang(options);
@@ -581,6 +598,9 @@
   }
 
   function fetchTtsBlob(text, lang, options = {}) {
+    if (isSupportReadonlySession()) {
+      return Promise.reject(new Error("support_session_read_only"));
+    }
     const url = options.speakUrl || "/api/ai/speak";
     return fetch(url, {
       method: "POST",
@@ -846,6 +866,9 @@
   }
 
   async function transcribeWithWhisper(blob, options) {
+    if (isSupportReadonlySession()) {
+      throw new Error("support_session_read_only");
+    }
     const audioB64 = await blobToBase64(blob);
     const headers = { "Content-Type": "application/json" };
     if (typeof options.authHeaders === "function") {

@@ -5,6 +5,7 @@
   let publicWatchTimer = null;
   let publicWatchCompanyId = "";
   let lastSeq = 0;
+  let pollInFlight = false;
   let bannerEl = null;
   let cursorEl = null;
   let statusEl = null;
@@ -345,10 +346,14 @@
   }
 
   async function pollOnce() {
+    if (pollInFlight) {
+      return;
+    }
     const state = readWatchState();
     if (!state?.companyId || !state?.watchToken) {
       return;
     }
+    pollInFlight = true;
     const q = new URLSearchParams({
       company_id: state.companyId,
       watch_token: state.watchToken,
@@ -375,6 +380,8 @@
       }
     } catch {
       // ignore transient network errors
+    } finally {
+      pollInFlight = false;
     }
   }
 
@@ -405,6 +412,7 @@
       global.clearInterval(pollTimer);
       pollTimer = null;
     }
+    pollInFlight = false;
   }
 
   async function fetchPublicActive(companyId) {

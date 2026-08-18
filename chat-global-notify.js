@@ -26,6 +26,18 @@
     return { token, companyId };
   }
 
+  function isSupportReadonlySession() {
+    try {
+      if (global.document?.body?.classList?.contains("support-assist-spectator-active")) return true;
+      const USER_KEY = global.WorkPassStorage?.KEYS?.ADMIN_USER || "workpass-admin-user";
+      const raw = String(wpGet(USER_KEY) || "").trim();
+      if (!raw) return false;
+      return Boolean(JSON.parse(raw)?.support_read_only);
+    } catch {
+      return false;
+    }
+  }
+
   function isAdminChatPage() {
     const path = String(global.location?.pathname || "");
     return /\/admin-v2\/chat\.html$/i.test(path) || /\/chat\.html$/i.test(path);
@@ -64,6 +76,7 @@
   }
 
   async function handleAdminVoiceCallPush(data = {}) {
+    if (isSupportReadonlySession()) return;
     const callId = String(data.callId || data.call_id || "").trim();
     if (callId && global.SUPPIXChatRealtime?.claimChatNotifyKey) {
       if (!global.SUPPIXChatRealtime.claimChatNotifyKey(`voice-call:${callId}`)) {

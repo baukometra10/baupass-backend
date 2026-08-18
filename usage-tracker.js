@@ -49,7 +49,21 @@
     };
   }
 
+  function isSupportReadonlySession() {
+    try {
+      if (global.document?.body?.classList?.contains("support-assist-spectator-active")) return true;
+      const WP = global.WorkPassStorage;
+      const raw = String((WP?.getItem ? WP.getItem(WP?.KEYS?.ADMIN_USER || "workpass-admin-user") : global.localStorage?.getItem("workpass-admin-user")) || "").trim();
+      if (!raw) return false;
+      const user = JSON.parse(raw);
+      return Boolean(user?.support_read_only);
+    } catch {
+      return false;
+    }
+  }
+
   function track(featureId, source) {
+    if (isSupportReadonlySession()) return;
     const fid = String(featureId || "").trim().toLowerCase().slice(0, 64);
     const src = String(source || "unknown").trim().slice(0, 32);
     if (!fid) return;

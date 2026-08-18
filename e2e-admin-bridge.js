@@ -57,6 +57,19 @@
       || "";
   }
 
+  function isSupportReadonlySession() {
+    try {
+      if (global.document?.body?.classList?.contains("support-assist-spectator-active")) return true;
+      const rawUser = wpGet(WP?.KEYS?.ADMIN_USER || "workpass-admin-user") || "{}";
+      const user = JSON.parse(rawUser);
+      if (user?.support_read_only) return true;
+      const supportContext = wpGet(WP?.KEYS?.SUPPORT_LOGIN_CONTEXT || "workpass-support-login-context");
+      return Boolean(supportContext);
+    } catch {
+      return false;
+    }
+  }
+
   function authHeaders(extra = {}) {
     const token = getToken();
     return {
@@ -74,6 +87,10 @@
   }
 
   async function ensureIdentity() {
+    if (isSupportReadonlySession()) {
+      identityReady = false;
+      return false;
+    }
     const adminUserId = getAdminUserId();
     if (!cryptoReady()) {
       identityReady = false;

@@ -11,7 +11,7 @@
   }
 
   const VERSION = "20260725r";
-  const VOICE_UI_VERSION = "20260725voice13";
+  const VOICE_UI_VERSION = "20260818voice14";
   const HANDS_FREE_KEY = "baupass-ai-hands-free";
   const SESSION_STORE_KEY = "baupass-aio-session-id";
   const WELCOME_STORE_KEY = "baupass-aio-welcome";
@@ -816,6 +816,7 @@
   }
 
   function readToken() {
+    if (isSupportReadonlySession()) return "";
     if (global.BaupassAuth?.getToken) {
       const tok = String(global.BaupassAuth.getToken() || "").trim();
       if (tok) return tok;
@@ -829,6 +830,23 @@
       || localStorage.getItem("workpass-admin-token")
       || ""
     ).trim();
+  }
+
+  function isSupportReadonlySession() {
+    try {
+      if (document.body?.classList?.contains("support-assist-spectator-active")) return true;
+      const WP = global.WorkPassStorage;
+      const raw = String(
+        WP?.getItem?.(WP?.KEYS?.ADMIN_USER || "workpass-admin-user")
+        || localStorage.getItem("workpass-admin-user")
+        || sessionStorage.getItem("workpass-admin-user")
+        || ""
+      ).trim();
+      if (!raw) return false;
+      return Boolean(JSON.parse(raw)?.support_read_only);
+    } catch {
+      return false;
+    }
   }
 
   function readCompanyId() {

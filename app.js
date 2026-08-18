@@ -20379,7 +20379,41 @@ function stopBackendStatusMonitor() {
   }
 }
 
-function clearSession() {
+function terminateSupportAssistAgentSession(reason = "session_lost") {
+  const assistAgent = getSupportAssistAgentState();
+  if (!assistAgent) return;
+  try {
+    void pulseSupportAssist("session_end", { restoreCustomer: true, reason });
+  } catch {
+    // ignore pulse failures
+  }
+  try {
+    if (window.BaupassSupportAssist?.resetAfterAgentLogout) {
+      void window.BaupassSupportAssist.resetAfterAgentLogout(assistAgent);
+    } else if (window.BaupassSupportAssist?.stopAgentBroadcast) {
+      window.BaupassSupportAssist.stopAgentBroadcast(assistAgent);
+    }
+  } catch {
+    // ignore assist teardown failures
+  }
+  window.BaupassSupportAssist?.resetSpectatorUi?.();
+  clearSupportLoginContext();
+  state.supportLoginContext = null;
+  stripSupportLoginUrlParams();
+  resetSupportLoginScopeUi();
+  document.body?.classList?.remove(
+    "support-assist-mirror-app",
+    "support-assist-mirror-auth",
+    "support-assist-spectator-active",
+    "support-assist-spectator-login-ready",
+  );
+}
+
+function clearSession(options = {}) {
+  const { preserveAssistAgent = false } = options;
+  if (!preserveAssistAgent) {
+    terminateSupportAssistAgentSession("session_cleared");
+  }
   stopLiveAccessPoll();
   stopHeartbeat();
   stopBackendStatusMonitor();
@@ -20536,6 +20570,9 @@ function startHeartbeat() {
       // Do not log users out on transient backend failures (502/503/network blips).
       // Logout only when backend explicitly confirms inactive/unauthorized session.
       if (response.status === 401 || payload?.active === false) {
+        if (isSupportAssistUiActive() && response.status === 401) {
+          return;
+        }
         clearSession();
         refreshAll();
       }
@@ -36240,8 +36277,13 @@ async function handleLoginSubmit(event) {
     }
     broadcastSessionToEmbeds();
     void pulseSupportAssist("ui_state", captureSupportAssistUiState({ loggedIn: true, authVisible: false }));
-    clearSupportLoginContext();
-    state.supportLoginContext = null;
+    if (!payload.user?.support_read_only) {
+      clearSupportLoginContext();
+      state.supportLoginContext = null;
+    } else if (supportContext?.companyId) {
+      state.supportLoginContext = supportContext;
+      persistSupportLoginContext(supportContext);
+    }
     elements.loginForm.reset();
     updateLoginOtpVisibility();
     startHeartbeat();
@@ -36493,7 +36535,7 @@ async function handleLogout(options = {}) {
     // ignore logout call failures
   }
 
-  clearSession();
+  clearSession({ preserveAssistAgent: preserveSupportContext });
   if (preserveSupportContext) {
     prepareSupportLoginScreen();
     refreshAll();
@@ -40983,8 +41025,13 @@ warnStaleControlAssets();
     checkUiBuildFreshness().catch(() => {});
     startLiveAccessPoll();
     syncSupportAssistSpectatorWatch();
-  } catch {
-    clearSession();
+  } catch (error) {
+    const code = String(error?.code || error?.message || "").toLowerCase();
+    if (["session_expired", "invalid_session", "unauthorized"].includes(code)) {
+      clearSession();
+    } else {
+      console.warn("[boot] non-fatal init error:", error);
+    }
   } finally {
     if (bootLoader) bootLoader.classList.add("hidden");
     refreshAll();

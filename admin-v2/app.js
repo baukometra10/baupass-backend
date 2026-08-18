@@ -392,6 +392,10 @@ function summarizeIntegrationResult(res) {
 }
 
 async function applyTenantBrandingFromApi() {
+  if (isSupportReadOnlySession()) {
+    await loadSectorTerminologyForAdmin();
+    return;
+  }
   const user = getUser();
   let cid = String(user?.company_id || "").trim();
   if (user?.role === "superadmin") {
@@ -423,6 +427,16 @@ function resolveAdminCompanyId() {
 }
 
 async function loadSectorTerminologyForAdmin() {
+  if (isSupportReadOnlySession()) {
+    setSectorTermOverrides({});
+    window.__adminV2Sector = "construction";
+    window.__adminV2SectorLabel = "";
+    window.__adminV2SectorTerms = {};
+    document.body.dataset.operatingSector = "construction";
+    $("sectorChip")?.classList.add("hidden");
+    applyI18n();
+    return;
+  }
   const cid = resolveAdminCompanyId();
   const lang = getLang();
   try {
@@ -727,6 +741,14 @@ function getUser() {
     return JSON.parse(wpGet(USER_KEY) || "{}");
   } catch {
     return {};
+  }
+}
+
+function isSupportReadOnlySession() {
+  try {
+    return Boolean(getUser()?.support_read_only);
+  } catch {
+    return false;
   }
 }
 
