@@ -573,6 +573,7 @@
   </div>
 
   <script src="/enterprise-hub-i18n.js?v=20260705b"></script>
+  <script src="/sector-copy.js?v=20260818opsSector1"></script>
   <script src="/embed-helpers.js?v=20260705b"></script>
   <script src="/ai-voice-ui.js?v=20260725voice12"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
@@ -667,7 +668,11 @@
     function t(key) {
       const strings = window.BaupassHubI18n?.STRINGS || HUB_I18N;
       const pack = strings[HUB_LANG] || strings.en || strings.de || {};
-      return pack[key] || strings.de?.[key] || strings.en?.[key] || key;
+      let text = pack[key] || strings.de?.[key] || strings.en?.[key] || key;
+      if (window.BaupassSectorCopy?.applyFromWindow) {
+        text = window.BaupassSectorCopy.applyFromWindow(text, HUB_LANG);
+      }
+      return text;
     }
 
     function tf(key, vars = {}) {
@@ -692,6 +697,12 @@
       };
     }
 
+    function hubSectorText(value) {
+      const text = String(value || "");
+      if (!text) return "";
+      return window.BaupassSectorCopy?.applyFromWindow?.(text, HUB_LANG) || text;
+    }
+
     function hubCatalogText(obj, field) {
       if (!obj) return "";
       const i18n = obj[`${field}I18n`];
@@ -702,14 +713,14 @@
           || i18n.de
           || i18n.ar
           || "";
-        if (localized) return localized;
+        if (localized) return hubSectorText(localized);
       }
       const cap = HUB_LANG.charAt(0).toUpperCase() + HUB_LANG.slice(1);
       const direct = obj[`${field}${cap}`];
-      if (direct) return direct;
-      if (HUB_LANG === "de") return obj[`${field}De`] || obj[`${field}En`] || obj[field] || "";
-      if (HUB_LANG === "ar") return obj[`${field}Ar`] || obj[`${field}En`] || obj[field] || "";
-      return obj[`${field}En`] || obj[field] || obj[`${field}De`] || obj[`${field}Ar`] || "";
+      if (direct) return hubSectorText(direct);
+      if (HUB_LANG === "de") return hubSectorText(obj[`${field}De`] || obj[`${field}En`] || obj[field] || "");
+      if (HUB_LANG === "ar") return hubSectorText(obj[`${field}Ar`] || obj[`${field}En`] || obj[field] || "");
+      return hubSectorText(obj[`${field}En`] || obj[field] || obj[`${field}De`] || obj[`${field}Ar`] || "");
     }
 
     function layerTitle(layer) {
@@ -723,11 +734,11 @@
       if (!it) return "";
       const notes = it.noteI18n;
       if (notes && typeof notes === "object") {
-        return notes[HUB_LANG] || notes.en || notes.de || notes.ar || "";
+        return hubSectorText(notes[HUB_LANG] || notes.en || notes.de || notes.ar || "");
       }
       const note = String(it.note || "").trim();
       if (!note) return "";
-      if (HUB_LANG === "ar" || !/[\u0600-\u06FF]/.test(note)) return note;
+      if (HUB_LANG === "ar" || !/[\u0600-\u06FF]/.test(note)) return hubSectorText(note);
       return "";
     }
 
@@ -1655,7 +1666,14 @@
           history.replaceState({}, "", url);
           updateEmbedLayersHint();
           void refreshHubTenantBranding();
-          loadCatalog();
+          Promise.resolve(window.BaupassSectorCopy?.loadConfig?.({
+            lang: HUB_LANG,
+            companyId: selectedCompanyId,
+            fetchJson: (u) => api(u),
+          })).finally(() => {
+            applyStaticI18n();
+            loadCatalog();
+          });
         };
       } catch {
         sel.classList.add("hidden");
@@ -1980,6 +1998,14 @@
       }
       await loadCompaniesForSuperadmin();
       await refreshHubTenantBranding();
+      if (window.BaupassSectorCopy?.loadConfig) {
+        await window.BaupassSectorCopy.loadConfig({
+          lang: HUB_LANG,
+          companyId: selectedCompanyId,
+          fetchJson: (url) => api(url),
+        });
+        applyStaticI18n();
+      }
       await loadCatalog();
       if (window.BaupassAiUi) {
         window.BaupassAiUi.bindVoiceInput(hubVoiceInputOptions());

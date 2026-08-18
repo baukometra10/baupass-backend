@@ -24,14 +24,21 @@ def register_worker_ai_blueprint(flask_app) -> None:
         plan_row = get_db().execute("SELECT plan FROM companies WHERE id = ?", (company_id,)).fetchone()
         plan = (plan_row["plan"] if plan_row else "starter") or "starter"
         enabled = company_has_feature(plan, "worker_app") and is_ai_configured()
+        hints = [
+            "Wie viele Kollegen sind auf der Baustelle?",
+            "Wann war mein letzter Check-in?",
+            "Welche Dokumente laufen bald ab?",
+        ]
+        try:
+            from backend.app.platform.ai.sector_copy import rewrite_text_for_company
+
+            hints = [rewrite_text_for_company(get_db(), company_id, hint, lang="de") for hint in hints]
+        except Exception:
+            pass
         return jsonify({
             "configured": enabled,
             "plan": plan,
-            "hints": [
-                "Wie viele Kollegen sind auf der Baustelle?",
-                "Wann war mein letzter Check-in?",
-                "Welche Dokumente laufen bald ab?",
-            ],
+            "hints": hints,
         })
 
     @worker_ai_bp.post("/ai/ask")

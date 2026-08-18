@@ -128,6 +128,25 @@ class SectorCatalogTests(unittest.TestCase):
         self.assertNotIn("construction", fr)
         self.assertNotIn("chantier", fr)
 
+        titled = apply_sector_text(
+            "Auf Baustelle",
+            workers="Berechtigte",
+            site="Terminal",
+            sites="Terminals",
+            lang="de",
+        )
+        self.assertEqual(titled, "Am Terminal")
+        self.assertNotIn("Baustelle", titled)
+        all_sites = apply_sector_text(
+            "Wer ist gerade auf allen Baustellen?",
+            workers="Berechtigte",
+            site="Terminal",
+            sites="Terminals",
+            lang="de",
+        )
+        self.assertIn("Terminals", all_sites)
+        self.assertNotIn("Baustelle", all_sites)
+
 
     def test_security_admin_access_terms(self):
         cfg = sector_config("security", lang="de")

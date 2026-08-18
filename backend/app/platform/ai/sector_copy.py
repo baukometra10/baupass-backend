@@ -56,7 +56,12 @@ def apply_sector_text(
         out = out.replace("Baustellenkontrolle", site + "-Kontrolle")
         out = out.replace("Baustellen-Ausweis", f"{site}-Ausweis")
         out = out.replace("Baustellenordnung", f"{site}ordnung")
-        out = out.replace("auf der Baustelle", f"am {site}").replace("auf Baustelle", f"am {site}")
+        out = out.replace("Auf allen Baustellen", f"In allen {sites}")
+        out = out.replace("auf allen Baustellen", f"in allen {sites}")
+        out = out.replace("Auf der Baustelle", f"Am {site}")
+        out = out.replace("auf der Baustelle", f"am {site}")
+        out = out.replace("Auf Baustelle", f"Am {site}")
+        out = out.replace("auf Baustelle", f"am {site}")
         if company:
             out = out.replace("Bauunternehmen", company)
             out = out.replace("Baufirma", company)

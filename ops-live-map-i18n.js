@@ -1058,6 +1058,9 @@ window.opsMapT = function opsMapT(key, vars = {}) {
   for (const [k, v] of Object.entries(vars)) {
     text = text.replaceAll(`{${k}}`, String(v ?? ""));
   }
+  if (window.BaupassSectorCopy?.applyFromWindow) {
+    text = window.BaupassSectorCopy.applyFromWindow(text, lang);
+  }
   return text;
 };
 

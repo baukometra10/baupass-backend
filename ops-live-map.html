@@ -2239,7 +2239,8 @@
     </div>
   </div>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ops-live-map-i18n.js?v=20260810map8"></script>
+  <script src="/sector-copy.js?v=20260818opsSector1"></script>
+  <script src="/ops-live-map-i18n.js?v=20260818opsSector1"></script>
   <script>
     (function loadMapLibsDeferred() {
       const add = (src, attrs) => {
@@ -3943,6 +3944,14 @@
         }
         const role = boot?.user?.role || "";
         if (role === "company-admin") companyId = boot.user.company_id || companyId;
+        if (window.BaupassSectorCopy?.loadConfig) {
+          await window.BaupassSectorCopy.loadConfig({
+            lang: window.getOpsMapLang?.() || "de",
+            companyId,
+            fetchJson: (url) => api(url),
+          });
+          window.applyOpsMapI18n?.();
+        }
         if (role === "superadmin") {
           const sel = document.getElementById("companySelect");
           sel.style.display = "inline-block";
@@ -3957,7 +3966,14 @@
             workerMarkersById.forEach((m) => { removeWorkerMarker(m); });
             workerMarkersById.clear();
             layers.workers = [];
-            applyOpsMapBranding().finally(() => load().catch(e => alert(e.message)));
+            Promise.resolve(window.BaupassSectorCopy?.loadConfig?.({
+              lang: window.getOpsMapLang?.() || "de",
+              companyId,
+              fetchJson: (url) => api(url),
+            })).finally(() => {
+              window.applyOpsMapI18n?.();
+              applyOpsMapBranding().finally(() => load().catch(e => alert(e.message)));
+            });
           };
         }
         await applyOpsMapBranding();

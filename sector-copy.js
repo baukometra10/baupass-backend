@@ -26,7 +26,12 @@
       out = out.replaceAll("Baustellenkontrolle", site + "-Kontrolle");
       out = out.replaceAll("Baustellen-Ausweis", site + "-Ausweis");
       out = out.replaceAll("Baustellenordnung", site + "ordnung");
-      out = out.replaceAll("auf der Baustelle", "am " + site).replaceAll("auf Baustelle", "am " + site);
+      out = out.replaceAll("Auf allen Baustellen", "In allen " + sites);
+      out = out.replaceAll("auf allen Baustellen", "in allen " + sites);
+      out = out.replaceAll("Auf der Baustelle", "Am " + site);
+      out = out.replaceAll("auf der Baustelle", "am " + site);
+      out = out.replaceAll("Auf Baustelle", "Am " + site);
+      out = out.replaceAll("auf Baustelle", "am " + site);
       if (company) {
         out = out.replaceAll("Bauunternehmen", company);
         out = out.replaceAll("Baufirma", company);
@@ -158,9 +163,33 @@
     });
   }
 
+  function loadConfig(options) {
+    const opts = options && typeof options === "object" ? options : {};
+    const lang = String(opts.lang || "de").slice(0, 2);
+    const companyId = String(opts.companyId || "").trim();
+    let url = "/api/platform/sector-config?lang=" + encodeURIComponent(lang);
+    if (companyId) url += "&company_id=" + encodeURIComponent(companyId);
+    const request = typeof opts.fetchJson === "function"
+      ? Promise.resolve(opts.fetchJson(url))
+      : fetch(url, { credentials: "include" }).then((res) => (res.ok ? res.json() : null));
+    return Promise.resolve(request)
+      .then((data) => {
+        if (data && data.sector) {
+          global.__baupassSector = {
+            sector: data.sector,
+            terms: data.terms || {},
+            label: data.label || "",
+          };
+        }
+        return data || null;
+      })
+      .catch(() => null);
+  }
+
   global.BaupassSectorCopy = {
     applySectorText,
     applyFromWindow,
     resolveContext,
+    loadConfig,
   };
 })(typeof window !== "undefined" ? window : globalThis);

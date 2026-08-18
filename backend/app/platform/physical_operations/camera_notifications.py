@@ -216,6 +216,13 @@ def notify_camera_violation(
         f"{event_type}. {summary}"
         + (" · Verdächtiger Vorfall außerhalb der Betriebszeiten (nicht als Diebstahl bestätigt)." if after_hours else "")
     )
+    try:
+        from backend.app.platform.ai.sector_copy import rewrite_text_for_company
+
+        message = rewrite_text_for_company(db, company_id, message, lang="de")
+        title = rewrite_text_for_company(db, company_id, title, lang="de")
+    except Exception:
+        pass
 
     try:
         from backend.app.platform.physical_operations.security_engine import _persist_alert
@@ -382,6 +389,13 @@ def notify_camera_offline(
         f"Kamera «{camera_name or camera_id}» ({location or 'Baustelle'}) "
         f"sendet keine Heartbeats mehr. Zuletzt gesehen: {last_seen_at or 'nie'}."
     )
+    try:
+        from backend.app.platform.ai.sector_copy import rewrite_text_for_company
+
+        message = rewrite_text_for_company(db, company_id, message, lang="de")
+        title = rewrite_text_for_company(db, company_id, title, lang="de")
+    except Exception:
+        pass
 
     _notify_admin_inbox(str(company_id), title=title, message=message, severity="warning")
 

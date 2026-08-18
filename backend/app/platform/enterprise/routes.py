@@ -122,7 +122,10 @@ def register_enterprise_routes(flask_app):
 
         site_name = str(data.get("site_name", "")).strip()
         if not site_name:
-            return jsonify({"error": "site_name_required", "message": "Baustellenname fehlt."}), 400
+            from backend.app.platform.ai.sector_copy import rewrite_text_for_company
+
+            missing = rewrite_text_for_company(db, cid, "Baustellenname fehlt.", lang="de")
+            return jsonify({"error": "site_name_required", "message": missing}), 400
 
         coords = _parse_geofence_coordinates(data)
         if not coords:

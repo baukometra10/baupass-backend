@@ -522,7 +522,7 @@
   </header>
   <main id="grid"><p class="muted" id="gridLoading">Laden…</p></main>
   <script src="/embed-helpers.js?v=20260814officeLohn1"></script>
-  <script src="/sector-copy.js?v=20260817sector1"></script>
+  <script src="/sector-copy.js?v=20260818opsSector1"></script>
   <script src="/ops-center-i18n-extra.js?v=20260801lohn8"></script>
   <script>
     // Heavy realtime/CDN scripts load after first paint — they previously blocked "Laden…" for seconds.
@@ -1079,20 +1079,23 @@
         langSel.addEventListener("change", () => {
           localStorage.setItem(UI_LANG_KEY, langSel.value);
           localStorage.setItem("baupass-admin-v2-lang", langSel.value);
+          OPS_LANG = getUiLang();
           applyOpsUiLanguage();
-          if (lastPayload) {
-            render(
-              lastPayload,
-              lastForecast,
-              lastGuardianBundle,
-              lastLohnState.batches || [],
-              lastLohnState.link,
-              lastLohnState.alerts || [],
-              lastLohnState.messages || [],
-              lastLohnState.preview,
-              lastLohnState.periodRequests || [],
-            );
-          }
+          Promise.resolve(loadOpsSectorTerms()).finally(() => {
+            if (lastPayload) {
+              render(
+                lastPayload,
+                lastForecast,
+                lastGuardianBundle,
+                lastLohnState.batches || [],
+                lastLohnState.link,
+                lastLohnState.alerts || [],
+                lastLohnState.messages || [],
+                lastLohnState.preview,
+                lastLohnState.periodRequests || [],
+              );
+            }
+          });
           window.dispatchEvent(new CustomEvent("baupass-admin-lang", { detail: { lang: langSel.value } }));
         });
       }
@@ -1163,7 +1166,7 @@
       el.innerHTML = `
         <div class="label">${tr("forecastTomorrow")} · ${fc.weekdayLabel || ""}</div>
         <div class="metric" style="font-size:1.35rem">${fc.expectedOnSite ?? "—"} <span style="font-size:0.75rem;color:var(--muted)">${tr("onSiteShort")}</span></div>
-        <div class="label" style="margin-top:0.35rem">${(fc.summary || "").slice(0, 90)}…</div>`;
+        <div class="label" style="margin-top:0.35rem">${(window.BaupassSectorCopy?.applyFromWindow?.(fc.summary || "", OPS_LANG) || fc.summary || "").slice(0, 90)}…</div>`;
       el.addEventListener("click", () => {
         const base = companyLink("/ai-command-center.html", companyId);
         const q = encodeURIComponent(actionPrompts().tomorrow);
@@ -1928,27 +1931,43 @@
 
     let cachedMe = null;
 
-    async function loadMeCached() {
-      if (cachedMe) return cachedMe;
+    async function loadOpsSectorTerms() {
       try {
-        cachedMe = await apiSoft("/api/me", null, 2000);
-      } catch {
-        cachedMe = null;
-      }
-      try {
-        const cid = companyId || cachedMe?.company_id || cachedMe?.companyId || cachedMe?.preview_company_id || "";
-        let url = `/api/platform/sector-config?lang=${encodeURIComponent(OPS_LANG)}`;
-        if (cid) url += `&company_id=${encodeURIComponent(cid)}`;
-        const sectorData = await apiSoft(url, null, 2000);
-        if (sectorData?.sector) {
-          window.__baupassSector = {
-            sector: sectorData.sector,
-            terms: sectorData.terms || {},
-          };
+        const cid = String(
+          companyId || cachedMe?.company_id || cachedMe?.companyId || cachedMe?.preview_company_id || "",
+        ).trim();
+        if (window.BaupassSectorCopy?.loadConfig) {
+          await window.BaupassSectorCopy.loadConfig({
+            lang: OPS_LANG,
+            companyId: cid,
+            fetchJson: (url) => api(url),
+          });
+        } else {
+          let url = `/api/platform/sector-config?lang=${encodeURIComponent(OPS_LANG)}`;
+          if (cid) url += `&company_id=${encodeURIComponent(cid)}`;
+          const sectorData = await api(url);
+          if (sectorData?.sector) {
+            window.__baupassSector = {
+              sector: sectorData.sector,
+              terms: sectorData.terms || {},
+            };
+          }
         }
+        applyOpsUiLanguage();
       } catch {
-        // keep construction defaults
+        // auth not ready yet — retry on next load
       }
+    }
+
+    async function loadMeCached() {
+      if (!cachedMe) {
+        try {
+          cachedMe = await apiSoft("/api/me", null, 2000);
+        } catch {
+          cachedMe = null;
+        }
+      }
+      await loadOpsSectorTerms();
       return cachedMe;
     }
 

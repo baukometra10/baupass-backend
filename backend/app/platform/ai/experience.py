@@ -174,18 +174,9 @@ def _sector_vocab(terms: dict[str, str] | None, lang: str) -> tuple[str, str]:
 
 
 def _apply_sector_text(text: str, *, workers: str, site: str, lang: str = "de") -> str:
-    if not text:
-        return text
-    out = str(text)
-    # Always rewrite German construction defaults used in shared templates.
-    out = out.replace("Baustellen", site).replace("Baustelle", site).replace("Mitarbeiter", workers)
-    if (lang or "de")[:2] == "en":
-        if out.strip() in {"Workers", "workers"}:
-            return workers
-        out = out.replace("low-activity sites", f"low-activity {site} locations")
-        out = out.replace("on site now", f"at {site} now").replace("Who is on site", f"Who is at {site}")
-        out = out.replace("at-risk workers", f"at-risk {workers}")
-    return out
+    from backend.app.platform.ai.sector_copy import apply_sector_text
+
+    return apply_sector_text(text, workers=workers, site=site, lang=lang)
 
 
 def enrich_insights_dashboard(
