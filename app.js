@@ -20453,7 +20453,9 @@ function clearSession(options = {}) {
   state.companyAdminSecurity = {};
   state.companyTurnstiles = {};
   state.companyMailSettings = {};
-  broadcastSessionClearToEmbeds();
+  if (!preserveAssistAgent) {
+    broadcastSessionClearToEmbeds();
+  }
 }
 
 window.BaupassSession = {

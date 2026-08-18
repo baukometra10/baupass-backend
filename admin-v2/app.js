@@ -269,12 +269,12 @@ function showEmbedAuthRequired(message) {
 }
 
 function clearSessionAndShowLogin(message) {
-  wpRemove(TOKEN_KEY);
-  wpRemove(USER_KEY);
   if (isEmbedMode()) {
     showEmbedAuthRequired(message || t("login.embedRequired"));
     return;
   }
+  wpRemove(TOKEN_KEY);
+  wpRemove(USER_KEY);
   showLogin();
   const errEl = $("loginError");
   if (errEl && message) {
@@ -6183,7 +6183,9 @@ async function loadBillingSummaryPanel(cid) {
   const usageQs = qs ? `${qs}&period=day` : "?period=day";
   const [overview, usage] = await Promise.all([
     fetchBillingOverviewCached(cid),
-    api(`/api/v2/admin/usage-stats${usageQs}`).catch(() => null),
+    (isSupportReadOnlySession() || window.WorkPassStorage?.isSupportAssistQuietMode?.())
+      ? Promise.resolve(null)
+      : api(`/api/v2/admin/usage-stats${usageQs}`).catch(() => null),
   ]);
   if (!overview) {
     panel.innerHTML = `<div class="panel-block">${emptyStateHtml(t("billing.title"), t("billing.loadError"))}</div>`;
@@ -6326,7 +6328,9 @@ async function loadBillingTab() {
         : "?period=day";
     const [overview, usage] = await Promise.all([
       fetchBillingOverviewCached(cid).catch(() => null),
-      api(`/api/v2/admin/usage-stats${usageQs}`).catch(() => null),
+      (isSupportReadOnlySession() || window.WorkPassStorage?.isSupportAssistQuietMode?.())
+        ? Promise.resolve(null)
+        : api(`/api/v2/admin/usage-stats${usageQs}`).catch(() => null),
     ]);
     if (!overview) {
       summaryHost.innerHTML = emptyStateHtml(t("billing.title"), t("billing.loadError"));
@@ -8896,7 +8900,9 @@ async function loadAnalytics() {
   const featDays = analyticsPeriod === "week" ? 14 : 7;
   const featQs = `${q}${q ? "&" : "?"}days=${featDays}`;
   const [usage, features, surveys, trends] = await Promise.all([
-    api(`/api/v2/admin/usage-stats${periodQs}`),
+    (isSupportReadOnlySession() || window.WorkPassStorage?.isSupportAssistQuietMode?.())
+      ? Promise.resolve({})
+      : api(`/api/v2/admin/usage-stats${periodQs}`).catch(() => ({})),
     api(`/api/v2/admin/feature-usage${featQs}`),
     api(`/api/v2/admin/satisfaction-surveys${q}`),
     api(`/api/v2/admin/usage-trends${q}${q ? "&" : "?"}days=${featDays}`),

@@ -186,6 +186,10 @@
   function setItem(canonicalKey, value) {
     if (!canonicalKey) return;
     try {
+      if (isTabScopedKey(canonicalKey) && hasActiveSupportTabScope()) {
+        setSessionItem(canonicalKey, value);
+        return;
+      }
       global.localStorage.setItem(canonicalKey, value);
       const legacyKey = legacyFor(canonicalKey);
       if (legacyKey) global.localStorage.removeItem(legacyKey);
@@ -206,6 +210,10 @@
   function removeItem(canonicalKey) {
     if (!canonicalKey) return;
     try {
+      if (isTabScopedKey(canonicalKey) && hasActiveSupportTabScope()) {
+        removeSessionItem(canonicalKey);
+        return;
+      }
       global.localStorage.removeItem(canonicalKey);
       const legacyKey = legacyFor(canonicalKey);
       if (legacyKey) global.localStorage.removeItem(legacyKey);
@@ -311,12 +319,54 @@
   }
 
   function clearSessionTokens() {
+    if (hasActiveSupportTabScope()) {
+      SESSION_TOKEN_KEYS.forEach((key) => removeSessionItem(key));
+      removeSessionItem(KEYS.ADMIN_USER);
+      removeSessionItem(KEYS.ADMIN_SESSION);
+      return;
+    }
     SESSION_TOKEN_KEYS.forEach((key) => removeItem(key));
     SESSION_TOKEN_KEYS.forEach((key) => removeSessionItem(key));
     removeItem(KEYS.ADMIN_USER);
     removeSessionItem(KEYS.ADMIN_USER);
     removeItem(KEYS.ADMIN_SESSION);
     removeSessionItem(KEYS.ADMIN_SESSION);
+  }
+
+  const SUPPORT_FETCH_BLOCK = [
+    "/api/ai/speak",
+    "/api/ai/transcribe",
+    "/api/ai/insights",
+    "/api/ai/operator/",
+    "/api/ai/briefing",
+    "/api/ai/status",
+    "/api/v2/usage/event",
+    "/api/v2/admin/usage-stats",
+    "/api/chat/calls/incoming",
+    "/api/e2e/identity",
+    "/api/guardian/remediate",
+  ];
+
+  function shouldBlockSupportFetch(url) {
+    const raw = String(url || "").toLowerCase();
+    return SUPPORT_FETCH_BLOCK.some((part) => raw.includes(part));
+  }
+
+  function installSupportFetchGuard() {
+    if (global.__baupassSupportFetchGuard || typeof global.fetch !== "function") return;
+    global.__baupassSupportFetchGuard = true;
+    const originalFetch = global.fetch.bind(global);
+    global.fetch = function baupassSupportFetch(input, init) {
+      const url = typeof input === "string" ? input : (input && input.url) || "";
+      if (isSupportAssistQuietMode() && shouldBlockSupportFetch(url)) {
+        return Promise.resolve(new Response("{}", {
+          status: 204,
+          statusText: "No Content",
+          headers: { "Content-Type": "application/json" },
+        }));
+      }
+      return originalFetch(input, init);
+    };
   }
 
   global.WorkPassStorage = {
@@ -341,4 +391,5 @@
   };
 
   migrateOnce();
+  installSupportFetchGuard();
 })(typeof window !== "undefined" ? window : globalThis);

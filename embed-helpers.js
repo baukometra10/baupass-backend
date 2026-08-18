@@ -749,6 +749,10 @@
   }
 
   function clearEmbeddedSession() {
+    if (WP?.hasActiveSupportTabScope?.() || WP?.isSupportAssistQuietMode?.()) {
+      global.dispatchEvent(new CustomEvent("baupass-session-cleared"));
+      return;
+    }
     try {
       if (WP?.clearSessionTokens) {
         WP.clearSessionTokens();
