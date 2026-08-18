@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-title" content="SUPPIX Betrieb" />
   <meta name="application-name" content="SUPPIX Betrieb" />
   <title>SUPPIX — Betrieb</title>
-  <script src="/workpass-storage.js?v=20260624storage1"></script>
+  <script src="/workpass-storage.js?v=20260818wp3"></script>
   <script>
     (function clearLocalPreviewState() {
       try {
@@ -617,10 +617,10 @@
 
   <script src="/geo-precision.js?v=20260624geofence12"></script>
   <script src="/tenant-brand-icon.js?v=20260814brand3"></script>
-  <script src="/embed-helpers.js?v=20260705b"></script>
+  <script src="/embed-helpers.js?v=20260818embed2"></script>
   <script src="/control-pass-theme.js?v=20260705a"></script>
-  <script src="/sector-copy.js?v=20260818opsSector1"></script>
-  <script src="app.js?v=20260818sector3" type="module"></script>
+  <script src="/sector-copy.js?v=20260818opsSector2"></script>
+  <script src="app.js?v=20260818sector4" type="module"></script>
   <script>
     // Realtime/chat/voice CDNs must not block Geofencing / Tools first paint.
     (function deferAdminRealtime() {
@@ -639,14 +639,14 @@
           crossorigin: "anonymous",
         });
         await Promise.all([
-          load("/ops-realtime.js?v=20260726ws1"),
+          load("/ops-realtime.js?v=20260818quiet1"),
           load("/chat-realtime.js?v=20260720hardenD1"),
           load("/chat-message-prefs.js?v=20260715chat40"),
           load("/admin-incoming-call.js?v=20260719chat45"),
-          load("/admin-voice-call.js?v=20260722incoming400"),
+          load("/admin-voice-call.js?v=20260818quiet1"),
           load("/chat-global-notify.js?v=20260818chatnotify2"),
           load("/usage-tracker.js?v=20260818usage4"),
-          load("/ai-operator-fab.js?v=20260818fab14"),
+          load("/ai-operator-fab.js?v=20260818fab15"),
         ]);
         try {
           window.SUPPIXChatGlobalNotify?.init?.({ role: "admin" });

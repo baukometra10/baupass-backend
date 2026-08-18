@@ -1649,6 +1649,7 @@
   }
 
   async function maybeSpeakWelcome() {
+    if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) return;
     if (!welcomeVoiceEnabled() || !voiceEnabled()) return;
     if (!isAdminSurfaceReady()) return;
     // Wait for company context so we don't greet under ":none" then again under real company.

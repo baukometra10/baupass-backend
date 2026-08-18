@@ -129,6 +129,7 @@
 
     const poll = async () => {
       if (stopped) return;
+      if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) return;
       let url = "/api/v1/events/recent?limit=25";
       if (companyId) url += `&company_id=${encodeURIComponent(companyId)}`;
       if (sinceId) url += `&since_id=${encodeURIComponent(sinceId)}`;

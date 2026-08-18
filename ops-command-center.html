@@ -521,8 +521,9 @@
     </nav>
   </header>
   <main id="grid"><p class="muted" id="gridLoading">Laden…</p></main>
-  <script src="/embed-helpers.js?v=20260814officeLohn1"></script>
-  <script src="/sector-copy.js?v=20260818opsSector1"></script>
+  <script src="/workpass-storage.js?v=20260818wp3"></script>
+  <script src="/embed-helpers.js?v=20260818embed2"></script>
+  <script src="/sector-copy.js?v=20260818opsSector2"></script>
   <script src="/ops-center-i18n-extra.js?v=20260801lohn8"></script>
   <script>
     // Heavy realtime/CDN scripts load after first paint — they previously blocked "Laden…" for seconds.
@@ -539,12 +540,12 @@
         crossorigin: "anonymous",
       });
       io.onload = () => {
-        add("/ops-realtime.js?v=20260726ws1");
+        add("/ops-realtime.js?v=20260818quiet1");
       };
       io.onerror = () => {
-        add("/ops-realtime.js?v=20260726ws1");
+        add("/ops-realtime.js?v=20260818quiet1");
       };
-        add("/ai-operator-fab.js?v=20260817sector1");
+        add("/ai-operator-fab.js?v=20260818fab15");
     })();
   </script>
   <script>

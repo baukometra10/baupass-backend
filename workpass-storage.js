@@ -136,7 +136,8 @@
       const watchRaw = global.sessionStorage.getItem("baupass-support-assist-watch");
       if (watchRaw) {
         const watch = JSON.parse(watchRaw);
-        if (watch?.watchToken) return true;
+        // Agent tab only. Spectator watch must never hide the customer's localStorage session.
+        if (watch?.agent && watch?.watchToken) return true;
       }
     } catch {
       // ignore parse errors
@@ -288,6 +289,10 @@
   function persistSessionToken(token) {
     const val = String(token || "").trim();
     if (!val) return;
+    if (hasActiveSupportTabScope()) {
+      SESSION_TOKEN_KEYS.forEach((key) => setSessionItem(key, val));
+      return;
+    }
     SESSION_TOKEN_KEYS.forEach((key) => setItem(key, val));
   }
 

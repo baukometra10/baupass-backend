@@ -483,6 +483,10 @@
   }
 
   async function bootstrapSession() {
+    if (WP?.isSupportAssistQuietMode?.()) {
+      const token = getSessionToken();
+      return { authenticated: Boolean(token), token, user: {} };
+    }
     const data = await fetchApi("/api/session/bootstrap");
     if (
       data?.authenticated === false ||
@@ -714,6 +718,9 @@
   }
 
   async function resolveTenantBranding(opts = {}) {
+    if (WP?.isSupportAssistQuietMode?.()) {
+      return loadPublicTenantBranding({ host: opts.host, companyId: opts.companyId });
+    }
     const companyId = String(
       opts.companyId || readStoredCompanyId() || new URLSearchParams(global.location.search).get("company_id") || "",
     ).trim();
@@ -729,6 +736,7 @@
   }
 
   async function loadTenantBranding(companyId) {
+    if (WP?.isSupportAssistQuietMode?.()) return null;
     const cid = String(companyId || readStoredCompanyId() || "").trim();
     const q = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
     try {
@@ -764,6 +772,20 @@
     if (event.data.type === "baupass-sync-token") {
       if (event.data.token) {
         persistSessionToken(event.data.token);
+      }
+      if (event.data.user && typeof event.data.user === "object") {
+        try {
+          const userKey = WP?.KEYS?.ADMIN_USER || "workpass-admin-user";
+          if (WP?.setSessionItem && event.data.user.support_read_only) {
+            WP.setSessionItem(userKey, JSON.stringify(event.data.user));
+          } else if (WP?.setItem) {
+            WP.setItem(userKey, JSON.stringify(event.data.user));
+          } else {
+            global.localStorage.setItem(userKey, JSON.stringify(event.data.user));
+          }
+        } catch {
+          // ignore
+        }
       }
       const cid = String(event.data.companyId || "").trim();
       if (cid) {

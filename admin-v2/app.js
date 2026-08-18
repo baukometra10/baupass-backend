@@ -61,7 +61,9 @@ async function tryEmbedSessionFromControlPass() {
       cache: "no-store",
     });
     if (!res.ok) {
-      if (res.status >= 500) {
+      if (res.status === 401 || res.status === 403) {
+        tryEmbedSessionFromControlPass._cooldownUntil = Date.now() + 60000;
+      } else if (res.status >= 500) {
         tryEmbedSessionFromControlPass._cooldownUntil = Date.now() + 30000;
       }
       return false;
@@ -283,11 +285,24 @@ function clearSessionAndShowLogin(message) {
 
 async function probeSessionToken(token) {
   if (!token) return false;
+  if (isSupportReadOnlySession() && probeSessionToken._ok) return true;
+  if (probeSessionToken._cooldownUntil && Date.now() < probeSessionToken._cooldownUntil) {
+    return Boolean(probeSessionToken._lastOk);
+  }
   try {
     const res = await fetch(`${apiBase()}/api/v2/auth/session`, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
     });
-    return res.ok;
+    if (res.ok) {
+      probeSessionToken._ok = true;
+      probeSessionToken._lastOk = true;
+      return true;
+    }
+    if (res.status === 401 || res.status === 403) {
+      probeSessionToken._cooldownUntil = Date.now() + 60000;
+      probeSessionToken._lastOk = false;
+    }
+    return false;
   } catch {
     return false;
   }
@@ -969,6 +984,13 @@ async function api(path, options = {}) {
       res.status === 401 &&
       ["invalid_session", "session_expired", "unauthorized"].includes(code)
     ) {
+      if (isSupportReadOnlySession() || window.WorkPassStorage?.isSupportAssistQuietMode?.()) {
+        const err = new Error(t("login.sessionExpired"));
+        err.status = 401;
+        err.auth = true;
+        err.data = data;
+        throw err;
+      }
       clearSessionAndShowLogin(t("login.sessionExpired"));
       const err = new Error(t("login.sessionExpired"));
       err.status = 401;
@@ -10494,15 +10516,17 @@ async function bootSession() {
     if (params.get("einsatzplan") !== "1" && params.get("focus") !== "deployment") {
       refreshActiveTab().catch(notifyTabError);
     }
-    startAdminRealtime().catch(() => {});
-    refreshInboxBadgeOnly().catch(() => {});
-    wireLohnDrawer();
-    if (!window.__lohnBadgePoll) {
-      window.__lohnBadgePoll = setInterval(() => {
-        refreshLohnBadgeOnly().catch(() => {});
-      }, 45000);
+    if (!isSupportReadOnlySession() && !window.WorkPassStorage?.isSupportAssistQuietMode?.()) {
+      startAdminRealtime().catch(() => {});
+      refreshInboxBadgeOnly().catch(() => {});
+      maybePromptSatisfactionSurvey().catch(() => {});
+      if (!window.__lohnBadgePoll) {
+        window.__lohnBadgePoll = setInterval(() => {
+          refreshLohnBadgeOnly().catch(() => {});
+        }, 45000);
+      }
     }
-    maybePromptSatisfactionSurvey().catch(() => {});
+    wireLohnDrawer();
   } catch (e) {
     if (isAuthError(e)) return;
     clearSessionAndShowLogin(t("login.sessionExpired"));

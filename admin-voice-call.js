@@ -54,6 +54,7 @@
   async function tick() {
     if (isAdminChatPage()) return;
     const { token, companyId } = getAdminAuth();
+    if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) return;
     if (!token) return;
     // Superadmin without selected company: skip poll (backend would have nothing to scope).
     try {
@@ -88,6 +89,7 @@
   }
 
   function start() {
+    if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) return;
     if (pollTimer) return;
     void tick();
     pollTimer = global.setInterval(() => { void tick(); }, 1200);

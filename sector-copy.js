@@ -164,6 +164,7 @@
   }
 
   function loadConfig(options) {
+    if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) return Promise.resolve(null);
     const opts = options && typeof options === "object" ? options : {};
     const lang = String(opts.lang || "de").slice(0, 2);
     const companyId = String(opts.companyId || "").trim();
