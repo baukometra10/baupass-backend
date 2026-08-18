@@ -1975,6 +1975,7 @@ textarea.invoice-field-valid {
 
 .legal-modal-card {
   background: #fff;
+  color: #152033;
   border-radius: 14px;
   box-shadow: 0 4px 32px rgba(0,0,0,0.18);
   padding: 28px 32px 24px 32px;
@@ -1985,6 +1986,13 @@ textarea.invoice-field-valid {
   position: relative;
 }
 
+.legal-modal-card h2 {
+  margin: 0 2.2rem 0 0;
+  color: #0f172a;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
 .legal-modal-close {
   position: absolute;
   top: 14px;
@@ -1992,17 +2000,17 @@ textarea.invoice-field-valid {
   background: none;
   border: none;
   font-size: 1.8rem;
-  color: #888;
+  color: #475569;
   cursor: pointer;
   line-height: 1;
 }
 
 .legal-modal-body {
   white-space: pre-wrap;
-  font-size: 0.9rem;
-  line-height: 1.65;
+  font-size: 0.95rem;
+  line-height: 1.7;
   margin-top: 12px;
-  color: var(--text, #1f2937);
+  color: #1e293b;
 }
 
 .install-box {
