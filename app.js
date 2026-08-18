@@ -305,6 +305,15 @@ function persistAdminSessionUser(user, { bootstrapE2E = false } = {}) {
   } catch {
     // ignore storage failures
   }
+  const skipE2EBootstrap = Boolean(
+    document.body?.classList?.contains("support-assist-spectator-active")
+    || isSupportReadOnlyMode()
+    || state.supportLoginContext?.companyId
+    || loadSupportLoginContext()?.companyId,
+  );
+  if (skipE2EBootstrap) {
+    return;
+  }
   if (bootstrapE2E && snapshot?.id && window.E2ECrypto?.ensureCryptoSessionReady) {
     void window.E2ECrypto.ensureCryptoSessionReady().then(() => {
       window.E2EAdminBridge?.ensureIdentity?.();
@@ -20571,6 +20580,16 @@ async function apiRequest(url, options = {}) {
   const { method = "GET", body, auth = true, retries = 1, allowNotFound = false, allowUnauthorized = false } = options;
   const requestUrl = buildApiUrl(url);
   const normalizedMethod = String(method || "GET").toUpperCase();
+  const watchState = window.BaupassSupportAssist?.readWatchState?.();
+  const spectatorReadRequest = Boolean(
+    auth
+    && !token
+    && document.body?.classList?.contains("support-assist-spectator-active")
+    && watchState?.watchToken
+    && watchState?.companyId
+    && !watchState?.agent
+    && ["GET", "HEAD", "OPTIONS"].includes(normalizedMethod),
+  );
   if (
     auth
     && document.body?.classList?.contains("support-assist-spectator-active")
@@ -20579,15 +20598,7 @@ async function apiRequest(url, options = {}) {
     throw new Error("support_spectator_readonly");
   }
   if (auth && !token) {
-    const watchState = window.BaupassSupportAssist?.readWatchState?.();
-    const canSpectatorRead = Boolean(
-      document.body?.classList?.contains("support-assist-spectator-active")
-      && watchState?.watchToken
-      && watchState?.companyId
-      && !watchState?.agent
-      && ["GET", "HEAD", "OPTIONS"].includes(normalizedMethod)
-    );
-    if (!canSpectatorRead) {
+    if (!spectatorReadRequest) {
       handleExpiredControlSession();
       throw new Error("session_expired");
     }
@@ -20651,6 +20662,13 @@ async function apiRequest(url, options = {}) {
     if (allowUnauthorized && response.status === 401) {
       return null;
     }
+    if (spectatorReadRequest && response.status === 401) {
+      const spectatorError = new Error("support_spectator_unauthorized");
+      spectatorError.code = "support_spectator_unauthorized";
+      spectatorError.payload = payload;
+      spectatorError.status = response.status;
+      throw spectatorError;
+    }
     if (payload?.error === "database_not_ready") {
       const requestError = new Error("database_not_ready");
       requestError.code = "database_not_ready";
@@ -20679,7 +20697,7 @@ async function apiRequest(url, options = {}) {
       }
     }
     // ── Retry bei 401 mit neuer Session ──
-    if (auth && response.status === 401 && retries > 0) {
+    if (auth && response.status === 401 && retries > 0 && !spectatorReadRequest) {
       if (sessionKnownExpired) {
         handleExpiredControlSession();
         throw new Error("session_expired");
@@ -20706,7 +20724,7 @@ async function apiRequest(url, options = {}) {
         }
       }
     }
-    if (auth && ["invalid_session", "unauthorized"].includes(String(payload?.error || ""))) {
+    if (auth && ["invalid_session", "unauthorized"].includes(String(payload?.error || "")) && !spectatorReadRequest) {
       handleExpiredControlSession();
       throw new Error("session_expired");
     }
