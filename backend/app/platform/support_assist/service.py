@@ -10,6 +10,7 @@ _lock = threading.Lock()
 _sessions: dict[str, dict[str, Any]] = {}
 _MAX_EVENTS = 250
 _TTL_SECONDS = 45 * 60
+_ENDED_KEEP_SECONDS = 45
 
 
 def _now_ts() -> float:
@@ -17,8 +18,16 @@ def _now_ts() -> float:
 
 
 def _purge_stale_locked() -> None:
-    cutoff = _now_ts() - _TTL_SECONDS
-    stale = [cid for cid, row in _sessions.items() if float(row.get("updated_at") or 0) < cutoff]
+    now = _now_ts()
+    cutoff = now - _TTL_SECONDS
+    ended_cutoff = now - _ENDED_KEEP_SECONDS
+    stale = []
+    for cid, row in _sessions.items():
+        if row.get("ended"):
+            if float(row.get("ended_at") or 0) < ended_cutoff:
+                stale.append(cid)
+        elif float(row.get("updated_at") or 0) < cutoff:
+            stale.append(cid)
     for cid in stale:
         _sessions.pop(cid, None)
 
@@ -95,6 +104,8 @@ def get_watch_session(company_id: str, watch_token: str) -> dict[str, Any] | Non
         row = _sessions.get(cid)
         if not row or str(row.get("watch_token") or "") != token:
             return None
+        if row.get("ended"):
+            return None
         return {
             "companyId": cid,
             "actorName": row.get("actor_name") or "Support",
@@ -110,7 +121,7 @@ def append_pulse(*, company_id: str, watch_token: str, event_type: str, payload:
     with _lock:
         _purge_stale_locked()
         row = _sessions.get(cid)
-        if not row or str(row.get("watch_token") or "") != token:
+        if not row or str(row.get("watch_token") or "") != token or row.get("ended"):
             raise ValueError("invalid_session")
         event = _append_event_locked(cid, str(event_type or "pulse").strip() or "pulse", payload or {})
     try:
@@ -129,7 +140,7 @@ def get_active_session(company_id: str) -> dict[str, Any] | None:
     with _lock:
         _purge_stale_locked()
         row = _sessions.get(cid)
-        if not row:
+        if not row or row.get("ended"):
             return None
         return {
             "active": True,
@@ -149,10 +160,12 @@ def poll_events(*, company_id: str, watch_token: str, since_seq: int = 0) -> dic
         _purge_stale_locked()
         row = _sessions.get(cid)
         if not row or str(row.get("watch_token") or "") != token:
-            return {"active": False, "events": []}
+            return {"active": False, "ended": True, "events": []}
         events = [evt for evt in (row.get("events") or []) if int(evt.get("seq") or 0) > int(since_seq or 0)]
+        ended = bool(row.get("ended"))
         return {
-            "active": True,
+            "active": not ended,
+            "ended": ended,
             "sessionId": row.get("session_id"),
             "companyId": cid,
             "actorName": row.get("actor_name"),
@@ -168,5 +181,8 @@ def end_session(*, company_id: str, watch_token: str) -> None:
         row = _sessions.get(cid)
         if not row or str(row.get("watch_token") or "") != token:
             return
-        _append_event_locked(cid, "session_end", {})
-        _sessions.pop(cid, None)
+        if not row.get("ended"):
+            _append_event_locked(cid, "session_end", {"restoreCustomer": True})
+            row["ended"] = True
+            row["ended_at"] = _now_ts()
+            row["updated_at"] = _now_ts()

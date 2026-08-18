@@ -568,6 +568,122 @@ async function pulseSupportAssist(type, payload) {
 let supportAssistAgentCaptureTimer = null;
 let supportAssistAgentCaptureBound = false;
 let supportAssistScrollTimer = null;
+let supportAssistEmbedMirror = { embedTab: "", opsEmbedPage: "", at: 0 };
+let lastAppliedSpectatorUiKey = "";
+let spectatorHomeSnapshot = null;
+
+function snapshotSupportSpectatorHome() {
+  if (spectatorHomeSnapshot) return spectatorHomeSnapshot;
+  spectatorHomeSnapshot = {
+    view: getCurrentViewName(),
+    loggedIn: Boolean(token && state.currentUser),
+  };
+  return spectatorHomeSnapshot;
+}
+
+function restoreSupportSpectatorSession(home) {
+  const snapshot = home && typeof home === "object" ? home : spectatorHomeSnapshot || {};
+  spectatorHomeSnapshot = null;
+  lastAppliedSpectatorUiKey = "";
+  supportAssistEmbedMirror = { embedTab: "", opsEmbedPage: "", at: 0 };
+  clearSupportAssistLoginMirror();
+  document.body.classList.remove(
+    "support-assist-mirror-app",
+    "support-assist-mirror-auth",
+    "support-assist-spectator-active",
+    "support-assist-spectator-login-ready",
+  );
+  const stillLoggedIn = Boolean(token && state.currentUser);
+  refreshAll();
+  if (stillLoggedIn) {
+    const view = String(snapshot.view || getCurrentViewName() || "dashboard").trim();
+    if (view) {
+      setView(view);
+    }
+    if (ENTERPRISE_EMBED_META[view]) {
+      const iframe = document.getElementById(ENTERPRISE_EMBED_META[view].frameId);
+      if (iframe) {
+        const src = String(iframe.getAttribute("src") || "").trim();
+        if (src && src !== "about:blank" && !src.startsWith("about:")) {
+          iframe.setAttribute("src", src);
+        } else {
+          loadEnterpriseEmbed(view);
+        }
+      }
+    }
+    showToast(
+      uiT("supportSessionEndedCustomer") || "Support-Sitzung beendet. Sie können wieder normal arbeiten.",
+      "success",
+      5000,
+    );
+  }
+  syncSupportAssistSpectatorWatch();
+}
+
+function captureAdminV2EmbedState() {
+  if (getCurrentViewName() !== "admin-v2") {
+    return {};
+  }
+  const cached = supportAssistEmbedMirror;
+  const iframe = document.getElementById("adminV2Frame");
+  try {
+    const doc = iframe?.contentWindow?.document;
+    if (doc) {
+      const tab = String(doc.querySelector(".tab.active")?.dataset?.tab || "").trim();
+      const hash = String(iframe.contentWindow.location.hash || "").replace(/^#/, "").trim();
+      return {
+        embedTab: tab || hash || cached.embedTab || "",
+        opsEmbedPage: cached.opsEmbedPage || "",
+      };
+    }
+  } catch {
+    // iframe not ready yet — fall back to last tab notification
+  }
+  return {
+    embedTab: cached.embedTab || "",
+    opsEmbedPage: cached.opsEmbedPage || "",
+  };
+}
+
+function applySupportAssistEmbedMirror(uiState) {
+  const tab = String(uiState?.embedTab || "").trim();
+  const opsPage = String(uiState?.opsEmbedPage || "").trim();
+  if (!tab && !opsPage) return;
+  const view = String(uiState?.view || getCurrentViewName()).trim();
+  if (view !== "admin-v2") return;
+
+  const iframe = document.getElementById("adminV2Frame");
+  if (!iframe) return;
+
+  const message = {
+    type: "baupass-support-mirror-tab",
+    tab,
+    opsEmbedPage: opsPage,
+    companyId: getEffectiveUiCompanyId(),
+  };
+  const send = () => {
+    try {
+      if (window.BaupassEmbed?.postMessageToIframe) {
+        window.BaupassEmbed.postMessageToIframe(iframe, message);
+      } else if (iframe.contentWindow) {
+        iframe.contentWindow.postMessage(message, window.location.origin);
+      }
+    } catch {
+      // iframe not ready
+    }
+  };
+
+  const src = String(iframe.getAttribute("src") || iframe.src || "").trim();
+  if (!src || src === "about:blank" || src.startsWith("about:")) {
+    loadEnterpriseEmbed("admin-v2");
+    iframe.addEventListener("load", send, { once: true });
+    window.setTimeout(send, 500);
+    window.setTimeout(send, 1400);
+    return;
+  }
+  send();
+  window.setTimeout(send, 250);
+}
 
 function getSupportAssistViewLabel(viewName) {
   const view = String(viewName || "").trim();
@@ -594,6 +710,7 @@ function captureSupportAssistUiState(extra) {
     loginScope: String(document.querySelector("#loginScope")?.value || ""),
     loginOtpPending: Boolean(state.loginOtpPending),
     loginOtpLen: String(elements.loginOtpCode?.value || "").length,
+    ...captureAdminV2EmbedState(),
   };
   return extra && typeof extra === "object" ? { ...base, ...extra } : base;
 }
@@ -674,8 +791,11 @@ function applySupportAssistUiState(uiState) {
   }
 
   const targetView = String(uiState.view || "").trim();
-  if (targetView && targetView !== getCurrentViewName()) {
+  const viewChanged = Boolean(targetView && targetView !== getCurrentViewName());
+  if (viewChanged) {
     setView(targetView);
+  } else if (targetView === "admin-v2") {
+    applySupportAssistEmbedMirror(uiState);
   }
 
   const sy = Number(uiState.scrollY);
@@ -693,7 +813,24 @@ function applySupportAssistUiState(uiState) {
 
   window.BaupassSupportAssist?.updateSpectatorBanner?.(uiState);
   if (watching) {
-    refreshAll();
+    const uiKey = [
+      targetView,
+      String(uiState.embedTab || ""),
+      String(uiState.opsEmbedPage || ""),
+      agentLoggedIn ? "1" : "0",
+      shouldMirrorAuth ? "auth" : "app",
+    ].join("|");
+    if (uiKey !== lastAppliedSpectatorUiKey) {
+      lastAppliedSpectatorUiKey = uiKey;
+      if (agentLoggedIn) {
+        scheduleSpectatorMirrorDataSync();
+      } else if (viewChanged) {
+        refreshAll();
+      }
+    }
+    if (targetView === "admin-v2" && String(uiState.embedTab || "").trim()) {
+      applySupportAssistEmbedMirror(uiState);
+    }
   }
 }
 
@@ -728,7 +865,7 @@ function startSupportAssistAgentUiCapture() {
     window.__baupassSupportAssistScrollHandler = onScroll;
   }
   pulseState();
-  supportAssistAgentCaptureTimer = window.setInterval(pulseState, 1200);
+  supportAssistAgentCaptureTimer = window.setInterval(pulseState, 350);
 }
 
 function stopSupportAssistAgentUiCapture() {
@@ -850,6 +987,7 @@ const UI_TRANSLATIONS = {
     supportCompanyFallback: "Firma",
     supportStartedBy: "gestartet von",
     supportReadOnlyNotice: "Nach der Anmeldung ist der Zugriff nur lesend.",
+    supportSessionEndedCustomer: "Support-Sitzung beendet. Sie können wieder normal arbeiten.",
     supportModeLabel: "Support-Modus:",
     supportReadOnlyFor: "Nur lesen fuer",
     supportCompanyLoginConfirmPrefix: "Zum Firmen-Login fuer",
@@ -2170,6 +2308,7 @@ const UI_TRANSLATIONS = {
     supportCompanyFallback: "Company",
     supportStartedBy: "started by",
     supportReadOnlyNotice: "After sign-in, access is read-only.",
+    supportSessionEndedCustomer: "Support session ended. You can work normally again.",
     supportModeLabel: "Support mode:",
     supportReadOnlyFor: "Read-only for",
     supportCompanyLoginConfirmPrefix: "Switch to company login for",
@@ -4117,6 +4256,7 @@ const UI_TRANSLATIONS = {
     supportCompanyFallback: "الشركة",
     supportStartedBy: "بدأه",
     supportReadOnlyNotice: "بعد تسجيل الدخول سيكون الوصول للقراءة فقط.",
+    supportSessionEndedCustomer: "انتهت جلسة الدعم. يمكنك العمل بشكل طبيعي مرة أخرى.",
     supportModeLabel: "وضع الدعم:",
     supportReadOnlyFor: "قراءة فقط لشركة",
     supportCompanyLoginConfirmPrefix: "الانتقال إلى تسجيل الدخول للشركة",
@@ -16807,6 +16947,29 @@ function updateLoginOtpVisibility() {
   }
 }
 
+function prepareSupportLoginScreen() {
+  syncSupportLoginUi();
+  const loginScopeEl = document.querySelector("#loginScope");
+  if (loginScopeEl && (state.supportLoginContext?.companyId || loadSupportLoginContext()?.companyId)) {
+    loginScopeEl.value = "company-admin";
+  }
+  if (elements.authOverlay) {
+    elements.authOverlay.classList.add("active");
+    elements.authOverlay.setAttribute("aria-hidden", "false");
+    elements.authOverlay.removeAttribute("inert");
+  }
+  if (elements.mainShell) {
+    elements.mainShell.style.display = "none";
+    elements.mainShell.hidden = true;
+    elements.mainShell.classList.add("locked");
+    elements.mainShell.setAttribute("aria-hidden", "true");
+    elements.mainShell.toggleAttribute("inert", true);
+  }
+  if (elements.body) {
+    elements.body.classList.add("auth-locked");
+  }
+}
+
 function syncSupportLoginUi() {
   const context = state.supportLoginContext || loadSupportLoginContext();
   state.supportLoginContext = context;
@@ -20096,6 +20259,8 @@ window.BaupassSession = {
   stopSupportAssistAgentUiCapture,
   clearSupportAssistLoginMirror,
   showSupportSpectatorNotice,
+  snapshotSupportSpectatorHome,
+  restoreSupportSpectatorSession,
 };
 
 function handleExpiredControlSession() {
@@ -27563,8 +27728,7 @@ function bindCompanyRowActions() {
 
     const companyAccessHost = String(company?.accessHost || company?.access_host || "").trim().toLowerCase();
     const currentHost = String(window.location.host || "").trim().toLowerCase();
-    if (companyAccessHost && companyAccessHost !== currentHost) {
-      await handleLogout({ preserveSupportContext: true });
+    if (companyAccessHost && companyAccessHost !== currentHost && /^[a-z0-9.-]+\.[a-z]{2,}(:\d+)?$/i.test(companyAccessHost)) {
       const targetUrl = new URL(window.location.href);
       targetUrl.protocol = window.location.protocol;
       targetUrl.host = companyAccessHost;
@@ -27583,11 +27747,10 @@ function bindCompanyRowActions() {
       window.location.assign(targetUrl.toString());
       return;
     }
+    prepareSupportLoginScreen();
     await handleLogout({ preserveSupportContext: true });
     syncSupportLoginUi();
     window.scrollTo({ top: 0, behavior: "smooth" });
-    // Use a short delay instead of showToast() to avoid Electron losing
-    // keyboard focus after a native dialog dismissal.
     window.setTimeout(() => {
       focusLoginInput({ force: true });
     }, 80);
@@ -36127,7 +36290,8 @@ async function handleLogout(options = {}) {
   const { preserveSupportContext = false } = options;
   const assistAgent = getSupportAssistAgentState();
   if (assistAgent && preserveSupportContext) {
-    await pulseSupportAssist("ui_state", captureSupportAssistUiState({ authVisible: true, loggedIn: false }));
+    prepareSupportLoginScreen();
+    await pulseSupportAssist("login_screen", captureSupportAssistUiState({ authVisible: true, loggedIn: false }));
   }
   try {
     if (token) {
@@ -36139,10 +36303,7 @@ async function handleLogout(options = {}) {
 
   if (!preserveSupportContext) {
     if (assistAgent) {
-      await pulseSupportAssist("logout", {
-        message: "Support hat die Sitzung beendet — Sie können sich jetzt anmelden.",
-        allowCustomerLogin: true,
-      });
+      await pulseSupportAssist("session_end", { restoreCustomer: true });
     }
     if (window.BaupassSupportAssist?.resetAfterAgentLogout) {
       await window.BaupassSupportAssist.resetAfterAgentLogout(assistAgent);
@@ -36163,6 +36324,13 @@ async function handleLogout(options = {}) {
     );
   }
   clearSession();
+  if (preserveSupportContext) {
+    prepareSupportLoginScreen();
+    refreshAll();
+    syncSupportAssistSpectatorWatch();
+    focusLoginInput({ force: true });
+    return;
+  }
   resetSupportLoginScopeUi();
   setView("dashboard");
   stopCamera();
@@ -38552,6 +38720,17 @@ window.addEventListener("message", (event) => {
   if (event.data.type === "baupass-embed-set-lang") {
     const lang = String(event.data.lang || "").trim().slice(0, 2);
     if (lang) setUiLang(lang);
+    return;
+  }
+  if (event.data.type === "baupass-embed-tab-change") {
+    supportAssistEmbedMirror = {
+      embedTab: String(event.data.tab || "").trim(),
+      opsEmbedPage: String(event.data.opsEmbedPage || "").trim(),
+      at: Date.now(),
+    };
+    if (getSupportAssistAgentState()) {
+      void pulseSupportAssist("ui_state", captureSupportAssistUiState());
+    }
     return;
   }
   if (event.data.type === "baupass-require-login") {

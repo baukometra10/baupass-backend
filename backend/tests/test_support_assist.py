@@ -46,6 +46,14 @@ def test_start_session_and_poll_events():
 
     assist_service.end_session(company_id="co-demo", watch_token=started["watchToken"])
     assert assist_service.get_active_session("co-demo") is None
+    ended = assist_service.poll_events(
+        company_id="co-demo",
+        watch_token=started["watchToken"],
+        since_seq=polled2["seq"],
+    )
+    assert ended["active"] is False
+    assert ended["ended"] is True
+    assert any(evt["type"] == "session_end" for evt in ended["events"])
 
 
 def test_get_watch_session_validates_token():

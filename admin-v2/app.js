@@ -501,6 +501,21 @@ window.addEventListener("message", (event) => {
     }
     return;
   }
+  if (event.data.type === "baupass-support-mirror-tab") {
+    if (event.data.companyId) {
+      applyParentCompanyId(event.data.companyId);
+    }
+    const tab = String(event.data.tab || "").trim();
+    const opsPage = String(event.data.opsEmbedPage || "").trim();
+    if (opsPage) {
+      pendingOpsEmbedPage = opsPage;
+    }
+    if (tab && document.querySelector(`.tab[data-tab="${tab}"]`)) {
+      switchToTab(tab, { silent: true });
+      refreshActiveTab().catch(notifyTabError);
+    }
+    return;
+  }
   if (event.data.type === "baupass-navigate") {
     const handled = handleHubNavigateFromEmbed(event.data);
     if (!handled && window.self !== window.top) {
@@ -3445,7 +3460,27 @@ function bindTabNavigation() {
   }
 }
 
-function switchToTab(tabId) {
+function notifyParentEmbedTab(tabId, extra) {
+  if (!isEmbedMode() || window.self === window.top) {
+    return;
+  }
+  try {
+    window.parent.postMessage(
+      {
+        type: "baupass-embed-tab-change",
+        tab: String(tabId || "").trim(),
+        opsEmbedPage: String(extra?.opsEmbedPage || pendingOpsEmbedPage || "").trim(),
+        companyId: activeCompanyId() || getUser()?.company_id || "",
+      },
+      window.location.origin,
+    );
+  } catch {
+    // ignore
+  }
+}
+
+function switchToTab(tabId, options) {
+  const opts = options || {};
   if (tabId === "analytics" && !canAccessAnalyticsTab()) {
     tabId = "overview";
   }
@@ -3488,6 +3523,9 @@ function switchToTab(tabId) {
       refreshGeofenceMap();
       setTimeout(refreshGeofenceMap, 350);
     });
+  }
+  if (!opts.silent) {
+    notifyParentEmbedTab(tabId);
   }
 }
 

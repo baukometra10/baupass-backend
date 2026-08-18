@@ -12,6 +12,69 @@
   let isSpectator = false;
   let isAgent = false;
   let spectatorAllowLogin = false;
+  let spectatorHome = null;
+  let spectatorUnlocking = false;
+
+  function snapshotSpectatorHome() {
+    if (spectatorHome) return;
+    try {
+      spectatorHome = global.BaupassSession?.snapshotSupportSpectatorHome?.() || {
+        view: "",
+        loggedIn: false,
+      };
+    } catch {
+      spectatorHome = { view: "", loggedIn: false };
+    }
+  }
+
+  function releaseSpectatorLock() {
+    const hadLock = Boolean(
+      isSpectator
+      || spectatorHome
+      || spectatorAllowLogin
+      || document.body.classList.contains("support-assist-spectator-active")
+      || document.body.classList.contains("support-assist-mirror-app")
+      || document.body.classList.contains("support-assist-mirror-auth")
+      || readWatchState()
+    );
+    if (!hadLock || spectatorUnlocking) {
+      stopPolling();
+      return;
+    }
+    spectatorUnlocking = true;
+    isSpectator = false;
+    spectatorAllowLogin = false;
+    lastSeq = 0;
+    if (cursorEl) {
+      cursorEl.classList.add("hidden");
+    }
+    if (bannerEl) {
+      bannerEl.classList.add("hidden");
+      bannerEl.classList.remove("support-assist-spectator-login-ready");
+    }
+    global.document.body.classList.remove(
+      "support-assist-mirror-app",
+      "support-assist-mirror-auth",
+      "support-assist-spectator-active",
+      "support-assist-spectator-login-ready",
+    );
+    writeWatchState(null);
+    stopPolling();
+    stopPublicSpectatorWatch();
+    const home = spectatorHome;
+    spectatorHome = null;
+    try {
+      if (global.BaupassSession?.restoreSupportSpectatorSession) {
+        global.BaupassSession.restoreSupportSpectatorSession(home);
+      } else if (global.BaupassSession?.refreshAll) {
+        global.BaupassSession.refreshAll();
+      }
+    } catch {
+      try { global.BaupassSession?.refreshAll?.(); } catch { /* ignore */ }
+    } finally {
+      spectatorUnlocking = false;
+    }
+  }
 
   function readWatchState() {
     try {
@@ -232,71 +295,50 @@
   }
 
   function handleAssistEvents(events, actorName) {
-    (events || []).forEach((evt) => {
+    const list = events || [];
+    let ended = false;
+    for (const evt of list) {
       const type = String(evt?.type || "");
       const payload = evt?.payload || {};
       if (Number(evt?.seq || 0) > lastSeq) {
         lastSeq = Number(evt.seq);
       }
+      if (type === "logout" || type === "session_end") {
+        ended = true;
+        continue;
+      }
+      if (ended) continue;
       if (type === "mouse") {
         moveRemoteCursor({ ...payload, actorName });
-        return;
+        continue;
       }
       if (type === "ui_state" || type === "view" || type === "logging_in") {
         applyUiState(payload, actorName);
         setSpectatorMode(true, actorName, messageForEvent(type === "view" ? "view" : "ui_state", payload, actorName));
-        return;
+        continue;
       }
       if (type === "force_logout") {
         setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName), { allowLogin: false });
         if (global.BaupassSession?.showSupportSpectatorNotice) {
           try { global.BaupassSession.showSupportSpectatorNotice(payload?.message); } catch { /* ignore */ }
         }
-        return;
-      }
-      if (type === "logout") {
-        applyUiState({ authVisible: true, loggedIn: false, ...(payload || {}) }, actorName);
-        global.document.body.classList.remove("support-assist-mirror-app");
-        const allowLogin = Boolean(payload?.allowCustomerLogin);
-        setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName), { allowLogin });
-        if (global.BaupassSession?.refreshAll) {
-          try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
-        }
-        return;
+        continue;
       }
       if (type === "login_screen") {
         applyUiState({ authVisible: true, loggedIn: false, ...(payload || {}) }, actorName);
         setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName), { allowLogin: false });
-        if (global.BaupassSession?.refreshAll) {
-          try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
-        }
-        return;
+        continue;
       }
       if (type === "logged_in") {
         applyUiState({ ...(payload || {}), loggedIn: true, authVisible: false }, actorName);
         setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName));
-        if (global.BaupassSession?.refreshAll) {
-          try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
-        }
-        return;
-      }
-      if (type === "session_end") {
-        setSpectatorMode(false);
-        global.document.body.classList.remove("support-assist-mirror-app", "support-assist-mirror-auth");
-        writeWatchState(null);
-        stopPolling();
-        if (global.BaupassSession?.refreshAll) {
-          try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
-        }
-        if (global.BaupassSession?.focusLoginInput) {
-          global.setTimeout(() => {
-            try { global.BaupassSession.focusLoginInput({ force: true }); } catch { /* ignore */ }
-          }, 120);
-        }
-        return;
+        continue;
       }
       setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName));
-    });
+    }
+    if (ended) {
+      releaseSpectatorLock();
+    }
   }
 
   async function pollOnce() {
@@ -315,38 +357,41 @@
         cache: "no-store",
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.active) {
-        if (lastSeq > 0) {
-          setSpectatorMode(false);
-          global.document.body.classList.remove("support-assist-mirror-app", "support-assist-mirror-auth");
-          writeWatchState(null);
-          stopPolling();
-          if (global.BaupassSession?.refreshAll) {
-            try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
-          }
-          if (global.BaupassSession?.focusLoginInput) {
-            global.setTimeout(() => {
-              try { global.BaupassSession.focusLoginInput({ force: true }); } catch { /* ignore */ }
-            }, 120);
-          }
+      if (res.ok) {
+        handleAssistEvents(data.events || [], data.actorName || state.actorName);
+        if (data.ended || data.active === false) {
+          releaseSpectatorLock();
         }
         return;
       }
-      handleAssistEvents(data.events || [], data.actorName || state.actorName);
+      if (res.status === 403 || res.status === 404) {
+        releaseSpectatorLock();
+      }
     } catch {
       // ignore transient network errors
     }
   }
 
   function startPolling(state) {
+    const current = readWatchState();
+    if (
+      pollTimer
+      && current?.watchToken
+      && current.watchToken === state?.watchToken
+      && current.companyId === state?.companyId
+      && !current.agent
+    ) {
+      return;
+    }
     writeWatchState(state);
     if (state?.companyId) rememberCompany(state.companyId);
     lastSeq = 0;
+    snapshotSpectatorHome();
     ensureBanner();
     setSpectatorMode(true, state?.actorName, "Support verbindet…");
     stopPolling();
     pollOnce();
-    pollTimer = global.setInterval(pollOnce, 900);
+    pollTimer = global.setInterval(pollOnce, 180);
   }
 
   function stopPolling() {
@@ -392,6 +437,10 @@
       data = await fetchPublicActive(companyId);
     }
     if (!data?.active || !data?.watchToken) return;
+    const existing = readWatchState();
+    if (existing?.watchToken === data.watchToken && existing.companyId === companyId && !existing.agent) {
+      return;
+    }
     startPolling({
       companyId,
       watchToken: data.watchToken,
@@ -402,6 +451,10 @@
   async function publicWatchOnce(companyId) {
     const cid = String(companyId || "").trim();
     if (!cid) return;
+    const existing = readWatchState();
+    if (existing?.watchToken && existing.companyId === cid && !existing.agent) {
+      return;
+    }
     const data = await fetchPublicActive(cid);
     if (!data) return;
     startPolling({
@@ -467,7 +520,7 @@
         agentMoveTimer = global.setTimeout(() => {
           agentMoveTimer = null;
           flushAgentMouse(state);
-        }, 120);
+        }, 35);
       }
     };
     global.document.addEventListener("mousemove", onMove, { passive: true });
@@ -476,6 +529,7 @@
   }
 
   function resetSpectatorUi() {
+    spectatorHome = null;
     isSpectator = false;
     isAgent = false;
     spectatorAllowLogin = false;
