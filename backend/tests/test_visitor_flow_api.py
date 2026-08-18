@@ -844,6 +844,31 @@ def test_support_session_is_read_only_but_allows_read_and_logout(client_and_db):
     assert logout_response.status_code == 200
 
 
+def test_support_login_does_not_invalidate_customer_session(client_and_db):
+    client, _ = client_and_db
+    customer_headers, customer_login = _company_admin_auth_headers(client)
+    customer_token = customer_login["token"]
+
+    me_before = client.get("/api/me", headers=customer_headers)
+    assert me_before.status_code == 200
+
+    support_headers, support_login = _company_admin_auth_headers(
+        client,
+        supportCompanyId="cmp-default",
+        supportActorName="Systemleitung",
+    )
+    assert bool(support_login["user"].get("support_read_only")) is True
+    assert support_login["token"] != customer_token
+
+    me_after = client.get("/api/me", headers=customer_headers)
+    assert me_after.status_code == 200
+    assert me_after.get_json()["user"]["id"] == customer_login["user"]["id"]
+
+    support_me = client.get("/api/me", headers=support_headers)
+    assert support_me.status_code == 200
+    assert bool(support_me.get_json()["user"].get("support_read_only")) is True
+
+
 def test_company_admin_can_access_reporting_and_invoices_scoped(client_and_db):
     client, _ = client_and_db
     headers, login_payload = _company_admin_auth_headers(client)

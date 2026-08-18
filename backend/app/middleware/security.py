@@ -69,6 +69,8 @@ _CSRF_EXEMPT_PREFIXES = (
     "/api/worker-app/",
     "/api/public/",
     "/api/health",
+    "/api/support-assist/pulse",
+    "/api/support-assist/end",
 )
 
 _CSRF_EXEMPT_SUBSTRINGS = (

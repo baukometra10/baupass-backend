@@ -316,7 +316,17 @@ def _perform_login_core(srv, login_error):
     token = secrets.token_urlsafe(24)
 
     def _persist_login_session():
-        db.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
+        # Support login must not kick the customer's live session (same user_id).
+        if support_read_only:
+            try:
+                db.execute(
+                    "DELETE FROM sessions WHERE user_id = ? AND support_read_only = 1",
+                    (user["id"],),
+                )
+            except Exception:
+                pass
+        else:
+            db.execute("DELETE FROM sessions WHERE user_id = ?", (user["id"],))
         try:
             db.execute(
                 """
@@ -398,11 +408,14 @@ def _perform_login_core(srv, login_error):
             "preview_company_id": "",
         }
     response = jsonify({"ok": True, "token": token, "user": serialized_user})
-    response.set_cookie(
-        srv.SESSION_COOKIE_NAME,
-        token,
-        httponly=True,
-        samesite="None" if srv.should_use_cross_site_cookie() else "Lax",
-        secure=srv.is_request_secure(),
-    )
+    # Tab-scoped support sessions use Bearer only. Writing baupass_session would
+    # overwrite the superadmin cookie in every tab on this origin.
+    if not support_read_only:
+        response.set_cookie(
+            srv.SESSION_COOKIE_NAME,
+            token,
+            httponly=True,
+            samesite="None" if srv.should_use_cross_site_cookie() else "Lax",
+            secure=srv.is_request_secure(),
+        )
     return response

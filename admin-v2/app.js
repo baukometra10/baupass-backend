@@ -51,7 +51,9 @@ async function tryEmbedSessionFromControlPass() {
   }
   document.documentElement.classList.add("embed-document");
   document.body.classList.add("embed-mode", "admin-v2-embed");
-  const parentToken = (wpGet(CONTROL_TOKEN_KEY) || "").trim();
+  const parentToken = WP?.hasActiveSupportTabScope?.()
+    ? String(WP.readSessionToken?.() || "").trim()
+    : (wpGet(CONTROL_TOKEN_KEY) || "").trim();
   if (!parentToken) {
     return false;
   }
@@ -309,6 +311,7 @@ async function probeSessionToken(token) {
 }
 
 async function adoptControlPassTokenIfValid() {
+  if (WP?.hasActiveSupportTabScope?.()) return false;
   const controlToken = (wpGet(CONTROL_TOKEN_KEY) || "").trim();
   if (!controlToken) return false;
   if (!(await probeSessionToken(controlToken))) return false;
@@ -485,11 +488,17 @@ async function loadSectorTerminologyForAdmin() {
 function applyParentCompanyId(companyId) {
   const cid = String(companyId || "").trim();
   if (!cid) return;
+  const prev = String(wpGet(COMPANY_KEY) || "").trim();
   wpSet(COMPANY_KEY, cid);
   const select = $("companyPicker");
   if (select && select.options.length) {
     const has = Array.from(select.options).some((o) => o.value === cid);
     if (has) select.value = cid;
+  }
+  if (prev === cid) return;
+  if (isSupportReadOnlySession() || window.WorkPassStorage?.isSupportAssistQuietMode?.()) {
+    void loadSectorTerminologyForAdmin();
+    return;
   }
   void applyTenantBrandingFromApi();
   void loadSectorTerminologyForAdmin();
@@ -10469,6 +10478,25 @@ async function refreshActiveTab() {
   else await loadOverview();
 }
 
+function waitForEmbedParentToken(timeoutMs) {
+  const existing = String(wpGet(TOKEN_KEY) || WP?.readSessionToken?.() || "").trim();
+  if (existing) return Promise.resolve(existing);
+  return new Promise((resolve) => {
+    const timer = window.setTimeout(() => {
+      window.removeEventListener("message", onMsg);
+      resolve(String(wpGet(TOKEN_KEY) || WP?.readSessionToken?.() || "").trim());
+    }, Math.max(200, Number(timeoutMs) || 1500));
+    function onMsg(event) {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type !== "baupass-sync-token" || !event.data.token) return;
+      window.clearTimeout(timer);
+      window.removeEventListener("message", onMsg);
+      resolve(String(event.data.token || "").trim());
+    }
+    window.addEventListener("message", onMsg);
+  });
+}
+
 async function bootSession() {
   showSessionBoot();
   const forceLoginForm = new URLSearchParams(location.search).get("login") === "1";
@@ -10479,6 +10507,14 @@ async function bootSession() {
   if (forceLoginForm && !isEmbedMode()) {
     showLogin();
     return;
+  }
+  if (
+    !token
+    && isEmbedMode()
+    && (window.WorkPassStorage?.hasActiveSupportTabScope?.() || window.WorkPassStorage?.isSupportAssistQuietMode?.())
+  ) {
+    token = await waitForEmbedParentToken(1600);
+    if (token) wpSet(TOKEN_KEY, token);
   }
   if (!token || !(await probeSessionToken(token))) {
     const adopted = await adoptControlPassTokenIfValid();

@@ -43,8 +43,12 @@ def _connect_store() -> sqlite3.Connection | None:
     if path is None:
         return None
     path.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(str(path), timeout=4, isolation_level=None)
+    con = sqlite3.connect(str(path), timeout=8, isolation_level=None)
     con.row_factory = sqlite3.Row
+    try:
+        con.execute("PRAGMA busy_timeout=5000")
+    except Exception:
+        pass
     return con
 
 
@@ -96,6 +100,26 @@ def _row_from_db(raw: sqlite3.Row) -> dict[str, Any]:
         "events": events if isinstance(events, list) else [],
         "last_mouse": last_mouse if isinstance(last_mouse, dict) else None,
     }
+
+
+def _persist_mouse(row: dict[str, Any]) -> None:
+    try:
+        con = _connect_store()
+        if con is None:
+            return
+        with con:
+            _ensure_schema(con)
+            con.execute(
+                "UPDATE support_assist_sessions SET last_mouse_json = ?, updated_at = ? WHERE company_id = ?",
+                (
+                    json.dumps(row.get("last_mouse"), ensure_ascii=False),
+                    float(row.get("updated_at") or 0),
+                    row.get("company_id"),
+                ),
+            )
+        con.close()
+    except Exception:
+        pass
 
 
 def _persist_row(row: dict[str, Any]) -> None:
@@ -278,11 +302,17 @@ def get_watch_session(company_id: str, watch_token: str) -> dict[str, Any] | Non
         }
 
 
+_MOUSE_PERSIST_SECONDS = 0.25
+_UI_STATE_PERSIST_SECONDS = 0.8
+
+
 def append_pulse(*, company_id: str, watch_token: str, event_type: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     cid = str(company_id or "").strip()
     token = str(watch_token or "").strip()
     if not cid or not token:
         raise ValueError("missing_session")
+    persist_full = False
+    persist_mouse = False
     with _lock:
         _purge_stale_locked()
         row = _get_row(cid)
@@ -290,18 +320,30 @@ def append_pulse(*, company_id: str, watch_token: str, event_type: str, payload:
             raise ValueError("invalid_session")
         kind = str(event_type or "pulse").strip() or "pulse"
         body = payload or {}
+        now = _now_ts()
         if kind == "mouse":
             row["last_mouse"] = body
-            row["updated_at"] = _now_ts()
+            row["updated_at"] = now
             event = {
                 "seq": int(row.get("seq") or 0),
                 "type": "mouse",
                 "payload": body,
-                "ts": _now_ts(),
+                "ts": now,
             }
+            last_mouse_persist = float(row.get("mouse_persist_at") or 0)
+            if now - last_mouse_persist >= _MOUSE_PERSIST_SECONDS:
+                row["mouse_persist_at"] = now
+                persist_mouse = True
         else:
             event = _append_event_locked(cid, kind, body)
-        _persist_row(row)
+            last_full = float(row.get("full_persist_at") or 0)
+            if kind in {"session_start", "session_end", "logging_in", "view"} or now - last_full >= _UI_STATE_PERSIST_SECONDS:
+                row["full_persist_at"] = now
+                persist_full = True
+        if persist_full:
+            _persist_row(row)
+        elif persist_mouse:
+            _persist_mouse(row)
     try:
         from backend.app.platform.events.bus import publish_event
 

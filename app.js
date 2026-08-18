@@ -1006,7 +1006,7 @@ function startSupportAssistAgentUiCapture() {
     window.__baupassSupportAssistScrollHandler = onScroll;
   }
   pulseState();
-  supportAssistAgentCaptureTimer = window.setInterval(pulseState, 350);
+  supportAssistAgentCaptureTimer = window.setInterval(pulseState, 800);
 }
 
 function stopSupportAssistAgentUiCapture() {

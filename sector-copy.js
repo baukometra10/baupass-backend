@@ -170,9 +170,12 @@
     const companyId = String(opts.companyId || "").trim();
     let url = "/api/platform/sector-config?lang=" + encodeURIComponent(lang);
     if (companyId) url += "&company_id=" + encodeURIComponent(companyId);
+    const headers = { Accept: "application/json" };
+    const token = global.WorkPassStorage?.readSessionToken?.() || "";
+    if (token) headers.Authorization = "Bearer " + token;
     const request = typeof opts.fetchJson === "function"
       ? Promise.resolve(opts.fetchJson(url))
-      : fetch(url, { credentials: "include" }).then((res) => (res.ok ? res.json() : null));
+      : fetch(url, { credentials: "include", headers }).then((res) => (res.ok ? res.json() : null));
     return Promise.resolve(request)
       .then((data) => {
         if (data && data.sector) {

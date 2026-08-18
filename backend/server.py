@@ -5429,39 +5429,58 @@ def is_tenant_host_valid(db, user):
     return get_request_host() == required_host
 
 
+def activate_support_spectator(db):
+    spectator_user = resolve_support_spectator_user(db)
+    if not spectator_user:
+        return None
+    if not is_read_only_support_request_allowed():
+        return jsonify({"error": "support_spectator_read_only"}), 403
+    if not is_tenant_host_valid(db, spectator_user):
+        return jsonify({"error": "forbidden_tenant_host"}), 403
+    company_error = get_company_access_error(db, spectator_user.get("company_id"))
+    if company_error:
+        return jsonify(company_error), 403
+    g.current_user = spectator_user
+    g.token = ""
+    g.current_session = {}
+    g.preview_company_id = ""
+    g.enterprise_permissions = set()
+    g.support_spectator = True
+    return True
+
+
 def require_auth(handler):
     @wraps(handler)
     def wrapper(*args, **kwargs):
         token = get_auth_token_from_request()
         db = get_db()
         if not token:
-            spectator_user = resolve_support_spectator_user(db)
-            if spectator_user:
-                if not is_read_only_support_request_allowed():
-                    return jsonify({"error": "support_spectator_read_only"}), 403
-                if not is_tenant_host_valid(db, spectator_user):
-                    return jsonify({"error": "forbidden_tenant_host"}), 403
-                company_error = get_company_access_error(db, spectator_user.get("company_id"))
-                if company_error:
-                    return jsonify(company_error), 403
-                g.current_user = spectator_user
-                g.token = ""
-                g.current_session = {}
-                g.preview_company_id = ""
-                g.enterprise_permissions = set()
-                g.support_spectator = True
+            spectator = activate_support_spectator(db)
+            if spectator is True:
                 return handler(*args, **kwargs)
+            if spectator is not None:
+                return spectator
             return jsonify({"error": "unauthorized"}), 401
         session = db.execute(
             "SELECT user_id, expires_at, support_read_only, support_company_name, support_actor_name, preview_company_id FROM sessions WHERE token = ?",
             (token,),
         ).fetchone()
         if not session:
+            spectator = activate_support_spectator(db)
+            if spectator is True:
+                return handler(*args, **kwargs)
+            if spectator is not None:
+                return spectator
             return jsonify({"error": "invalid_session"}), 401
 
         if session["expires_at"] < now_iso():
             db.execute("DELETE FROM sessions WHERE token = ?", (token,))
             db.commit()
+            spectator = activate_support_spectator(db)
+            if spectator is True:
+                return handler(*args, **kwargs)
+            if spectator is not None:
+                return spectator
             return jsonify({"error": "session_expired"}), 401
 
         user = db.execute("SELECT * FROM users WHERE id = ?", (session["user_id"],)).fetchone()
@@ -10427,7 +10446,9 @@ def logout():
 
     AuthService().logout(g.token, g.current_user)
     response = jsonify({"ok": True})
-    response.delete_cookie(SESSION_COOKIE_NAME)
+    cookie_token = (request.cookies.get(SESSION_COOKIE_NAME, "") or "").strip()
+    if cookie_token and cookie_token == (g.token or ""):
+        response.delete_cookie(SESSION_COOKIE_NAME)
     return response
 
 

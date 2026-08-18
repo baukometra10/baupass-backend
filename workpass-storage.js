@@ -149,6 +149,13 @@
     try {
       if (hasActiveSupportTabScope()) return true;
       if (global.document?.body?.classList?.contains("support-assist-spectator-active")) return true;
+      const watchRaw =
+        global.sessionStorage.getItem("baupass-support-assist-watch")
+        || global.sessionStorage.getItem(KEYS.SUPPORT_ASSIST_WATCH);
+      if (watchRaw) {
+        const watch = JSON.parse(watchRaw);
+        if (watch?.watchToken) return true;
+      }
       const userRaw = getItem(KEYS.ADMIN_USER);
       if (userRaw) {
         const user = JSON.parse(userRaw);
@@ -345,11 +352,65 @@
     "/api/chat/calls/incoming",
     "/api/e2e/identity",
     "/api/guardian/remediate",
+    "/api/platform/sector-config",
+    "/api/companies/current/branding",
   ];
 
   function shouldBlockSupportFetch(url) {
     const raw = String(url || "").toLowerCase();
     return SUPPORT_FETCH_BLOCK.some((part) => raw.includes(part));
+  }
+
+  function syntheticSupportResponse(url) {
+    const raw = String(url || "").toLowerCase();
+    if (raw.includes("/api/platform/sector-config")) {
+      return new Response(JSON.stringify({
+        sector: "construction",
+        terms: {},
+        label: "",
+      }), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    return new Response("{}", {
+      status: 204,
+      statusText: "No Content",
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  function withSupportAuth(input, init) {
+    const token = readSessionToken();
+    const headers = new Headers(
+      (init && init.headers)
+      || (input && typeof input !== "string" && input.headers)
+      || undefined,
+    );
+    if (token && !headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${token}`);
+    }
+    try {
+      const watchRaw =
+        global.sessionStorage.getItem("baupass-support-assist-watch")
+        || global.sessionStorage.getItem(KEYS.SUPPORT_ASSIST_WATCH);
+      const watch = watchRaw ? JSON.parse(watchRaw) : null;
+      if (watch?.watchToken && watch?.companyId && !watch?.agent) {
+        if (!headers.has("X-Support-Watch-Token")) {
+          headers.set("X-Support-Watch-Token", String(watch.watchToken));
+        }
+        if (!headers.has("X-Support-Company-Id")) {
+          headers.set("X-Support-Company-Id", String(watch.companyId));
+        }
+      }
+    } catch {
+      // ignore
+    }
+    if (!token && !headers.has("X-Support-Watch-Token")) {
+      return [input, init];
+    }
+    return [input, { ...(init || {}), headers }];
   }
 
   function installSupportFetchGuard() {
@@ -359,11 +420,11 @@
     global.fetch = function baupassSupportFetch(input, init) {
       const url = typeof input === "string" ? input : (input && input.url) || "";
       if (isSupportAssistQuietMode() && shouldBlockSupportFetch(url)) {
-        return Promise.resolve(new Response("{}", {
-          status: 204,
-          statusText: "No Content",
-          headers: { "Content-Type": "application/json" },
-        }));
+        return Promise.resolve(syntheticSupportResponse(url));
+      }
+      if (hasActiveSupportTabScope() || isSupportAssistQuietMode()) {
+        const next = withSupportAuth(input, init);
+        return originalFetch(next[0], next[1]);
       }
       return originalFetch(input, init);
     };

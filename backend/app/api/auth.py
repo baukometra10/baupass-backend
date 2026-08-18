@@ -16,5 +16,7 @@ def logout():
     token = g.token
     AuthService().logout(token, g.current_user)
     response = jsonify({"ok": True})
-    response.delete_cookie(SESSION_COOKIE_NAME)
+    cookie_token = (request.cookies.get(SESSION_COOKIE_NAME, "") or "").strip()
+    if cookie_token and cookie_token == (token or ""):
+        response.delete_cookie(SESSION_COOKIE_NAME)
     return response, 200

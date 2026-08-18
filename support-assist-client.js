@@ -107,6 +107,13 @@
     }
   }
 
+  function assistAuthToken() {
+    if (global.WorkPassStorage?.readSessionToken) {
+      return String(global.WorkPassStorage.readSessionToken() || "").trim();
+    }
+    return "";
+  }
+
   function writeWatchState(state) {
     try {
       if (!state) {
@@ -504,7 +511,7 @@
     const payload = pendingMouse;
     pendingMouse = null;
     const headers = { "Content-Type": "application/json", Accept: "application/json" };
-    const token = global.WorkPassStorage?.readSessionToken?.() || global.localStorage?.getItem("workpass-session-token") || "";
+    const token = assistAuthToken();
     if (token) headers.Authorization = `Bearer ${token}`;
     fetch(`${apiBase()}/api/support-assist/pulse`, {
       method: "POST",
@@ -535,7 +542,7 @@
         agentMoveTimer = global.setTimeout(() => {
           agentMoveTimer = null;
           flushAgentMouse(state);
-        }, 24);
+        }, 80);
       }
     };
     global.document.addEventListener("mousemove", onMove, { passive: true });
@@ -576,7 +583,7 @@
     }
     if (state?.companyId && state?.watchToken) {
       const headers = { "Content-Type": "application/json", Accept: "application/json" };
-      const token = global.WorkPassStorage?.readSessionToken?.() || global.localStorage?.getItem("workpass-session-token") || "";
+      const token = assistAuthToken();
       if (token) headers.Authorization = `Bearer ${token}`;
       try {
         await fetch(`${apiBase()}/api/support-assist/end`, {
@@ -605,7 +612,7 @@
     }
     if (state?.companyId && state?.watchToken) {
       const headers = { "Content-Type": "application/json", Accept: "application/json" };
-      const token = global.WorkPassStorage?.readSessionToken?.() || global.localStorage?.getItem("workpass-session-token") || "";
+      const token = assistAuthToken();
       if (token) headers.Authorization = `Bearer ${token}`;
       fetch(`${apiBase()}/api/support-assist/end`, {
         method: "POST",
@@ -617,27 +624,36 @@
     writeWatchState(null);
   }
 
+  let pulseInFlight = 0;
   async function pulse(state, type, payload) {
     if (!state?.companyId || !state?.watchToken) return;
+    if (pulseInFlight > 2) return;
     const headers = { "Content-Type": "application/json", Accept: "application/json" };
-    const token = global.WorkPassStorage?.readSessionToken?.() || global.localStorage?.getItem("workpass-session-token") || "";
+    const token = assistAuthToken();
     if (token) headers.Authorization = `Bearer ${token}`;
-    await fetch(`${apiBase()}/api/support-assist/pulse`, {
-      method: "POST",
-      credentials: "include",
-      headers,
-      body: JSON.stringify({
-        companyId: state.companyId,
-        watchToken: state.watchToken,
-        type,
-        payload: { ...(payload || {}), actorName: state.actorName },
-      }),
-    }).catch(() => {});
+    pulseInFlight += 1;
+    try {
+      await fetch(`${apiBase()}/api/support-assist/pulse`, {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: JSON.stringify({
+          companyId: state.companyId,
+          watchToken: state.watchToken,
+          type,
+          payload: { ...(payload || {}), actorName: state.actorName },
+        }),
+      });
+    } catch {
+      // ignore
+    } finally {
+      pulseInFlight = Math.max(0, pulseInFlight - 1);
+    }
   }
 
   async function startAssistSession(companyId, actorName) {
     const headers = { "Content-Type": "application/json", Accept: "application/json" };
-    const token = global.WorkPassStorage?.readSessionToken?.() || global.localStorage?.getItem("workpass-session-token") || "";
+    const token = assistAuthToken();
     if (token) headers.Authorization = `Bearer ${token}`;
     const res = await fetch(`${apiBase()}/api/support-assist/start`, {
       method: "POST",
@@ -677,7 +693,7 @@
   function resumeIfNeeded() {
     const urlState = resumeAgentFromUrl();
     if (urlState) {
-      const token = global.WorkPassStorage?.readSessionToken?.() || global.localStorage?.getItem("workpass-session-token") || "";
+      const token = assistAuthToken();
       if (!token) {
         writeWatchState(null);
         return;
@@ -688,7 +704,7 @@
     const state = readWatchState();
     if (!state?.companyId || !state?.watchToken) return;
     if (state.agent) {
-      const token = global.WorkPassStorage?.readSessionToken?.() || global.localStorage?.getItem("workpass-session-token") || "";
+      const token = assistAuthToken();
       if (!token) {
         writeWatchState(null);
         resetSpectatorUi();
