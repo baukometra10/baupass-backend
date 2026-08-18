@@ -27,7 +27,7 @@ def test_start_session_and_poll_events():
     assert polled["active"] is True
     types = [evt["type"] for evt in polled["events"]]
     assert "session_start" in types
-    assert "force_logout" in types
+    assert "force_logout" not in types
 
     assist_service.append_pulse(
         company_id="co-demo",
@@ -41,6 +41,8 @@ def test_start_session_and_poll_events():
         since_seq=polled["seq"],
     )
     assert any(evt["type"] == "mouse" for evt in polled2["events"])
+
+    assert assist_service.get_active_session("co-demo")["watchToken"] == started["watchToken"]
 
     assist_service.end_session(company_id="co-demo", watch_token=started["watchToken"])
     assert assist_service.get_active_session("co-demo") is None

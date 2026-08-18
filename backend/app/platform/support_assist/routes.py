@@ -100,6 +100,8 @@ def register_support_assist_blueprint(flask_app) -> None:
                 "companyId": row.get("companyId"),
                 "actorName": row.get("actorName"),
                 "startedAt": row.get("startedAt"),
+                "watchToken": row.get("watchToken"),
+                "seq": row.get("seq"),
             }
         )
 

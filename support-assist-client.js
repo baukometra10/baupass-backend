@@ -1,5 +1,6 @@
 (function initBaupassSupportAssist(global) {
   const STORAGE_KEY = "baupass-support-assist-watch";
+  const COMPANY_HINT_KEY = "baupass-support-assist-company";
   let pollTimer = null;
   let publicWatchTimer = null;
   let publicWatchCompanyId = "";
@@ -18,6 +19,24 @@
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
+    }
+  }
+
+  function rememberCompany(companyId) {
+    const cid = String(companyId || "").trim();
+    if (!cid) return;
+    try {
+      global.localStorage.setItem(COMPANY_HINT_KEY, cid);
+    } catch {
+      // ignore
+    }
+  }
+
+  function readRememberedCompany() {
+    try {
+      return String(global.localStorage.getItem(COMPANY_HINT_KEY) || "").trim();
+    } catch {
+      return "";
     }
   }
 
@@ -229,23 +248,9 @@
         return;
       }
       if (type === "force_logout") {
-        if (global.BaupassSession?.clearSession) {
-          try { global.BaupassSession.clearSession(); } catch { /* ignore */ }
-        }
+        setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName), { allowLogin: false });
         if (global.BaupassSession?.showSupportSpectatorNotice) {
           try { global.BaupassSession.showSupportSpectatorNotice(payload?.message); } catch { /* ignore */ }
-        }
-        applyUiState({
-          authVisible: true,
-          loggedIn: false,
-          viewLabel: "Anmeldung",
-          view: "dashboard",
-          loginUsername: "",
-          loginPasswordLen: 0,
-        }, actorName);
-        setSpectatorMode(true, actorName, messageForEvent(type, payload, actorName), { allowLogin: false });
-        if (global.BaupassSession?.refreshAll) {
-          try { global.BaupassSession.refreshAll(); } catch { /* ignore */ }
         }
         return;
       }
@@ -335,6 +340,7 @@
 
   function startPolling(state) {
     writeWatchState(state);
+    if (state?.companyId) rememberCompany(state.companyId);
     lastSeq = 0;
     ensureBanner();
     setSpectatorMode(true, state?.actorName, "Support verbindet…");
@@ -627,6 +633,8 @@
     pulse,
     checkActiveForCompanyAdmin,
     fetchPublicActive,
+    rememberCompany,
+    readRememberedCompany,
     resumeIfNeeded,
     readWatchState,
     writeWatchState,

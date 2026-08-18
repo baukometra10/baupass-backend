@@ -764,6 +764,12 @@ function resolveSpectatorCompanyId() {
   const tenantId = String(state.tenantCompanyId || "").trim();
   if (tenantId) return tenantId;
   try {
+    const remembered = window.BaupassSupportAssist?.readRememberedCompany?.() || "";
+    if (remembered) return remembered;
+  } catch {
+    // ignore
+  }
+  try {
     return String(window.BaupassAuth?.readStoredCompanyId?.() || "").trim();
   } catch {
     return "";
@@ -791,24 +797,19 @@ function syncSupportAssistSpectatorWatch() {
     return;
   }
 
-  if (document.body?.classList.contains("support-assist-spectator-active")) {
-    const companyId = resolveSpectatorCompanyId();
-    if (companyId) {
-      assist.startPublicSpectatorWatch?.(companyId);
-    }
+  const companyId = resolveSpectatorCompanyId();
+  if (!companyId) {
+    assist.stopPublicSpectatorWatch?.();
+    return;
+  }
+  assist.rememberCompany?.(companyId);
+
+  if (role === "company-admin" && token) {
+    void assist.checkActiveForCompanyAdmin?.(companyId, token);
     return;
   }
 
-  if (role === "company-admin") {
-    const companyId = String(getCurrentUser()?.company_id || getCurrentUser()?.companyId || "").trim();
-    if (companyId) {
-      assist.startPublicSpectatorWatch?.(companyId);
-    }
-    return;
-  }
-
-  assist.stopPublicSpectatorWatch?.();
-  assist.stopPolling?.();
+  assist.startPublicSpectatorWatch?.(companyId);
 }
 const UI_TRANSLATIONS = {
   de: {
