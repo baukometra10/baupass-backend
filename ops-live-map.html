@@ -2709,7 +2709,7 @@
       }
     }
 
-    async function waitForEmbedSession(maxMs = 3500) {
+    async function waitForEmbedSession(maxMs = 6000) {
       if (window.BaupassAuth?.getSessionToken?.()) return true;
       let embedded = false;
       try {
@@ -2718,25 +2718,49 @@
         embedded = false;
       }
       if (!embedded) return false;
-      try {
-        window.parent.postMessage({ type: "baupass-request-token" }, window.location.origin);
-      } catch {
-        // parent not ready
-      }
-      try {
-        if (window.top && window.top !== window) {
-          window.top.postMessage({ type: "baupass-request-token" }, window.location.origin);
+      const requestToken = () => {
+        try {
+          window.parent.postMessage({ type: "baupass-request-token" }, window.location.origin);
+        } catch {
+          // parent not ready
         }
-      } catch {
-        // top not reachable
-      }
-      window.BaupassEmbedRequestToken?.();
-      const deadline = Date.now() + maxMs;
-      while (Date.now() < deadline) {
-        if (window.BaupassAuth?.getSessionToken?.()) return true;
-        await new Promise((resolve) => setTimeout(resolve, 75));
-      }
-      return Boolean(window.BaupassAuth?.getSessionToken?.());
+        try {
+          if (window.top && window.top !== window) {
+            window.top.postMessage({ type: "baupass-request-token" }, window.location.origin);
+          }
+        } catch {
+          // top not reachable
+        }
+        window.BaupassEmbedRequestToken?.();
+      };
+      requestToken();
+      return new Promise((resolve) => {
+        const deadline = Date.now() + maxMs;
+        let timer = null;
+        const finish = (ok) => {
+          window.removeEventListener("baupass-token-synced", onSynced);
+          if (timer) window.clearTimeout(timer);
+          resolve(Boolean(ok));
+        };
+        const onSynced = () => {
+          if (window.BaupassAuth?.getSessionToken?.()) finish(true);
+        };
+        const tick = () => {
+          if (window.BaupassAuth?.getSessionToken?.()) {
+            finish(true);
+            return;
+          }
+          if (Date.now() >= deadline) {
+            finish(window.BaupassAuth?.getSessionToken?.());
+            return;
+          }
+          timer = window.setTimeout(tick, 80);
+        };
+        window.addEventListener("baupass-token-synced", onSynced);
+        window.setTimeout(requestToken, 400);
+        window.setTimeout(requestToken, 1400);
+        tick();
+      });
     }
 
     let mapBootFinished = false;

@@ -17203,11 +17203,29 @@ function renderSupportReadOnlyTopbarBadge(loggedIn) {
 
 function resolveLoginScope() {
   const supportContext = state.supportLoginContext || loadSupportLoginContext();
-  if (supportContext?.companyId) {
-    return "company-admin";
-  }
   const selected = String(document.querySelector("#loginScope")?.value || "auto").trim().toLowerCase();
+  if (supportContext?.companyId) {
+    if (selected && selected !== "auto") {
+      return selected;
+    }
+    return "server-admin";
+  }
   return selected || "auto";
+}
+
+function applySupportLoginScopeFromUrl() {
+  try {
+    const url = new URL(window.location.href);
+    const scope = String(url.searchParams.get("loginScope") || "").trim().toLowerCase();
+    if (!scope) return;
+    const loginScopeEl = document.querySelector("#loginScope");
+    const ctx = state.supportLoginContext || loadSupportLoginContext();
+    if (loginScopeEl && ctx?.companyId) {
+      loginScopeEl.value = scope;
+    }
+  } catch {
+    // ignore URL parsing failures
+  }
 }
 
 function updateLoginOtpVisibility() {
@@ -17234,9 +17252,12 @@ function updateLoginOtpVisibility() {
 
 function prepareSupportLoginScreen() {
   syncSupportLoginUi();
+  applySupportLoginScopeFromUrl();
   const loginScopeEl = document.querySelector("#loginScope");
   if (loginScopeEl && (state.supportLoginContext?.companyId || loadSupportLoginContext()?.companyId)) {
-    loginScopeEl.value = "server-admin";
+    if (String(loginScopeEl.value || "auto").trim().toLowerCase() === "auto") {
+      loginScopeEl.value = "server-admin";
+    }
   }
   if (elements.authOverlay) {
     elements.authOverlay.classList.add("active");
@@ -19584,20 +19605,24 @@ function scheduleAdminV2EinsatzplanFocus() {
 }
 
 function postMessageToEmbedFrames(message) {
+  const sendToFrame = (frame) => {
+    if (!frame?.contentWindow) return;
+    const src = String(frame.getAttribute("src") || frame.src || "").trim();
+    if (!src || src === "about:blank" || src.startsWith("about:")) return;
+    try {
+      if (new URL(src, window.location.href).origin !== window.location.origin) return;
+      frame.contentWindow.postMessage(message, window.location.origin);
+      frame.contentDocument?.querySelectorAll("iframe").forEach((nested) => sendToFrame(nested));
+    } catch {
+      // iframe not ready
+    }
+  };
   Object.values(ENTERPRISE_EMBED_META).forEach((meta) => {
     const frame = document.getElementById(meta.frameId);
     if (window.BaupassEmbed?.postMessageToIframe) {
       window.BaupassEmbed.postMessageToIframe(frame, message);
-      return;
     }
-    const src = String(frame?.getAttribute("src") || frame?.src || "").trim();
-    if (!frame?.contentWindow || !src || src === "about:blank" || src.startsWith("about:")) return;
-    try {
-      if (new URL(src, window.location.href).origin !== window.location.origin) return;
-      frame.contentWindow.postMessage(message, window.location.origin);
-    } catch {
-      // iframe not ready
-    }
+    sendToFrame(frame);
   });
 }
 
@@ -36595,7 +36620,12 @@ async function handleLoginSubmit(event) {
     }
     if (error.message === "login_scope_mismatch") {
       const scopeEl = document.querySelector("#loginScope");
-      if (scopeEl) scopeEl.value = "auto";
+      const supportContext = state.supportLoginContext || loadSupportLoginContext();
+      if (scopeEl && supportContext?.companyId) {
+        scopeEl.value = "server-admin";
+      } else if (scopeEl) {
+        scopeEl.value = "auto";
+      }
       showToast(uiT("alertLoginScopeMismatch"), "error", 4200);
       return;
     }
