@@ -1489,16 +1489,36 @@ def register_accounting_blueprint(flask_app) -> None:
     @require_roles("superadmin", "company-admin")
     def admin_statement_pdf(batch_id: str, statement_id: str):
         from flask import send_file
+        from pathlib import Path
 
         user = g.current_user
         db = get_db()
         _batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
         if err:
             return err
-        from pathlib import Path
-
+        from .lohn_sheet_pdf import is_exact_lohn_pdf_source
         from .service import ensure_statement_delivery_pdf
 
+        try:
+            meta = __import__("json").loads(stmt.get("meta_json") or "{}")
+        except Exception:
+            meta = {}
+        if not isinstance(meta, dict):
+            meta = {}
+        path = str(stmt.get("file_path") or "").strip()
+        immutable = bool(meta.get("pdfImmutable")) or is_exact_lohn_pdf_source(meta.get("pdfSource"))
+        # Serve stored original bytes first — never remake Vordienst/tax into an empty sheet.
+        if path and Path(path).is_file() and (immutable or Path(path).stat().st_size > 20):
+            download = str(request.args.get("download") or "").strip().lower() in {"1", "true", "yes"}
+            return send_file(
+                path,
+                mimetype="application/pdf",
+                as_attachment=download,
+                download_name=str(stmt.get("filename") or "lohnabrechnung.pdf"),
+                conditional=True,
+            )
+        if immutable:
+            return jsonify({"error": "missing_pdf", "hint": "immutable_original_missing"}), 404
         built = ensure_statement_delivery_pdf(db, stmt, _batch)
         if built.get("ok"):
             stmt = repo.get_statement(db, statement_id) or stmt

@@ -1570,6 +1570,7 @@ const payslipStudioState = {
   activeBatchId: "",
   activeStmtId: "",
   pdfObjectUrl: "",
+  previewKind: "sheet",
   sheetHtml: "",
   sheetWindow: null,
   viewerBlobUrl: "",
@@ -1640,6 +1641,14 @@ function resetPayslipInnerScale(doc) {
   }
 }
 
+function setPayslipPreviewKind(kind) {
+  const next = kind === "pdf" ? "pdf" : "sheet";
+  payslipStudioState.previewKind = next;
+  const wrap = $("payslipStudioPdf")?.closest?.(".payslip-studio-pdf-wrap");
+  wrap?.classList.toggle("is-pdf-doc", next === "pdf");
+  wrap?.classList.toggle("is-sheet-doc", next !== "pdf");
+}
+
 function fitPayslipPreview() {
   const iframe = $("payslipStudioPdf");
   const stage = $("payslipSheetStage") || iframe?.closest?.(".payslip-sheet-stage");
@@ -1648,6 +1657,28 @@ function fitPayslipPreview() {
   const wrapW = wrap.clientWidth || 0;
   const wrapH = wrap.clientHeight || 0;
   if (wrapW < 40 || wrapH < 40) return;
+
+  // Original Lohn PDFs (Vordienst, Steuer, …): fill the pane — do not A4-scale/clip the browser PDF viewer.
+  if (payslipStudioState.previewKind === "pdf" || wrap.classList.contains("is-pdf-doc")) {
+    stage.style.width = "100%";
+    stage.style.height = "100%";
+    stage.style.maxWidth = "100%";
+    stage.style.maxHeight = "100%";
+    stage.style.aspectRatio = "auto";
+    stage.style.pointerEvents = "auto";
+    iframe.style.position = "absolute";
+    iframe.style.inset = "0";
+    iframe.style.width = "100%";
+    iframe.style.height = "100%";
+    iframe.style.minHeight = "100%";
+    iframe.style.maxHeight = "none";
+    iframe.style.transform = "none";
+    iframe.style.overflow = "auto";
+    iframe.style.pointerEvents = "auto";
+    iframe.style.background = "#fff";
+    return;
+  }
+
   lockPayslipIframeChrome(iframe);
   const pad = 8;
   const availW = Math.max(80, wrapW - pad);
@@ -2691,9 +2722,17 @@ function statementPrefersPdfPreview(stmt) {
   const mode = String(stmt.previewMode || "").toLowerCase();
   if (mode === "pdf") return true;
   if (mode === "sheet") return false;
+  if (stmt.pdfImmutable) return true;
+  const src = String(stmt.pdfSource || "").toLowerCase();
+  if (src === "lohn_original") return true;
   const docType = String(stmt.docType || stmt.documentType || "").toLowerCase();
   const sheetTypes = new Set(["lohnabrechnung", "gehaltsabrechnung", ""]);
-  return Boolean(docType && !sheetTypes.has(docType));
+  if (docType && !sheetTypes.has(docType)) return true;
+  const title = String(stmt.title || stmt.docTypeLabel || "").toLowerCase();
+  if (/vordienst|lohnsteuer|verdienst|jahresabrechnung|steuerbescheinigung|كشف|سنوي/.test(title)) {
+    return true;
+  }
+  return false;
 }
 
 async function loadPayslipStudioOriginalPdf(batchId, statementId, iframe) {
@@ -2708,13 +2747,22 @@ async function loadPayslipStudioOriginalPdf(batchId, statementId, iframe) {
     let msg = `PDF ${res.status}`;
     try {
       const j = await res.json();
-      msg = j.error || msg;
+      msg = j.error || j.hint || msg;
     } catch {
       /* ignore */
     }
     throw new Error(msg);
   }
-  const blob = await res.blob();
+  const raw = await res.blob();
+  if (!raw || raw.size < 40) {
+    throw new Error(t("lohn.pdfMissing") || "PDF fehlt oder ist leer");
+  }
+  const head = new Uint8Array(await raw.slice(0, 5).arrayBuffer());
+  const magic = String.fromCharCode(...head);
+  if (!magic.startsWith("%PDF")) {
+    throw new Error(t("lohn.pdfInvalid") || "Datei ist kein PDF");
+  }
+  const blob = raw.type === "application/pdf" ? raw : new Blob([raw], { type: "application/pdf" });
   if (payslipStudioState.pdfObjectUrl) {
     try {
       URL.revokeObjectURL(payslipStudioState.pdfObjectUrl);
@@ -2725,9 +2773,11 @@ async function loadPayslipStudioOriginalPdf(batchId, statementId, iframe) {
   const url = URL.createObjectURL(blob);
   payslipStudioState.pdfObjectUrl = url;
   payslipStudioState.sheetHtml = "";
+  setPayslipPreviewKind("pdf");
   invalidatePayslipCaptureCache();
   if (iframe) {
     iframe.removeAttribute("srcdoc");
+    iframe.setAttribute("scrolling", "auto");
     iframe.onload = () => {
       try {
         schedulePayslipPreviewFit();
@@ -2737,7 +2787,9 @@ async function loadPayslipStudioOriginalPdf(batchId, statementId, iframe) {
         /* ignore */
       }
     };
-    iframe.src = url;
+    // FitH so content is visible; allow toolbar for zoom/scroll on non-payslip docs.
+    iframe.src = `${url}#toolbar=1&navpanes=0&scrollbar=1&view=FitH`;
+    schedulePayslipPreviewFit();
   }
   return url;
 }
@@ -2770,16 +2822,9 @@ async function selectPayslipStatement(batchId, statementId) {
   try {
     const preferPdf = statementPrefersPdfPreview(stmt);
     if (preferPdf) {
-      try {
-        await loadPayslipStudioOriginalPdf(batchId, statementId, iframe);
-      } catch (pdfErr) {
-        // Fall back to Datev sheet only for classic monthly payslips.
-        if (!["lohnabrechnung", "gehaltsabrechnung"].includes(String(stmt.docType || "").toLowerCase())) {
-          throw pdfErr;
-        }
-      }
-    }
-    if (!preferPdf || !payslipStudioState.pdfObjectUrl) {
+      await loadPayslipStudioOriginalPdf(batchId, statementId, iframe);
+    } else {
+      setPayslipPreviewKind("sheet");
       const token = wpGet(TOKEN_KEY);
       const headers = { Accept: "text/html" };
       if (token) headers.Authorization = `Bearer ${token}`;
@@ -2794,6 +2839,7 @@ async function selectPayslipStatement(batchId, statementId) {
       warmPayslipCaptureLibs();
       if (iframe) {
         iframe.removeAttribute("src");
+        iframe.setAttribute("scrolling", "no");
         iframe.srcdoc = sheetHtml;
         iframe.onload = () => {
           try {
@@ -2828,6 +2874,7 @@ async function selectPayslipStatement(batchId, statementId) {
       iframe.srcdoc = "";
       iframe.src = "about:blank";
     }
+    setPayslipPreviewKind("sheet");
     const msg = humanizeUserError?.(err) || err?.message || "Abrechnung fehlgeschlagen";
     showActionToast(msg, true);
   }

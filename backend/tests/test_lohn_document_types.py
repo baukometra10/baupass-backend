@@ -106,6 +106,31 @@ def test_ensure_statement_keeps_original_pdf(tmp_path, monkeypatch):
     assert pdf_path.read_bytes().startswith(b"%PDF")
 
 
+def test_ensure_statement_does_not_remake_missing_immutable():
+    from backend.app.platform.accounting.service import ensure_statement_delivery_pdf
+
+    stmt = {
+        "id": "stmt-missing",
+        "company_id": "cmp-test",
+        "period": "2026-01",
+        "file_path": "/no/such/vordienst.pdf",
+        "file_size": 0,
+        "filename": "Vordienstbescheinigung.pdf",
+        "meta_json": json.dumps({"pdfSource": "lohn_original", "pdfImmutable": True}),
+    }
+
+    class _FakeDb:
+        def execute(self, *a, **k):
+            raise AssertionError("must not remake empty Datev PDF for immutable docs")
+
+        def commit(self):
+            raise AssertionError("must not remake empty Datev PDF for immutable docs")
+
+    out = ensure_statement_delivery_pdf(_FakeDb(), stmt, {"period": "2026-01"}, force=False)
+    assert out.get("ok") is False
+    assert out.get("error") == "missing_pdf"
+
+
 def test_lohn_delivery_payslip_regression():
     from backend.app.platform.accounting.service import lohn_delivery_to_statement
 

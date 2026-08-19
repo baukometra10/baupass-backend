@@ -1613,13 +1613,9 @@ def ensure_statement_delivery_pdf(
     existing_source = str(existing_meta.get("pdfSource") or "")
     existing_size = int(stmt.get("file_size") or 0)
     path = str(stmt.get("file_path") or "").strip()
+    immutable = bool(existing_meta.get("pdfImmutable")) or is_exact_lohn_pdf_source(existing_source)
     # Never replace the authentic Lohn PDF — deliver bytes as received, any size.
-    if (
-        not force
-        and is_exact_lohn_pdf_source(existing_source)
-        and path
-        and Path(path).is_file()
-    ):
+    if not force and immutable and path and Path(path).is_file():
         try:
             on_disk = Path(path).stat().st_size
         except Exception:
@@ -1631,9 +1627,13 @@ def ensure_statement_delivery_pdf(
                 "fileSize": on_disk or existing_size,
                 "filename": stmt.get("filename") or "",
                 "period": str(stmt.get("period") or ""),
-                "pdfSource": existing_source,
+                "pdfSource": existing_source or "lohn_original",
                 "skipped": "exact_lohn",
             }
+        return {"ok": False, "error": "missing_pdf", "hint": "immutable_pdf_empty"}
+    # Do not remake tax/earnings/Vordienst originals into an empty Datev sheet.
+    if not force and immutable:
+        return {"ok": False, "error": "missing_pdf", "hint": "immutable_pdf_missing"}
     # Locked high-fidelity deliveries stay immutable.
     already_html = is_high_fidelity_pdf_source(existing_source) and existing_size >= 12000
     if not force and statement_delivery_locked(stmt, existing_meta) and already_html:

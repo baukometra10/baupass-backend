@@ -4308,6 +4308,34 @@ body.payslip-studio-open {
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
   pointer-events: none;
 }
+.payslip-studio-pdf-wrap.is-pdf-doc {
+  align-items: stretch;
+  justify-content: stretch;
+  overflow: hidden;
+}
+.payslip-studio-pdf-wrap.is-pdf-doc .payslip-sheet-stage {
+  flex: 1 1 auto;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none;
+  max-height: none;
+  overflow: hidden;
+  pointer-events: auto;
+  box-shadow: none;
+  border-radius: 6px;
+  background: #fff;
+}
+.payslip-studio-pdf-wrap.is-pdf-doc .payslip-studio-pdf {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  pointer-events: auto !important;
+  overflow: auto;
+  background: #fff;
+}
 .payslip-studio-pdf {
   display: block;
   position: absolute;
