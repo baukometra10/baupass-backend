@@ -1922,6 +1922,14 @@
     }
 
     async function loadAgents() {
+      if (
+        isSupportReadOnlyMode()
+        || (isEmbedFrame() && window.WorkPassStorage?.isSupportAssistQuietMode?.() && !window.WorkPassStorage?.readSessionToken?.())
+        || window.WorkPassStorage?.isAuthUnusable?.()
+      ) {
+        agents = [];
+        return;
+      }
       try {
         const data = await api(`/api/ai/agents?lang=${encodeURIComponent(LANG)}`);
         agents = data.agents || [];
@@ -2551,6 +2559,14 @@
       const host = document.getElementById("leaveRequestsPanel");
       if (!host || companyRequiredForUi()) {
         if (host) host.innerHTML = "";
+        return;
+      }
+      if (
+        isSupportReadOnlyMode()
+        || (isEmbedFrame() && window.WorkPassStorage?.isSupportAssistQuietMode?.() && !window.WorkPassStorage?.readSessionToken?.())
+        || window.WorkPassStorage?.isAuthUnusable?.()
+      ) {
+        host.innerHTML = "";
         return;
       }
       try {

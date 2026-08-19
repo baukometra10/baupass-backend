@@ -371,6 +371,22 @@
     "/api/dashboard/role",
   ];
 
+  /** Background polls that must not hit the network without a confirmed support session. */
+  const SUPPORT_POLL_BLOCK = [
+    "/api/dashboard/role",
+    "/api/ai/agents",
+    "/api/leave-requests",
+    "/api/ops-os/live-map",
+    "/api/ops-os/summary",
+    "/api/operations/snapshot",
+    "/api/v1/events/recent",
+    "/api/inbox/counts",
+    "/api/inbox",
+    "/api/payroll/accounting/messages",
+  ];
+
+  const SHARED_SUPPORT_COOLDOWN_KEY = "baupass-support-fetch-cooldown";
+
   const SUPPORT_WRITE_BLOCK = [
     "/review-open",
     "/payroll/statements/",
@@ -380,7 +396,7 @@
   const AUTH_UNUSABLE_KEY = "workpass-auth-unusable";
   const TTS_UNUSABLE_KEY = "workpass-tts-unavailable";
   const AUTH_UNUSABLE_TTL_MS = 120000;
-  const SUPPORT_FETCH_COOLDOWN_MS = 30000;
+  const SUPPORT_FETCH_COOLDOWN_MS = 60000;
   const supportFetchCooldownUntil = new Map();
   const AUTH_DEAD_ALLOW = [
     "/api/login",
@@ -456,24 +472,60 @@
     return String(url || "").toLowerCase().includes("/api/");
   }
 
+  function readSharedSupportCooldowns() {
+    try {
+      const root = getSharedRoot();
+      const raw = root.sessionStorage.getItem(SHARED_SUPPORT_COOLDOWN_KEY);
+      const map = raw ? JSON.parse(raw) : {};
+      return map && typeof map === "object" ? map : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function writeSharedSupportCooldown(key, until) {
+    try {
+      const root = getSharedRoot();
+      const map = readSharedSupportCooldowns();
+      map[key] = until;
+      root.sessionStorage.setItem(SHARED_SUPPORT_COOLDOWN_KEY, JSON.stringify(map));
+    } catch {
+      // ignore
+    }
+  }
+
   function supportFetchKey(url) {
     return String(url || "").toLowerCase().split("?")[0];
   }
 
   function isSupportFetchCoolingDown(url) {
     if (!isSupportAssistQuietMode() && !hasActiveSupportTabScope()) return false;
-    const until = supportFetchCooldownUntil.get(supportFetchKey(url)) || 0;
+    const key = supportFetchKey(url);
+    const sharedUntil = Number(readSharedSupportCooldowns()[key] || 0);
+    const localUntil = supportFetchCooldownUntil.get(key) || 0;
+    const until = Math.max(sharedUntil, localUntil);
     return Date.now() < until;
   }
 
   function markSupportFetchCooldown(url, status) {
     if (status !== 401 && status !== 403) return;
     if (!isSupportAssistQuietMode() && !hasActiveSupportTabScope()) return;
-    supportFetchCooldownUntil.set(supportFetchKey(url), Date.now() + SUPPORT_FETCH_COOLDOWN_MS);
+    const key = supportFetchKey(url);
+    const until = Date.now() + SUPPORT_FETCH_COOLDOWN_MS;
+    supportFetchCooldownUntil.set(key, until);
+    writeSharedSupportCooldown(key, until);
+    if (shouldBlockSupportPoll(url)) {
+      markAuthUnusable();
+    }
   }
 
   function clearSupportFetchCooldowns() {
     supportFetchCooldownUntil.clear();
+    try {
+      getSharedRoot().sessionStorage.removeItem(SHARED_SUPPORT_COOLDOWN_KEY);
+    } catch {
+      // ignore
+    }
   }
 
   function isAuthDeadAllowed(url) {
@@ -557,6 +609,16 @@
   function shouldBlockSupportFetch(url) {
     const raw = String(url || "").toLowerCase();
     return SUPPORT_FETCH_BLOCK.some((part) => raw.includes(part));
+  }
+
+  function shouldBlockSupportPoll(url) {
+    const raw = String(url || "").toLowerCase();
+    return SUPPORT_POLL_BLOCK.some((part) => raw.includes(part));
+  }
+
+  function shouldDeferSupportPoll() {
+    if (isAuthUnusable()) return true;
+    return !readSessionToken();
   }
 
   function shouldBlockSpectatorFetch(url) {
@@ -762,6 +824,13 @@
         return Promise.resolve(syntheticSupportResponse(url));
       }
       if (isSupportAssistQuietMode() && shouldBlockSupportFetch(url)) {
+        return Promise.resolve(syntheticSupportResponse(url));
+      }
+      if (
+        (isSupportAssistQuietMode() || hasActiveSupportTabScope())
+        && shouldBlockSupportPoll(url)
+        && (shouldDeferSupportPoll() || isSupportFetchCoolingDown(url))
+      ) {
         return Promise.resolve(syntheticSupportResponse(url));
       }
       // Agent support tab waiting for Server-Admin login: do not hammer APIs with bare 401s.

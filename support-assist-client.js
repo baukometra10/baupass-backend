@@ -520,6 +520,7 @@
 
   function flushAgentMouse(state) {
     if (!pendingMouse || !state?.companyId || !state?.watchToken) return;
+    if (!assistAuthToken()) return;
     const payload = pendingMouse;
     pendingMouse = null;
     const headers = { "Content-Type": "application/json", Accept: "application/json" };
@@ -636,16 +637,26 @@
     writeWatchState(null);
   }
 
+  let pulseDisabled = false;
+
+  function handleInvalidAssistSession() {
+    if (pulseDisabled) return;
+    pulseDisabled = true;
+    stopAgentBroadcast(readWatchState());
+    global.BaupassSession?.stopSupportAssistAgentUiCapture?.();
+  }
+
   let pulseInFlight = 0;
   async function pulse(state, type, payload) {
-    if (!state?.companyId || !state?.watchToken) return;
+    if (pulseDisabled || !state?.companyId || !state?.watchToken) return;
     if (pulseInFlight > 2) return;
+    if (type !== "session_start" && !assistAuthToken()) return;
     const headers = { "Content-Type": "application/json", Accept: "application/json" };
     const token = assistAuthToken();
     if (token) headers.Authorization = `Bearer ${token}`;
     pulseInFlight += 1;
     try {
-      await fetch(`${apiBase()}/api/support-assist/pulse`, {
+      const res = await fetch(`${apiBase()}/api/support-assist/pulse`, {
         method: "POST",
         credentials: "include",
         headers,
@@ -656,6 +667,9 @@
           payload: { ...(payload || {}), actorName: state.actorName },
         }),
       });
+      if (res.status === 403) {
+        handleInvalidAssistSession();
+      }
     } catch {
       // ignore
     } finally {

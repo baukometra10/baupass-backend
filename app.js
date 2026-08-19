@@ -616,6 +616,7 @@ function isSupportAssistUiActive() {
 async function pulseSupportAssist(type, payload) {
   const assist = getSupportAssistAgentState();
   if (!assist || !window.BaupassSupportAssist?.pulse) return;
+  if (type === "ui_state" && !token && !state.currentUser) return;
   const body = type === "ui_state" ? (payload || captureSupportAssistUiState()) : (payload || {});
   await window.BaupassSupportAssist.pulse(assist, type, body);
 }
@@ -19751,6 +19752,8 @@ function requestEinsatzplanEditor(options = {}) {
 function warmEnterpriseEmbed(viewName, { force = false } = {}) {
   const meta = ENTERPRISE_EMBED_META[viewName];
   if (!meta || !token || !state.currentUser) return;
+  if (state.supportLoginContext?.companyId || loadSupportLoginContext()?.companyId) return;
+  if (getSupportAssistAgentState() && (!token || !state.currentUser)) return;
   const iframe = document.getElementById(meta.frameId);
   if (!iframe) return;
   const item =
@@ -20646,9 +20649,7 @@ function clearSession(options = {}) {
   state.companyAdminSecurity = {};
   state.companyTurnstiles = {};
   state.companyMailSettings = {};
-  if (!preserveAssistAgent) {
-    broadcastSessionClearToEmbeds();
-  }
+  broadcastSessionClearToEmbeds();
 }
 
 window.BaupassSession = {
