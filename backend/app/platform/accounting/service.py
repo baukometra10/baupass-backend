@@ -1614,6 +1614,13 @@ def ensure_statement_delivery_pdf(
     existing_size = int(stmt.get("file_size") or 0)
     path = str(stmt.get("file_path") or "").strip()
     immutable = bool(existing_meta.get("pdfImmutable")) or is_exact_lohn_pdf_source(existing_source)
+    # Certificate docs (Verdienst/Vordienst/Steuer/…) must never become Datev payslip PDFs.
+    from backend.app.platform.worker_documents import resolve_payroll_doc_type
+
+    resolved_doc_type = resolve_payroll_doc_type(existing_meta, stmt)
+    certificate_doc = resolved_doc_type not in {"lohnabrechnung", "gehaltsabrechnung", ""}
+    if certificate_doc:
+        immutable = True
     # Never replace the authentic Lohn PDF — deliver bytes as received, any size.
     if not force and immutable and path and Path(path).is_file():
         try:
@@ -2417,15 +2424,11 @@ def pull_payslips_from_lohn(
         if str(d.get("type") or "").lower() in {"invoice", "invoices"}:
             skipped.append({"deliveryId": d.get("deliveryId"), "reason": "invoice_skipped"})
             continue
-        # Prefer full payroll JSON from Lohn (delivery.document can be thin).
+        # Prefer full payroll JSON from Lohn only for real monthly payslips.
+        # type=payslip + title Verdienstbescheinigung must NOT pull Datev payslip JSON.
         job_id = str(d.get("jobId") or "").strip()
-        dtype_l = str(d.get("type") or d.get("documentType") or d.get("docType") or "").lower()
-        is_payslipish = resolve_payroll_doc_type(d) in {"lohnabrechnung", "gehaltsabrechnung"} or dtype_l in {
-            "payslip",
-            "payroll",
-            "statement",
-            "",
-        }
+        resolved_type = resolve_payroll_doc_type(d)
+        is_payslipish = resolved_type in {"lohnabrechnung", "gehaltsabrechnung"}
         if job_id and is_payslipish:
             from urllib.parse import quote as _q
 
@@ -2565,6 +2568,18 @@ def refresh_pending_payslip_pdfs_from_lohn(
             meta = {}
         if not isinstance(meta, dict):
             meta = {}
+        # Never rewrite original Lohn certificate PDFs into Datev payslip sheets.
+        doc_type = resolve_payroll_doc_type(meta, stmt)
+        if doc_type not in {"lohnabrechnung", "gehaltsabrechnung"}:
+            errors.append({"statementId": stmt_id, "error": "skip_non_payslip", "docType": doc_type})
+            continue
+        if bool(meta.get("pdfImmutable")) or str(meta.get("pdfSource") or "").strip() in {
+            "lohn_original",
+            "lohn_html2canvas",
+            "lohn_sheet_capture",
+        }:
+            errors.append({"statementId": stmt_id, "error": "skip_immutable_pdf"})
+            continue
         job_id = str(meta.get("jobId") or "").strip()
         badge = str(
             meta.get("externalEmployeeId")
@@ -2590,7 +2605,6 @@ def refresh_pending_payslip_pdfs_from_lohn(
         if not payslip:
             errors.append({"statementId": stmt_id, "jobId": job_id, "error": "payslip_not_found"})
             continue
-        display = f"{stmt.get('first_name') or ''} {stmt.get('last_name') or ''}".strip()
         # Keep live Lohn JSON for the studio sheet; never write ReportLab stubs here.
         # Exact Chromium PDF is built on download / An Mitarbeiter senden.
         meta = {

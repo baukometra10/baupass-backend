@@ -2719,19 +2719,20 @@ function openPayslipSheetWindow(html) {
 
 function statementPrefersPdfPreview(stmt) {
   if (!stmt) return false;
-  const mode = String(stmt.previewMode || "").toLowerCase();
-  if (mode === "pdf") return true;
-  if (mode === "sheet") return false;
-  if (stmt.pdfImmutable) return true;
+  if (stmt.pdfImmutable || stmt.pdfSuspectRemake) return true;
   const src = String(stmt.pdfSource || "").toLowerCase();
   if (src === "lohn_original") return true;
   const docType = String(stmt.docType || stmt.documentType || "").toLowerCase();
   const sheetTypes = new Set(["lohnabrechnung", "gehaltsabrechnung", ""]);
   if (docType && !sheetTypes.has(docType)) return true;
-  const title = String(stmt.title || stmt.docTypeLabel || "").toLowerCase();
-  if (/vordienst|lohnsteuer|verdienst|jahresabrechnung|steuerbescheinigung|كشف|سنوي/.test(title)) {
+  const title = String(stmt.title || stmt.docTypeLabel || stmt.filename || "").toLowerCase();
+  if (/vordienst|lohnsteuer|verdienst|jahresabrechnung|steuerbescheinigung|bescheinigung|شهادة|سنوي/.test(title)) {
     return true;
   }
+  const mode = String(stmt.previewMode || "").toLowerCase();
+  if (mode === "pdf") return true;
+  // Only trust sheet mode when nothing above marks it as a certificate.
+  if (mode === "sheet") return false;
   return false;
 }
 
@@ -2809,6 +2810,14 @@ async function selectPayslipStatement(batchId, statementId) {
   empty?.classList.add("hidden");
   work?.classList.remove("hidden");
   await renderPayslipIdentity(stmt);
+
+  if (stmt.pdfSuspectRemake) {
+    showActionToast(
+      t("lohn.pdfRemakeHint")
+        || "Dieses Dokument wurde als Datev-Blatt neu erzeugt — bitte Original erneut aus WorkPass Lohn senden.",
+      true,
+    );
+  }
 
   if (payslipStudioState.pdfObjectUrl) {
     try {

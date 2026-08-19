@@ -402,6 +402,7 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
     pdf_source = ""
     pdf_immutable = False
     preview_mode = "sheet"
+    pdf_suspect_remake = False
     try:
         import json as _json
 
@@ -413,6 +414,7 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
             delivery_locked = bool(meta.get("deliveryLocked")) or status in {"released", "rejected"}
             from backend.app.platform.worker_documents import (
                 display_document_label,
+                infer_payroll_doc_type_from_title,
                 resolve_document_title,
                 resolve_payroll_doc_type,
             )
@@ -427,16 +429,27 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
                 "lohn_sheet_capture",
             }
             sheet_types = {"lohnabrechnung", "gehaltsabrechnung"}
-            preview_mode = "sheet" if doc_type in sheet_types else "pdf"
-            if has_pdf and doc_type not in sheet_types:
-                preview_mode = "pdf"
-            elif pdf_immutable and doc_type not in sheet_types:
-                preview_mode = "pdf"
+            title_type = infer_payroll_doc_type_from_title(title) if title else None
+            certificate_like = bool(
+                (doc_type and doc_type not in sheet_types)
+                or (title_type and title_type not in sheet_types)
+                or pdf_immutable
+                or pdf_source == "lohn_original"
+            )
+            preview_mode = "pdf" if certificate_like else "sheet"
+            datev_sources = {
+                "pending_datev_sheet",
+                "datev_sheet_html",
+                "datev_sheet_chromium",
+                "datev_sheet_weasyprint",
+                "datev_sheet_reportlab",
+            }
+            pdf_suspect_remake = bool(certificate_like and pdf_source in datev_sources and has_pdf)
     except Exception:
         doc_period = ""
         warnings, delivery_locked = [], status in {"released", "rejected"}
         doc_type, doc_type_label_de, title = "lohnabrechnung", "Lohnabrechnung", ""
-        pdf_source, pdf_immutable, preview_mode = "", False, "sheet"
+        pdf_source, pdf_immutable, preview_mode, pdf_suspect_remake = "", False, "sheet", False
     out.update(
         {
             "statementId": out.get("id"),
@@ -467,6 +480,7 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
             "pdfSource": pdf_source,
             "pdfImmutable": pdf_immutable,
             "previewMode": preview_mode,
+            "pdfSuspectRemake": pdf_suspect_remake,
             "fileSize": int(out.get("file_size") or 0),
             "status": status,
             "matchedBy": matched_by,
