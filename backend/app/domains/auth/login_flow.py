@@ -300,16 +300,22 @@ def _perform_login_core(srv, login_error):
 
     support_read_only = 0
     support_company_name = ""
+    preview_company_id = ""
     if support_company_id:
-        if user["role"] != "company-admin" or user["company_id"] != support_company_id:
-            srv.register_login_failure(throttle_key)
-            return login_error("support_company_mismatch")
         company_row = db.execute("SELECT id, name FROM companies WHERE id = ?", (support_company_id,)).fetchone()
         if not company_row:
             srv.register_login_failure(throttle_key)
             return login_error("company_not_found")
-        support_read_only = 1
-        support_company_name = company_row["name"] or ""
+        if user["role"] == "superadmin":
+            support_read_only = 1
+            support_company_name = company_row["name"] or ""
+            preview_company_id = support_company_id
+        elif user["role"] == "company-admin" and user["company_id"] == support_company_id:
+            support_read_only = 1
+            support_company_name = company_row["name"] or ""
+        else:
+            srv.register_login_failure(throttle_key)
+            return login_error("support_company_mismatch")
 
     srv.clear_login_failures(throttle_key)
 
@@ -330,10 +336,18 @@ def _perform_login_core(srv, login_error):
         try:
             db.execute(
                 """
-                INSERT INTO sessions (token, user_id, expires_at, support_read_only, support_company_name, support_actor_name)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO sessions (token, user_id, expires_at, support_read_only, support_company_name, support_actor_name, preview_company_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (token, user["id"], srv.expiry_iso(), support_read_only, support_company_name, support_actor_name),
+                (
+                    token,
+                    user["id"],
+                    srv.expiry_iso(),
+                    support_read_only,
+                    support_company_name,
+                    support_actor_name,
+                    preview_company_id or None,
+                ),
             )
         except Exception as exc:
             message = str(exc).lower()
@@ -345,12 +359,21 @@ def _perform_login_core(srv, login_error):
             missing_sessions = "no such table" in message and "sessions" in message
             if missing_sessions:
                 raise RuntimeError("sessions table missing") from exc
-            if not legacy_schema:
+            if legacy_schema and preview_company_id:
+                db.execute(
+                    """
+                    INSERT INTO sessions (token, user_id, expires_at, support_read_only, support_company_name, support_actor_name)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (token, user["id"], srv.expiry_iso(), support_read_only, support_company_name, support_actor_name),
+                )
+            elif legacy_schema:
+                db.execute(
+                    "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
+                    (token, user["id"], srv.expiry_iso()),
+                )
+            elif not legacy_schema:
                 raise
-            db.execute(
-                "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
-                (token, user["id"], srv.expiry_iso()),
-            )
         db.commit()
 
     srv.run_db_write_with_retry(_persist_login_session)
@@ -390,6 +413,8 @@ def _perform_login_core(srv, login_error):
     response_user["support_read_only"] = bool(support_read_only)
     response_user["support_company_name"] = support_company_name
     response_user["support_actor_name"] = support_actor_name
+    if preview_company_id and user["role"] == "superadmin":
+        response_user["preview_company_id"] = preview_company_id
     try:
         serialized_user = srv.serialize_user(response_user)
     except Exception as exc:
@@ -405,7 +430,7 @@ def _perform_login_core(srv, login_error):
             "support_read_only": bool(support_read_only),
             "support_company_name": support_company_name,
             "support_actor_name": support_actor_name,
-            "preview_company_id": "",
+            "preview_company_id": preview_company_id if user["role"] == "superadmin" else "",
         }
     response = jsonify({"ok": True, "token": token, "user": serialized_user})
     # Iframes (Live-Map, Betrieb, Lohn) authenticate document/fetch via this cookie.

@@ -844,6 +844,45 @@ def test_support_session_is_read_only_but_allows_read_and_logout(client_and_db):
     assert logout_response.status_code == 200
 
 
+def test_superadmin_support_login_uses_admin_account_with_preview(client_and_db):
+    client, _ = client_and_db
+
+    response = client.post(
+        "/api/login",
+        json={
+            "username": "superadmin",
+            "password": "1234",
+            "loginScope": "server-admin",
+            "supportCompanyId": "cmp-default",
+            "supportActorName": "Systemleitung",
+        },
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True
+    assert payload["user"]["role"] == "superadmin"
+    assert bool(payload["user"].get("support_read_only")) is True
+    assert payload["user"].get("preview_company_id") == "cmp-default"
+    assert payload["user"].get("support_company_name")
+
+    headers = {"Authorization": f"Bearer {payload['token']}"}
+    read_response = client.get("/api/workers", headers=headers)
+    assert read_response.status_code == 200
+
+    blocked_write_response = client.post(
+        "/api/access-logs",
+        json={
+            "workerId": "wrk-does-not-matter",
+            "direction": "check-in",
+            "gate": "Nordtor",
+            "note": "Read-only test",
+        },
+        headers=headers,
+    )
+    assert blocked_write_response.status_code == 403
+    assert blocked_write_response.get_json()["error"] == "support_session_read_only"
+
+
 def test_support_login_does_not_invalidate_customer_session(client_and_db):
     client, _ = client_and_db
     customer_headers, customer_login = _company_admin_auth_headers(client)

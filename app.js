@@ -1262,7 +1262,7 @@ const UI_TRANSLATIONS = {
     supportLoginActive: "Support-Login aktiv:",
     supportCompanyFallback: "Firma",
     supportStartedBy: "gestartet von",
-    supportReadOnlyNotice: "Nach der Anmeldung sehen Sie die Firma als Firmen-Admin — nur lesen, ohne Superadmin-Rechte.",
+    supportReadOnlyNotice: "Melden Sie sich mit Ihrem Server-Admin-Konto an — Sie sehen die Firma im Support-Modus (nur lesen).",
     supportSessionEndedCustomer: "Support-Sitzung beendet. Sie können wieder normal arbeiten.",
     supportModeLabel: "Support-Modus:",
     supportReadOnlyFor: "Nur lesen fuer",
@@ -2583,7 +2583,7 @@ const UI_TRANSLATIONS = {
     supportLoginActive: "Support login active:",
     supportCompanyFallback: "Company",
     supportStartedBy: "started by",
-    supportReadOnlyNotice: "After sign-in, access is read-only.",
+    supportReadOnlyNotice: "After sign-in with your Server Admin account, you view the company in read-only support mode.",
     supportSessionEndedCustomer: "Support session ended. You can work normally again.",
     supportModeLabel: "Support mode:",
     supportReadOnlyFor: "Read-only for",
@@ -4531,7 +4531,7 @@ const UI_TRANSLATIONS = {
     supportLoginActive: "جلسة الدعم نشطة:",
     supportCompanyFallback: "الشركة",
     supportStartedBy: "بدأه",
-    supportReadOnlyNotice: "بعد تسجيل الدخول ترى الشركة كمدير شركة — للقراءة فقط، بدون صلاحيات المدير العام.",
+    supportReadOnlyNotice: "سجّل الدخول بحساب مدير الخادم — ستشاهد الشركة في وضع الدعم (قراءة فقط).",
     supportSessionEndedCustomer: "انتهت جلسة الدعم. يمكنك العمل بشكل طبيعي مرة أخرى.",
     supportModeLabel: "وضع الدعم:",
     supportReadOnlyFor: "قراءة فقط لشركة",
@@ -17236,7 +17236,7 @@ function prepareSupportLoginScreen() {
   syncSupportLoginUi();
   const loginScopeEl = document.querySelector("#loginScope");
   if (loginScopeEl && (state.supportLoginContext?.companyId || loadSupportLoginContext()?.companyId)) {
-    loginScopeEl.value = "company-admin";
+    loginScopeEl.value = "server-admin";
   }
   if (elements.authOverlay) {
     elements.authOverlay.classList.add("active");
@@ -28116,7 +28116,7 @@ function bindCompanyRowActions() {
       if (assistState?.watchToken) {
         targetUrl.searchParams.set("supportAssistWatchToken", assistState.watchToken);
       }
-      targetUrl.searchParams.set("loginScope", "company-admin");
+      targetUrl.searchParams.set("loginScope", "server-admin");
       window.location.assign(targetUrl.toString());
       return;
     }
@@ -36396,6 +36396,7 @@ async function handleLoginSubmit(event) {
     loggedIn: false,
     loginUsername: username,
   }));
+  const inSupportFlow = Boolean(supportContext?.companyId);
   try {
     const payload = await apiRequest(API_BASE + "/api/login", {
       auth: false,
@@ -36409,8 +36410,8 @@ async function handleLoginSubmit(event) {
           ? String(document.getElementById("loginSetupEmail")?.value || "").trim()
           : "",
         loginScope,
-        supportCompanyId: loginScope === "company-admin" ? (supportContext?.companyId || "") : "",
-        supportActorName: loginScope === "company-admin" ? (supportContext?.actorName || "") : ""
+        supportCompanyId: inSupportFlow ? (supportContext?.companyId || "") : "",
+        supportActorName: inSupportFlow ? (supportContext?.actorName || "") : "",
       }
     });
 
@@ -36430,12 +36431,28 @@ async function handleLoginSubmit(event) {
     state.currentUser = payload.user;
     persistAdminSessionUser(payload.user, { bootstrapE2E: true, scoped: shouldUseTabScopedSession(payload.user) });
     if (String(payload.user?.role || "").toLowerCase() === "superadmin") {
-      superadminUiPreviewCompanyId = "";
-      companyBrandingPreviewOverride = "";
-      try {
-        wpRemove(PREVIEW_COMPANY_STORAGE_KEY);
-      } catch {
-        // ignore
+      const supportPreviewId = String(
+        (payload.user?.support_read_only && (supportContext?.companyId || payload.user?.preview_company_id))
+          ? (supportContext?.companyId || payload.user.preview_company_id)
+          : "",
+      ).trim();
+      if (supportPreviewId) {
+        superadminUiPreviewCompanyId = supportPreviewId;
+        try {
+          wpSet(PREVIEW_COMPANY_STORAGE_KEY, supportPreviewId);
+        } catch {
+          // ignore
+        }
+        const previewCompany = (state.companies || []).find((company) => company.id === supportPreviewId);
+        companyBrandingPreviewOverride = previewCompany ? getCompanyBrandingPreset(previewCompany) : "";
+      } else {
+        superadminUiPreviewCompanyId = "";
+        companyBrandingPreviewOverride = "";
+        try {
+          wpRemove(PREVIEW_COMPANY_STORAGE_KEY);
+        } catch {
+          // ignore
+        }
       }
     }
     broadcastSessionToEmbeds();
