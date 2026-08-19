@@ -457,6 +457,8 @@
 
   function noteAuthFailure(res, url) {
     if (!res || res.status !== 401 || !isApiUrl(url) || isAuthDeadAllowed(url)) return;
+    const raw = String(url || "").toLowerCase();
+    if (raw.includes("/api/session/bootstrap") && !readSessionToken()) return;
     markAuthUnusable();
   }
 

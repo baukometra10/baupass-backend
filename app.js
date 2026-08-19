@@ -623,6 +623,9 @@ let supportAssistAgentCaptureBound = false;
 let supportAssistScrollTimer = null;
 let supportAssistEmbedMirror = { embedTab: "", opsEmbedPage: "", at: 0 };
 let lastAppliedSpectatorUiKey = "";
+let lastSpectatorEmbedTokenSyncKey = "";
+let lastSpectatorEmbedTokenSyncAt = 0;
+let supportAssistEmbedScrollMirrorAt = 0;
 let spectatorHomeSnapshot = null;
 let spectatorMirrorDataSynced = false;
 
@@ -712,24 +715,29 @@ function captureEmbedScrollState() {
 
 function applyEmbedScrollMirror(uiState) {
   if (!uiState || getSupportAssistAgentState()) return;
+  const now = Date.now();
+  if (now - supportAssistEmbedScrollMirrorAt < 150) return;
   try {
     const view = String(uiState.view || getCurrentViewName() || "").trim();
     const meta = ENTERPRISE_EMBED_META[view];
     const iframe = meta ? document.getElementById(meta.frameId) : null;
     const win = iframe?.contentWindow;
     if (!win) return;
+    let applied = false;
     const x = Number(uiState.embedScrollX);
     const y = Number(uiState.embedScrollY);
     if (Number.isFinite(x) && Number.isFinite(y)) {
-      if (Math.abs((win.scrollX || 0) - x) > 2 || Math.abs((win.scrollY || 0) - y) > 2) {
+      if (Math.abs((win.scrollX || 0) - x) > 8 || Math.abs((win.scrollY || 0) - y) > 8) {
         win.scrollTo(x, y);
+        applied = true;
       }
     }
     const mainTop = Number(uiState.embedMainScrollTop);
     if (Number.isFinite(mainTop)) {
       const main = win.document?.querySelector("main, .content, #grid, .wrap, .dashboard-view, .page, .shell");
-      if (main && Math.abs((main.scrollTop || 0) - mainTop) > 2) {
+      if (main && Math.abs((main.scrollTop || 0) - mainTop) > 8) {
         main.scrollTop = mainTop;
+        applied = true;
       }
     }
     const nested = win.document?.querySelector(
@@ -737,17 +745,20 @@ function applyEmbedScrollMirror(uiState) {
     );
     if (nested?.contentWindow) {
       const oy = Number(uiState.opsScrollY);
-      if (Number.isFinite(oy) && Math.abs((nested.contentWindow.scrollY || 0) - oy) > 2) {
+      if (Number.isFinite(oy) && Math.abs((nested.contentWindow.scrollY || 0) - oy) > 8) {
         nested.contentWindow.scrollTo(0, oy);
+        applied = true;
       }
       const omt = Number(uiState.opsMainScrollTop);
       if (Number.isFinite(omt)) {
         const nestedMain = nested.contentWindow.document?.querySelector("main, .content, #grid, .wrap");
-        if (nestedMain && Math.abs((nestedMain.scrollTop || 0) - omt) > 2) {
+        if (nestedMain && Math.abs((nestedMain.scrollTop || 0) - omt) > 8) {
           nestedMain.scrollTop = omt;
+          applied = true;
         }
       }
     }
+    if (applied) supportAssistEmbedScrollMirrorAt = now;
   } catch {
     // iframe not ready
   }
@@ -760,7 +771,7 @@ function bindAgentEmbedScrollCapture() {
     supportAssistScrollTimer = window.setTimeout(() => {
       supportAssistScrollTimer = null;
       void pulseSupportAssist("ui_state", captureSupportAssistUiState());
-    }, 40);
+    }, 120);
   };
   Object.values(ENTERPRISE_EMBED_META).forEach((meta) => {
     const iframe = document.getElementById(meta.frameId);
@@ -888,6 +899,13 @@ function applySupportAssistEmbedMirror(uiState) {
 
 function scheduleSpectatorEmbedTokenSync(iframe, viewName) {
   if (!iframe || !token) return;
+  const syncKey = `${String(viewName || "").trim()}|${String(token).slice(0, 10)}`;
+  const now = Date.now();
+  if (syncKey === lastSpectatorEmbedTokenSyncKey && now - lastSpectatorEmbedTokenSyncAt < 8000) {
+    return;
+  }
+  lastSpectatorEmbedTokenSyncKey = syncKey;
+  lastSpectatorEmbedTokenSyncAt = now;
   const sync = () => {
     broadcastSessionToEmbeds();
     const lang = getStoredUiLang();
@@ -1047,13 +1065,13 @@ function applySupportAssistUiState(uiState) {
   const sy = Number(uiState.scrollY);
   const sx = Number(uiState.scrollX);
   if (Number.isFinite(sy) && Number.isFinite(sx)) {
-    if (Math.abs(window.scrollY - sy) > 4 || Math.abs(window.scrollX - sx) > 4) {
+    if (Math.abs(window.scrollY - sy) > 12 || Math.abs(window.scrollX - sx) > 12) {
       window.scrollTo(sx, sy);
     }
   }
   const contentEl = document.querySelector(".content");
   const cst = Number(uiState.contentScrollTop);
-  if (contentEl && Number.isFinite(cst) && Math.abs(contentEl.scrollTop - cst) > 2) {
+  if (contentEl && Number.isFinite(cst) && Math.abs(contentEl.scrollTop - cst) > 8) {
     contentEl.scrollTop = cst;
   }
   applyEmbedScrollMirror(uiState);
@@ -1101,7 +1119,7 @@ function startSupportAssistAgentUiCapture() {
       supportAssistScrollTimer = window.setTimeout(() => {
         supportAssistScrollTimer = null;
         pulseState();
-      }, 40);
+      }, 120);
     };
     document.addEventListener("input", onInput, true);
     document.addEventListener("scroll", onScroll, true);
@@ -1111,7 +1129,7 @@ function startSupportAssistAgentUiCapture() {
   }
   pulseState();
   bindAgentEmbedScrollCapture();
-  supportAssistAgentCaptureTimer = window.setInterval(pulseState, 200);
+  supportAssistAgentCaptureTimer = window.setInterval(pulseState, 400);
 }
 
 function stopSupportAssistAgentUiCapture() {
@@ -1244,7 +1262,7 @@ const UI_TRANSLATIONS = {
     supportLoginActive: "Support-Login aktiv:",
     supportCompanyFallback: "Firma",
     supportStartedBy: "gestartet von",
-    supportReadOnlyNotice: "Nach der Anmeldung ist der Zugriff nur lesend.",
+    supportReadOnlyNotice: "Nach der Anmeldung sehen Sie die Firma als Firmen-Admin — nur lesen, ohne Superadmin-Rechte.",
     supportSessionEndedCustomer: "Support-Sitzung beendet. Sie können wieder normal arbeiten.",
     supportModeLabel: "Support-Modus:",
     supportReadOnlyFor: "Nur lesen fuer",
@@ -4513,7 +4531,7 @@ const UI_TRANSLATIONS = {
     supportLoginActive: "جلسة الدعم نشطة:",
     supportCompanyFallback: "الشركة",
     supportStartedBy: "بدأه",
-    supportReadOnlyNotice: "بعد تسجيل الدخول سيكون الوصول للقراءة فقط.",
+    supportReadOnlyNotice: "بعد تسجيل الدخول ترى الشركة كمدير شركة — للقراءة فقط، بدون صلاحيات المدير العام.",
     supportSessionEndedCustomer: "انتهت جلسة الدعم. يمكنك العمل بشكل طبيعي مرة أخرى.",
     supportModeLabel: "وضع الدعم:",
     supportReadOnlyFor: "قراءة فقط لشركة",
@@ -19818,9 +19836,10 @@ function loadEnterpriseEmbed(viewName) {
       iframe.addEventListener("load", syncToken);
     }
     syncToken();
-    if (isSupportSpectatorMirrorApp()) {
+    if (isSupportSpectatorMirrorApp() || isSupportReadOnlyMode()) {
       window.setTimeout(syncToken, 400);
       window.setTimeout(syncToken, 1400);
+      window.setTimeout(syncToken, 3200);
     }
   }
   if (viewName === "admin-v2" && pendingAdminV2EinsatzplanFocus) {
@@ -39058,6 +39077,26 @@ function applyDeepLinkViewFromUrl() {
 
 window.addEventListener("message", (event) => {
   if (!event?.data || event.origin !== window.location.origin) {
+    return;
+  }
+  if (event.data.type === "baupass-request-token") {
+    if (token && state.currentUser) {
+      broadcastSessionToEmbeds();
+      try {
+        event.source?.postMessage(
+          {
+            type: "baupass-sync-token",
+            token,
+            companyId: getEffectiveUiCompanyId(),
+            lang: getStoredUiLang(),
+            user: state.currentUser,
+          },
+          window.location.origin,
+        );
+      } catch {
+        // iframe not ready
+      }
+    }
     return;
   }
   if (event.data.type === "baupass-embed-set-lang") {

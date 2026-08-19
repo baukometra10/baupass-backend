@@ -779,6 +779,12 @@
     if (event.data.type === "baupass-sync-token") {
       if (event.data.token) {
         persistSessionToken(event.data.token);
+        global.dispatchEvent(new CustomEvent("baupass-token-synced", {
+          detail: {
+            token: String(event.data.token),
+            companyId: String(event.data.companyId || "").trim(),
+          },
+        }));
       }
       if (event.data.user && typeof event.data.user === "object") {
         try {
@@ -836,4 +842,12 @@
     resolveCompanyIdFromUser,
     persistCompanyId,
   };
+
+  if (isEmbedMode() && !getSessionToken()) {
+    try {
+      global.parent.postMessage({ type: "baupass-request-token" }, global.location.origin);
+    } catch {
+      // parent not ready
+    }
+  }
 })(window);
