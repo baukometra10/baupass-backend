@@ -33,6 +33,251 @@ from backend.app.platform.worker_documents import (
 
 PAYROLL_BATCH_FORMAT = "platform.payroll.batch.v1"
 
+_PDF_B64_KEYS = (
+    "pdfBase64",
+    "pdf_base64",
+    "fileBase64",
+    "file_base64",
+    "contentBase64",
+    "content_base64",
+    "documentBase64",
+    "document_base64",
+    "dataBase64",
+    "payloadBase64",
+)
+
+
+def _strip_data_url_b64(raw: str) -> str:
+    value = str(raw or "").strip()
+    if not value:
+        return ""
+    if value.lower().startswith("data:") and "," in value:
+        value = value.split(",", 1)[1].strip()
+    return value
+
+
+def extract_pdf_base64(*sources: object) -> str:
+    """Find PDF base64 in common Lohn delivery / webhook shapes."""
+    for src in sources:
+        if not isinstance(src, dict):
+            continue
+        for key in _PDF_B64_KEYS:
+            got = _strip_data_url_b64(str(src.get(key) or ""))
+            if len(got) > 40:
+                return got
+        for nested_key in ("document", "file", "pdf", "attachment", "payload", "data"):
+            nested = src.get(nested_key)
+            if isinstance(nested, dict):
+                for key in _PDF_B64_KEYS:
+                    got = _strip_data_url_b64(str(nested.get(key) or ""))
+                    if len(got) > 40:
+                        return got
+                content = nested.get("content") or nested.get("bytes")
+                if isinstance(content, str) and len(content) > 40:
+                    got = _strip_data_url_b64(content)
+                    if len(got) > 40:
+                        return got
+            elif nested_key == "pdf" and isinstance(nested, str) and len(nested) > 40:
+                got = _strip_data_url_b64(nested)
+                if len(got) > 40:
+                    return got
+    return ""
+
+
+def _decode_pdf_b64(pdf_b64: str) -> bytes | None:
+    raw_b64 = _strip_data_url_b64(pdf_b64)
+    if not raw_b64:
+        return None
+    try:
+        raw = base64.b64decode(raw_b64)
+    except Exception:
+        return None
+    if len(raw) < 20 or not raw.startswith(b"%PDF"):
+        return None
+    if len(raw) > 15 * 1024 * 1024:
+        return None
+    return raw
+
+
+def _lohn_http_get_bytes(
+    link: dict[str, Any],
+    *,
+    path: str,
+    company_id: str = "",
+    event: str = "delivery.pdf",
+) -> dict[str, Any]:
+    """GET binary body from Lohn (PDF download endpoints)."""
+    from .platform_link import primary_lohn_api_key, resolve_lohn_api_keys
+
+    base = str(link.get("base_url") or "").rstrip("/")
+    keys = resolve_lohn_api_keys(link) or []
+    if not keys:
+        primary = primary_lohn_api_key(link)
+        if primary:
+            keys = [primary]
+    if not base:
+        return {"ok": False, "error": "lohn_base_url_missing"}
+    if not keys:
+        return {"ok": False, "error": "master_api_key_missing"}
+    if not path.startswith("/"):
+        path = "/" + path
+    url = f"{base}{path}"
+    last: dict[str, Any] = {"ok": False, "error": "lohn_unauthorized"}
+    for key_try in keys:
+        ts = str(int(time.time()))
+        headers = {
+            "Accept": "application/pdf, application/octet-stream, */*",
+            "User-Agent": "SUPPIX-WorkPass-Lohn-Bridge/1.0",
+            "X-WorkPass-Key": key_try,
+            "Authorization": f"Bearer {key_try}",
+            "X-WorkPass-Master-Key": key_try,
+            "X-WorkPass-Company-Id": company_id,
+            "X-Suppix-Timestamp": ts,
+            "X-Suppix-Event": event,
+            "X-Suppix-Product": "WorkPass Lohn",
+            "X-Suppix-Signature": sign_payload(key_try, timestamp=ts, body=b""),
+        }
+        req = urlrequest.Request(url, headers=headers, method="GET")
+        try:
+            with urlrequest.urlopen(req, timeout=45) as resp:
+                raw = resp.read()
+                return {"ok": True, "status": int(resp.status), "url": url, "body": raw}
+        except urlerror.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read()[:200].decode("utf-8", errors="replace")
+            except Exception:
+                detail = str(exc)
+            last = {"ok": False, "status": int(exc.code), "url": url, "error": detail or str(exc)[:200]}
+            if int(exc.code) not in {401, 403}:
+                return last
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)[:200], "url": url}
+    return last
+
+
+def fetch_lohn_delivery_pdf(
+    *,
+    company_id: str,
+    delivery_id: str,
+    link: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Pull original PDF bytes for a Lohn delivery id (JSON or binary endpoints)."""
+    from urllib.parse import quote as _q
+
+    company_id = str(company_id or "").strip()
+    delivery_id = str(delivery_id or "").strip()
+    if not company_id or not delivery_id:
+        return {"ok": False, "error": "delivery_id_required"}
+    if not isinstance(link, dict) or not str(link.get("base_url") or "").strip():
+        return {"ok": False, "error": "platform_link_disabled"}
+
+    did = _q(delivery_id, safe="")
+    # Prefer JSON payloads that embed pdfBase64.
+    for path in (
+        f"/v1/delivery/{did}",
+        f"/v1/delivery/{did}?includePdf=1",
+        f"/v1/deliveries/{did}",
+    ):
+        fetched = _lohn_http_get(link, path=path, company_id=company_id, event="delivery.get")
+        if not fetched.get("ok"):
+            continue
+        body = fetched.get("body") if isinstance(fetched.get("body"), dict) else {}
+        delivery = body.get("delivery") if isinstance(body.get("delivery"), dict) else body
+        b64 = extract_pdf_base64(delivery, body, body.get("document") if isinstance(body.get("document"), dict) else {})
+        raw = _decode_pdf_b64(b64) if b64 else None
+        if raw:
+            return {"ok": True, "pdfBytes": raw, "pdfBase64": base64.b64encode(raw).decode("ascii"), "via": path}
+
+    # Binary PDF endpoints.
+    for path in (
+        f"/v1/delivery/{did}/pdf",
+        f"/v1/delivery/{did}/file",
+        f"/v1/deliveries/{did}/pdf",
+    ):
+        fetched = _lohn_http_get_bytes(link, path=path, company_id=company_id, event="delivery.pdf")
+        if not fetched.get("ok"):
+            continue
+        raw = fetched.get("body")
+        if isinstance(raw, (bytes, bytearray)) and raw.startswith(b"%PDF") and len(raw) > 20:
+            raw_b = bytes(raw)
+            return {
+                "ok": True,
+                "pdfBytes": raw_b,
+                "pdfBase64": base64.b64encode(raw_b).decode("ascii"),
+                "via": path,
+            }
+    return {"ok": False, "error": "delivery_pdf_not_found", "deliveryId": delivery_id}
+
+
+def store_statement_pdf_bytes(
+    db,
+    stmt: dict[str, Any],
+    pdf_bytes: bytes,
+    *,
+    pdf_source: str = "lohn_original",
+) -> dict[str, Any]:
+    """Persist original Lohn PDF onto an existing statement row."""
+    if not pdf_bytes or not pdf_bytes.startswith(b"%PDF"):
+        return {"ok": False, "error": "not_a_pdf"}
+    company_id = str(stmt.get("company_id") or "").strip() or "unknown"
+    period = str(stmt.get("period") or "unknown")[:7]
+    dest_dir = _storage_dir(company_id, period)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    filename = str(stmt.get("filename") or _delivery_pdf_filename(stmt, period)).strip() or f"{stmt.get('id')}.pdf"
+    if not filename.lower().endswith(".pdf"):
+        filename = f"{filename}.pdf"
+    path = str(dest_dir / f"{stmt.get('id')}_{secrets.token_hex(3)}.pdf")
+    Path(path).write_bytes(pdf_bytes)
+    try:
+        meta = json.loads(stmt.get("meta_json") or "{}")
+    except Exception:
+        meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    meta["pdfSource"] = pdf_source
+    meta["pdfImmutable"] = True
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    db.execute(
+        """
+        UPDATE payroll_statements
+        SET file_path = ?, file_size = ?, filename = ?, meta_json = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (path, len(pdf_bytes), filename, json.dumps(meta, ensure_ascii=False), now, stmt["id"]),
+    )
+    db.commit()
+    stmt["file_path"] = path
+    stmt["file_size"] = len(pdf_bytes)
+    stmt["filename"] = filename
+    stmt["meta_json"] = json.dumps(meta, ensure_ascii=False)
+    return {"ok": True, "path": path, "fileSize": len(pdf_bytes), "filename": filename, "pdfSource": pdf_source}
+
+
+def repair_statement_original_pdf_from_lohn(db, stmt: dict[str, Any]) -> dict[str, Any]:
+    """If original PDF is missing on disk, try to re-fetch it from WorkPass Lohn."""
+    from .platform_link import get_platform_link
+
+    try:
+        meta = json.loads(stmt.get("meta_json") or "{}")
+    except Exception:
+        meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    delivery_id = str(
+        meta.get("deliveryId") or meta.get("externalRef") or stmt.get("external_ref") or ""
+    ).strip()
+    company_id = str(stmt.get("company_id") or meta.get("companyId") or "").strip()
+    if not delivery_id or not company_id:
+        return {"ok": False, "error": "delivery_id_missing"}
+    link = get_platform_link(db)
+    if not str(link.get("base_url") or "").strip():
+        return {"ok": False, "error": "platform_link_disabled"}
+    fetched = fetch_lohn_delivery_pdf(company_id=company_id, delivery_id=delivery_id, link=link)
+    if not fetched.get("ok"):
+        return fetched
+    return store_statement_pdf_bytes(db, stmt, fetched["pdfBytes"], pdf_source="lohn_original")
+
 
 def _statement_doc_type(stmt: dict[str, Any] | None = None, item: dict[str, Any] | None = None) -> str:
     """Canonical payroll document type stored on a statement (default Lohnabrechnung)."""
@@ -55,6 +300,8 @@ def _default_payroll_filename(doc_type: str, period: str, worker_key: str) -> st
     period_s = str(period or "period").strip() or "period"
     worker_s = str(worker_key or "worker").strip() or "worker"
     return f"{label}_{period_s}_{worker_s}.pdf"
+
+
 PAYROLL_BATCH_PATH = "/v1/payroll/batch"
 
 # Process-local debounce so Lohn webhook storms cannot saturate Waitress/SQLite.
@@ -1615,14 +1862,10 @@ def ensure_statement_delivery_pdf(
     path = str(stmt.get("file_path") or "").strip()
     immutable = bool(existing_meta.get("pdfImmutable")) or is_exact_lohn_pdf_source(existing_source)
     # Certificate docs (Verdienst/Vordienst/Steuer/…) must never become Datev payslip PDFs.
-    from backend.app.platform.worker_documents import resolve_payroll_doc_type
-
     resolved_doc_type = resolve_payroll_doc_type(existing_meta, stmt)
     certificate_doc = resolved_doc_type not in {"lohnabrechnung", "gehaltsabrechnung", ""}
-    if certificate_doc:
-        immutable = True
     # Never replace the authentic Lohn PDF — deliver bytes as received, any size.
-    if not force and immutable and path and Path(path).is_file():
+    if not force and (immutable or certificate_doc) and path and Path(path).is_file():
         try:
             on_disk = Path(path).stat().st_size
         except Exception:
@@ -1637,10 +1880,15 @@ def ensure_statement_delivery_pdf(
                 "pdfSource": existing_source or "lohn_original",
                 "skipped": "exact_lohn",
             }
-        return {"ok": False, "error": "missing_pdf", "hint": "immutable_pdf_empty"}
-    # Do not remake tax/earnings/Vordienst originals into an empty Datev sheet.
-    if not force and immutable:
-        return {"ok": False, "error": "missing_pdf", "hint": "immutable_pdf_missing"}
+    if not force and (immutable or certificate_doc):
+        repaired = repair_statement_original_pdf_from_lohn(db, stmt)
+        if repaired.get("ok"):
+            return repaired
+        return {
+            "ok": False,
+            "error": "missing_pdf",
+            "hint": repaired.get("error") or "immutable_pdf_missing",
+        }
     # Locked high-fidelity deliveries stay immutable.
     already_html = is_high_fidelity_pdf_source(existing_source) and existing_size >= 12000
     if not force and statement_delivery_locked(stmt, existing_meta) and already_html:
@@ -1806,12 +2054,42 @@ def ingest_statements(
         except ValueError as exc:
             errors.append({"index": idx, "error": str(exc)})
             continue
-        pdf_b64 = item.get("pdfBase64") or item.get("pdf_base64") or ""
+        pdf_b64 = extract_pdf_base64(item, item.get("document") if isinstance(item.get("document"), dict) else {})
+        if not pdf_b64:
+            delivery_id = str(item.get("deliveryId") or item.get("delivery_id") or item.get("externalRef") or "").strip()
+            if delivery_id:
+                try:
+                    from .platform_link import get_platform_link
+
+                    link = get_platform_link(db)
+                    fetched_pdf = fetch_lohn_delivery_pdf(
+                        company_id=company_id,
+                        delivery_id=delivery_id,
+                        link=link,
+                    )
+                    if fetched_pdf.get("ok") and fetched_pdf.get("pdfBase64"):
+                        pdf_b64 = str(fetched_pdf["pdfBase64"])
+                        item = {**item, "pdfBase64": pdf_b64, "pdfSource": "lohn_original", "pdfImmutable": True}
+                except Exception:
+                    pass
         doc_type = resolve_payroll_doc_type(
             item,
             item.get("document") if isinstance(item.get("document"), dict) else {},
         )
         title = resolve_document_title(item, item.get("document") if isinstance(item.get("document"), dict) else {})
+        # Certificate docs without PDF must not enter the studio as empty Datev placeholders.
+        if not pdf_b64 and doc_type not in {"lohnabrechnung", "gehaltsabrechnung"}:
+            errors.append(
+                {
+                    "index": idx,
+                    "error": "pdf_required",
+                    "employeeId": worker_raw,
+                    "docType": doc_type,
+                    "title": title,
+                    "hint": "WorkPass Lohn muss pdfBase64 mitsenden",
+                }
+            )
+            continue
         filename = str(
             item.get("filename")
             or (
@@ -1825,16 +2103,9 @@ def ingest_statements(
         file_path = ""
         file_size = 0
         if pdf_b64:
-            try:
-                raw = base64.b64decode(pdf_b64)
-            except Exception:
+            raw = _decode_pdf_b64(pdf_b64)
+            if raw is None:
                 errors.append({"index": idx, "error": "invalid_pdf_base64", "employeeId": worker_raw})
-                continue
-            if len(raw) < 20 or not raw.startswith(b"%PDF"):
-                errors.append({"index": idx, "error": "not_a_pdf", "employeeId": worker_raw})
-                continue
-            if len(raw) > 15 * 1024 * 1024:
-                errors.append({"index": idx, "error": "pdf_too_large", "employeeId": worker_raw})
                 continue
             dest_dir = _storage_dir(company_id, period)
             dest_dir.mkdir(parents=True, exist_ok=True)
@@ -2195,13 +2466,7 @@ def lohn_delivery_to_statement(delivery: dict[str, Any] | None) -> dict[str, Any
         title = f"{doc_type_label(doc_type, 'de')} {period}"
     delivery_id = str(delivery.get("deliveryId") or delivery.get("jobId") or "").strip()
     job_id = str(delivery.get("jobId") or document.get("jobId") or "").strip()
-    pdf_b64 = (
-        delivery.get("pdfBase64")
-        or delivery.get("pdf_base64")
-        or document.get("pdfBase64")
-        or document.get("pdf_base64")
-        or ""
-    )
+    pdf_b64 = extract_pdf_base64(delivery, document, summary)
     # Never invent a platform stub PDF — employee must get the real WorkPass Lohn document.
     safe_title = re.sub(r"[^A-Za-z0-9._-]+", "_", title).strip("_")[:80] or doc_type
     return {
@@ -2447,6 +2712,19 @@ def pull_payslips_from_lohn(
         if not stmt:
             skipped.append({"deliveryId": d.get("deliveryId"), "reason": "unmapped"})
             continue
+        if not extract_pdf_base64(stmt) and str(stmt.get("deliveryId") or "").strip():
+            fetched_pdf = fetch_lohn_delivery_pdf(
+                company_id=company_id,
+                delivery_id=str(stmt.get("deliveryId") or ""),
+                link=link,
+            )
+            if fetched_pdf.get("ok") and fetched_pdf.get("pdfBase64"):
+                stmt = {
+                    **stmt,
+                    "pdfBase64": fetched_pdf["pdfBase64"],
+                    "pdfSource": "lohn_original",
+                    "pdfImmutable": True,
+                }
         if period_n and stmt.get("period") != period_n:
             skipped.append({"deliveryId": d.get("deliveryId"), "reason": "period_filter", "period": stmt.get("period")})
             continue

@@ -1497,7 +1497,8 @@ def register_accounting_blueprint(flask_app) -> None:
         if err:
             return err
         from .lohn_sheet_pdf import is_exact_lohn_pdf_source
-        from .service import ensure_statement_delivery_pdf
+        from .service import ensure_statement_delivery_pdf, repair_statement_original_pdf_from_lohn
+        from backend.app.platform.worker_documents import resolve_payroll_doc_type
 
         try:
             meta = __import__("json").loads(stmt.get("meta_json") or "{}")
@@ -1507,8 +1508,10 @@ def register_accounting_blueprint(flask_app) -> None:
             meta = {}
         path = str(stmt.get("file_path") or "").strip()
         immutable = bool(meta.get("pdfImmutable")) or is_exact_lohn_pdf_source(meta.get("pdfSource"))
+        doc_type = resolve_payroll_doc_type(meta, stmt)
+        certificate_doc = doc_type not in {"lohnabrechnung", "gehaltsabrechnung", ""}
         # Serve stored original bytes first — never remake Vordienst/tax into an empty sheet.
-        if path and Path(path).is_file() and (immutable or Path(path).stat().st_size > 20):
+        if path and Path(path).is_file() and (Path(path).stat().st_size > 20):
             download = str(request.args.get("download") or "").strip().lower() in {"1", "true", "yes"}
             return send_file(
                 path,
@@ -1517,8 +1520,26 @@ def register_accounting_blueprint(flask_app) -> None:
                 download_name=str(stmt.get("filename") or "lohnabrechnung.pdf"),
                 conditional=True,
             )
-        if immutable:
-            return jsonify({"error": "missing_pdf", "hint": "immutable_original_missing"}), 404
+        if immutable or certificate_doc:
+            repaired = repair_statement_original_pdf_from_lohn(db, stmt)
+            if repaired.get("ok"):
+                path = str(repaired.get("path") or "")
+                if path and Path(path).is_file():
+                    download = str(request.args.get("download") or "").strip().lower() in {"1", "true", "yes"}
+                    return send_file(
+                        path,
+                        mimetype="application/pdf",
+                        as_attachment=download,
+                        download_name=str(stmt.get("filename") or "lohnabrechnung.pdf"),
+                        conditional=True,
+                    )
+            return jsonify(
+                {
+                    "error": "missing_pdf",
+                    "hint": repaired.get("error") or "immutable_original_missing",
+                    "message": "Original-PDF fehlt — bitte erneut aus WorkPass Lohn mit pdfBase64 senden",
+                }
+            ), 404
         built = ensure_statement_delivery_pdf(db, stmt, _batch)
         if built.get("ok"):
             stmt = repo.get_statement(db, statement_id) or stmt

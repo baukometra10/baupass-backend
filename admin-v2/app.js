@@ -979,9 +979,9 @@ function applyRoleNavigation() {
     if (!canAccessWorkpassLohnUi()) {
       el.classList.add("hidden");
       if ("hidden" in el) el.hidden = true;
-    } else if (!showOwnerFinance) {
-      el.classList.add("hidden");
     }
+    // Visibility for enabled companies is owned by syncLohnOpenButton() — do not
+    // hide here based on finance tabs (that caused the Buchhaltung button flicker).
   });
   document.querySelectorAll("#opsStripLohnLink, .ops-strip-lohn-btn").forEach((el) => {
     el.classList.toggle("hidden", !canAccessWorkpassLohnUi());
@@ -1445,10 +1445,13 @@ function updateLohnNavBadge(count) {
 }
 
 let lohnOpenEnabled = false;
+const lohnEnabledByCompany = Object.create(null);
+let lohnOpenSyncSeq = 0;
 
 async function syncLohnOpenButton() {
   const btn = $("openLohnSystemBtn");
   const cid = activeCompanyId();
+  const seq = ++lohnOpenSyncSeq;
   if (!cid || !canAccessWorkpassLohnUi()) {
     lohnOpenEnabled = false;
     if (btn) {
@@ -1457,18 +1460,46 @@ async function syncLohnOpenButton() {
     }
     return;
   }
+  // Keep last known good state while a slow/failed poll is in flight.
+  if (lohnEnabledByCompany[cid] === true && btn) {
+    lohnOpenEnabled = true;
+    btn.hidden = false;
+    btn.classList.remove("hidden");
+  }
   try {
     const settings = await apiSoft(
       `/api/payroll/accounting/company-settings?company_id=${encodeURIComponent(cid)}`,
-      { workpassLohnEnabled: false },
-      2500,
+      null,
+      4000,
     );
-    lohnOpenEnabled = !!settings?.workpassLohnEnabled;
+    if (seq !== lohnOpenSyncSeq || activeCompanyId() !== cid) return;
+    if (!settings || typeof settings !== "object") {
+      // Timeout / network — do not flip an enabled button off.
+      const cached = lohnEnabledByCompany[cid];
+      if (cached != null && btn) {
+        lohnOpenEnabled = !!cached;
+        btn.hidden = !cached;
+        btn.classList.toggle("hidden", !cached);
+      }
+      return;
+    }
+    lohnOpenEnabled = !!settings.workpassLohnEnabled;
+    lohnEnabledByCompany[cid] = lohnOpenEnabled;
     if (btn) {
       btn.hidden = !lohnOpenEnabled;
       btn.classList.toggle("hidden", !lohnOpenEnabled);
     }
   } catch {
+    if (seq !== lohnOpenSyncSeq || activeCompanyId() !== cid) return;
+    const cached = lohnEnabledByCompany[cid];
+    if (cached != null) {
+      lohnOpenEnabled = !!cached;
+      if (btn) {
+        btn.hidden = !cached;
+        btn.classList.toggle("hidden", !cached);
+      }
+      return;
+    }
     lohnOpenEnabled = false;
     if (btn) {
       btn.hidden = true;

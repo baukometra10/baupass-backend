@@ -66,6 +66,14 @@ def test_resolve_payroll_doc_type_from_delivery():
     assert "verdienstbescheinigung" in WORKER_PAYROLL_DOC_TYPES
 
 
+def test_extract_pdf_base64_nested():
+    from backend.app.platform.accounting.service import extract_pdf_base64
+
+    assert extract_pdf_base64({"document": {"pdfBase64": MINIMAL_PDF}}) == MINIMAL_PDF
+    assert extract_pdf_base64({"file": {"contentBase64": MINIMAL_PDF}}) == MINIMAL_PDF
+    assert extract_pdf_base64({"pdf": {"dataBase64": MINIMAL_PDF}}) == MINIMAL_PDF
+
+
 def test_lohn_delivery_title_maps_verdienst_not_payslip():
     from backend.app.platform.accounting.service import lohn_delivery_to_statement
 
