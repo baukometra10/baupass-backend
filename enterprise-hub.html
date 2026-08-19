@@ -572,10 +572,10 @@
     </div>
   </div>
 
-  <script src="/workpass-storage.js?v=20260819wp19"></script>
+  <script src="/workpass-storage.js?v=20260819wp20"></script>
   <script src="/enterprise-hub-i18n.js?v=20260705b"></script>
   <script src="/sector-copy.js?v=20260818opsSector1"></script>
-  <script src="/embed-helpers.js?v=20260819embed15"></script>
+  <script src="/embed-helpers.js?v=20260819embed16"></script>
   <script src="/ai-voice-ui.js?v=20260725voice12"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
   <script>
@@ -1684,6 +1684,9 @@
     async function loadCatalog() {
       try {
         const cat = await fetchCatalog();
+        if (!cat || typeof cat !== "object" || (!cat.layers && !cat.preview && !cat._previewMode && !cat.plans)) {
+          throw new Error("catalog_empty");
+        }
         const isPreview = !!cat._previewMode || cat.preview;
         hubPreviewMode = isPreview;
         const [caps, aiSt] = await Promise.all([
@@ -1753,13 +1756,32 @@
       if (lang) syncHubLangFromParent(lang);
       if (event.data.token) {
         window.BaupassAuth?.persistSessionToken?.(event.data.token);
+        try {
+          window.__baupassEmbedAuthConfirmed = true;
+          window.WorkPassStorage?.clearAuthUnusable?.();
+          window.WorkPassStorage?.clearSupportFetchCooldowns?.();
+        } catch {
+          // ignore
+        }
       }
       const cid = String(event.data.companyId || "").trim();
-      if (!cid || currentUserRole !== "superadmin" || cid === selectedCompanyId) return;
-      selectedCompanyId = cid;
-      const sel = document.getElementById("companySelect");
-      if (sel) sel.value = cid;
-      updateEmbedLayersHint();
+      if (cid && currentUserRole === "superadmin" && cid !== selectedCompanyId) {
+        selectedCompanyId = cid;
+        const sel = document.getElementById("companySelect");
+        if (sel) sel.value = cid;
+        updateEmbedLayersHint();
+      }
+      // Spectator/agent embeds often boot before the parent token arrives — always reload.
+      loadCatalog().catch(() => {});
+    });
+
+    window.addEventListener("baupass-token-synced", () => {
+      try {
+        window.__baupassEmbedAuthConfirmed = true;
+        window.WorkPassStorage?.clearSupportFetchCooldowns?.();
+      } catch {
+        // ignore
+      }
       loadCatalog().catch(() => {});
     });
 
@@ -1978,6 +2000,17 @@
 
     applyStaticI18n();
     (async () => {
+      // Spectator embeds: wait briefly for parent token so catalog is not loaded unauthenticated.
+      if (isHubEmbedMode() && !window.BaupassAuth?.getSessionToken?.()) {
+        try {
+          window.parent?.postMessage?.({ type: "baupass-request-token" }, location.origin);
+        } catch {
+          // ignore
+        }
+        for (let i = 0; i < 8 && !window.BaupassAuth?.getSessionToken?.(); i += 1) {
+          await new Promise((r) => setTimeout(r, 150));
+        }
+      }
       try {
         const boot = window.BaupassAuth?.bootstrapSession
           ? await window.BaupassAuth.bootstrapSession()

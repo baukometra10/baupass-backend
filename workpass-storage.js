@@ -304,6 +304,15 @@
         const val = String(getSessionItem(key) || "").trim();
         if (val) return val;
       }
+      // Support embed: parent tab may already hold the Server-Admin session.
+      if (global.self !== global.top) {
+        try {
+          const parentTok = String(parentStorageApi()?.readSessionToken?.() || "").trim();
+          if (parentTok) return parentTok;
+        } catch {
+          // ignore
+        }
+      }
       return "";
     }
     for (const key of SESSION_TOKEN_KEYS) {
@@ -314,6 +323,15 @@
     if (legacyControl) {
       setItem(KEYS.SESSION_TOKEN, legacyControl);
       return legacyControl;
+    }
+    // Spectator/company embeds share origin with parent — inherit until sync arrives.
+    if (global.self !== global.top) {
+      try {
+        const parentTok = String(parentStorageApi()?.readSessionToken?.() || "").trim();
+        if (parentTok) return parentTok;
+      } catch {
+        // ignore
+      }
     }
     return "";
   }
@@ -516,6 +534,8 @@
 
   function markSupportFetchCooldown(url, status) {
     if (status !== 401 && status !== 403) return;
+    // Customer spectator must keep retrying with their own Bearer — never lock Hub/KI reads.
+    if (isSpectatorWatchOnly()) return;
     if (!isSupportAssistQuietMode() && !hasActiveSupportTabScope()) return;
     const key = supportFetchKey(url);
     const until = Date.now() + SUPPORT_FETCH_COOLDOWN_MS;
@@ -668,6 +688,8 @@
 
   function isSpectatorWatchOnly() {
     try {
+      const parentApi = parentStorageApi();
+      if (parentApi?.isSpectatorWatchOnly?.() === true) return true;
       const watchRaw =
         global.sessionStorage.getItem("baupass-support-assist-watch")
         || global.sessionStorage.getItem(KEYS.SUPPORT_ASSIST_WATCH);
@@ -789,13 +811,16 @@
       || undefined,
     );
     const scoped = hasActiveSupportTabScope() || isSupportAssistQuietMode();
+    // Agent support handoff only — never strip the customer's Bearer in spectator embeds.
     const preferCookie =
-      scoped
+      hasActiveSupportTabScope()
+      && !isSpectatorWatchOnly()
       && global.self !== global.top
       && !global.__baupassEmbedAuthConfirmed;
     if (scoped) {
-      if (isSpectatorWatchOnly() || preferCookie) {
-        // Spectator / unverified embed: never send a possibly-stale Bearer.
+      if (isSpectatorWatchOnly()) {
+        // Spectator: keep customer Bearer; also attach watch headers below.
+      } else if (preferCookie) {
         headers.delete("Authorization");
       } else if (token) {
         headers.set("Authorization", `Bearer ${token}`);
@@ -901,12 +926,14 @@
       }
       const run = (nextInput, nextInit) => originalFetch(nextInput, nextInit).then(async (res) => {
         // Support/embed: stale Bearer wins over a valid cookie → one cookie-only retry.
+        // Never for customer spectator — stripping their Bearer breaks Hub catalog.
         if (
           res
           && res.status === 401
           && isApiUrl(url)
           && !isAuthDeadAllowed(url)
-          && (isSupportAssistQuietMode() || hasActiveSupportTabScope() || isEmbedWithoutSessionToken() || (global.self !== global.top))
+          && !isSpectatorWatchOnly()
+          && (hasActiveSupportTabScope() || isEmbedWithoutSessionToken())
         ) {
           const hdrs = new Headers(
             (nextInit && nextInit.headers)
@@ -970,10 +997,12 @@
     COMPANY_STORAGE_KEYS,
     hasActiveSupportTabScope,
     isSupportAssistQuietMode,
+    isSpectatorWatchOnly,
     isAuthUnusable,
     markAuthUnusable,
     clearAuthUnusable,
     purgeSharedLocalSessionTokens,
+    clearSupportFetchCooldowns,
   };
 
   migrateOnce();

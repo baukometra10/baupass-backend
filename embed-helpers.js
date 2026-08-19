@@ -434,9 +434,12 @@
   function authHeaders(extra = {}) {
     const headers = { ...(extra || {}) };
     const token = getSessionToken();
+    // Prefer cookie ONLY on the support-agent tab during handoff (stale Bearer risk).
+    // Customer spectator embeds must keep their Bearer — stripping it breaks Hub/KI/Betrieb.
     const preferCookie =
       isEmbedMode()
-      && (WP?.isSupportAssistQuietMode?.() || WP?.hasActiveSupportTabScope?.())
+      && WP?.hasActiveSupportTabScope?.()
+      && !WP?.isSpectatorWatchOnly?.()
       && !global.__baupassEmbedAuthConfirmed;
     if (token && !headers.Authorization && !preferCookie) {
       headers.Authorization = `Bearer ${token}`;
