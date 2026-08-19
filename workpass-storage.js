@@ -380,6 +380,8 @@
   const AUTH_UNUSABLE_KEY = "workpass-auth-unusable";
   const TTS_UNUSABLE_KEY = "workpass-tts-unavailable";
   const AUTH_UNUSABLE_TTL_MS = 120000;
+  const SUPPORT_FETCH_COOLDOWN_MS = 30000;
+  const supportFetchCooldownUntil = new Map();
   const AUTH_DEAD_ALLOW = [
     "/api/login",
     "/api/logout",
@@ -427,6 +429,7 @@
   function clearAuthUnusable() {
     try {
       global.sessionStorage.removeItem(AUTH_UNUSABLE_KEY);
+      clearSupportFetchCooldowns();
     } catch {
       // ignore
     }
@@ -451,6 +454,26 @@
 
   function isApiUrl(url) {
     return String(url || "").toLowerCase().includes("/api/");
+  }
+
+  function supportFetchKey(url) {
+    return String(url || "").toLowerCase().split("?")[0];
+  }
+
+  function isSupportFetchCoolingDown(url) {
+    if (!isSupportAssistQuietMode() && !hasActiveSupportTabScope()) return false;
+    const until = supportFetchCooldownUntil.get(supportFetchKey(url)) || 0;
+    return Date.now() < until;
+  }
+
+  function markSupportFetchCooldown(url, status) {
+    if (status !== 401 && status !== 403) return;
+    if (!isSupportAssistQuietMode() && !hasActiveSupportTabScope()) return;
+    supportFetchCooldownUntil.set(supportFetchKey(url), Date.now() + SUPPORT_FETCH_COOLDOWN_MS);
+  }
+
+  function clearSupportFetchCooldowns() {
+    supportFetchCooldownUntil.clear();
   }
 
   function isAuthDeadAllowed(url) {
@@ -631,6 +654,41 @@
         headers: { "Content-Type": "application/json" },
       });
     }
+    if (raw.includes("/api/ai/agents")) {
+      return new Response(JSON.stringify({ agents: [] }), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (raw.includes("/api/leave-requests")) {
+      return new Response(JSON.stringify([]), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (raw.includes("/api/ops-os/live-map")) {
+      return new Response(JSON.stringify({ workersOnSite: [], geofences: [], cameras: [], gates: [] }), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (raw.includes("/api/v1/events/recent") || raw.includes("/api/v1/realtime/")) {
+      return new Response(JSON.stringify({ events: [], socketio: false, websocket: { enabled: false } }), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (raw.includes("/socket.io")) {
+      return new Response("0", {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
     return new Response("{}", {
       status: 204,
       statusText: "No Content",
@@ -716,8 +774,12 @@
       ) {
         return Promise.resolve(syntheticSupportResponse(url));
       }
+      if (isSupportFetchCoolingDown(url)) {
+        return Promise.resolve(syntheticSupportResponse(url));
+      }
       const run = (nextInput, nextInit) => originalFetch(nextInput, nextInit).then((res) => {
         noteAuthFailure(res, url);
+        markSupportFetchCooldown(url, res?.status);
         if (res && !res.ok && String(url || "").toLowerCase().includes("/api/ai/speak")) {
           markTtsUnusable();
         }

@@ -9643,7 +9643,7 @@ async function loadOverview() {
         ${opsSurfaceEnabled("aiCenter", opsFeatures) ? `<a href="/ai-command-center.html${q}${q ? "&" : "?"}autoprompt=${aiPrompt}" target="_blank" rel="noopener">${t("lage.aiAsk")}</a>` : ""}
       </div>
       ${
-        opsSurfaceEnabled("liveMap", opsFeatures)
+        opsSurfaceEnabled("liveMap", opsFeatures) && !isSupportReadOnlySession()
           ? `<div class="lage-map-embed" id="lageMapEmbed" title="${escapeAttr(t("lage.mapScrollHint") || "Klicken zum Interagieren · Scrollen bewegt die Seite")}">
         <p class="lage-map-embed-hint">${escapeHtml(t("lage.mapScrollHint") || "Klicken für Karte · Mausrad scrollt die Seite")}</p>
         <iframe

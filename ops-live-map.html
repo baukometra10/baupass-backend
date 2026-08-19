@@ -2248,8 +2248,8 @@
       </div>
     </div>
   </div>
-  <script src="/workpass-storage.js?v=20260819wp13"></script>
-  <script src="/embed-helpers.js?v=20260819embed9"></script>
+  <script src="/workpass-storage.js?v=20260819wp14"></script>
+  <script src="/embed-helpers.js?v=20260819embed10"></script>
   <script src="/sector-copy.js?v=20260818opsSector3"></script>
   <script src="/ops-live-map-i18n.js?v=20260818opsSector1"></script>
   <script>
@@ -2292,8 +2292,8 @@
       const io = add("https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js", {
         crossorigin: "anonymous",
       });
-      io.onload = () => add("/ops-realtime.js?v=20260818quiet1");
-      io.onerror = () => add("/ops-realtime.js?v=20260818quiet1");
+      io.onload = () => add("/ops-realtime.js?v=20260819quiet2");
+      io.onerror = () => add("/ops-realtime.js?v=20260819quiet2");
     })();
   </script>
   <script>
@@ -2409,6 +2409,8 @@
     let mapFittedOnce = false;
     let livePollTimer = 0;
     let livePollInFlight = false;
+    let opsRealtimeStop = null;
+    let mapEventSource = null;
     let lastMapData = null;
     let statusFilter = "all";
     let searchQuery = "";
@@ -2772,7 +2774,7 @@
 
     let mapBootFinished = false;
     window.addEventListener("baupass-session-cleared", () => {
-      stopLivePolling();
+      stopMapRealtimeTransport();
     });
     window.addEventListener("baupass-token-synced", () => {
       if (!window.BaupassAuth?.getSessionToken?.()) return;
@@ -3962,6 +3964,26 @@
       }
     }
 
+    function stopMapRealtimeTransport() {
+      stopLivePolling();
+      if (opsRealtimeStop) {
+        try {
+          opsRealtimeStop();
+        } catch {
+          // ignore
+        }
+        opsRealtimeStop = null;
+      }
+      if (mapEventSource) {
+        try {
+          mapEventSource.close();
+        } catch {
+          // ignore
+        }
+        mapEventSource = null;
+      }
+    }
+
     function stopLivePolling() {
       if (livePollTimer) {
         window.clearTimeout(livePollTimer);
@@ -4097,66 +4119,67 @@
         }
         await applyOpsMapBranding();
         await load();
-        startLivePolling();
-        if (window.SUPPIXOpsRealtime) {
-          await window.SUPPIXOpsRealtime.start({
-            companyId,
-            feedEl: null,
-            onMode: (mode) => {
-              if (!mode) return;
-              const previousMode = realtimeMode;
-              if (mode === previousMode) return;
-              if (previousMode === "websocket" && mode !== "websocket") {
-                wsReconnectCount += 1;
-              }
-              realtimeMode = mode;
-              startLivePolling();
-              if (lastMapData) {
-                renderMap(lastMapData);
-              }
-            },
-            onEvent: (evt) => {
-              try {
-                if (evt && evt.type === "worker_live_location") {
-                  const wid = String(evt.worker_id || "");
-                  const lat = Number(evt.lat);
-                  const lng = Number(evt.lng);
-                  const marker = wid ? workerMarkersById.get(wid) : null;
-                  if (marker && Number.isFinite(lat) && Number.isFinite(lng)) {
-                    animateWorkerMarkerMove(wid, marker, lat, lng);
-                    const row = (lastMapData?.workersOnSite || []).find((w) => String(w.id) === wid);
-                    if (row) {
-                      row.lat = lat;
-                      row.lng = lng;
-                      row.lastLocationAt = new Date().toISOString();
-                      row.positionSource = "live";
-                      if (typeof evt.accuracyMeters === "number") {
-                        row.accuracyMeters = evt.accuracyMeters;
-                      }
-                      if (String(selectedWorkerId) === wid) {
-                        renderSidebar(lastMapData);
-                      }
-                    }
-                  } else if (Number.isFinite(lat) && Number.isFinite(lng)) {
-                    // Marker not built yet — force HTTP refresh so the pin appears/moves.
-                    scheduleRealtimeRefresh();
-                  }
+        if (window.BaupassAuth?.getSessionToken?.()) {
+          startLivePolling();
+          if (window.SUPPIXOpsRealtime) {
+            opsRealtimeStop = await window.SUPPIXOpsRealtime.start({
+              companyId,
+              feedEl: null,
+              onMode: (mode) => {
+                if (!mode) return;
+                const previousMode = realtimeMode;
+                if (mode === previousMode) return;
+                if (previousMode === "websocket" && mode !== "websocket") {
+                  wsReconnectCount += 1;
                 }
-              } catch (_) { /* ignore */ }
-              scheduleRealtimeRefresh();
-            },
-          });
-        } else {
-          realtimeMode = "sse";
-          let url = "/api/ops-os/events/stream";
-          if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-          const es = new EventSource(url, { withCredentials: true });
-          es.onmessage = (ev) => {
-            try {
-              const p = JSON.parse(ev.data);
-              if (p.type === "events") scheduleRealtimeRefresh();
-            } catch { /* ignore */ }
-          };
+                realtimeMode = mode;
+                startLivePolling();
+                if (lastMapData) {
+                  renderMap(lastMapData);
+                }
+              },
+              onEvent: (evt) => {
+                try {
+                  if (evt && evt.type === "worker_live_location") {
+                    const wid = String(evt.worker_id || "");
+                    const lat = Number(evt.lat);
+                    const lng = Number(evt.lng);
+                    const marker = wid ? workerMarkersById.get(wid) : null;
+                    if (marker && Number.isFinite(lat) && Number.isFinite(lng)) {
+                      animateWorkerMarkerMove(wid, marker, lat, lng);
+                      const row = (lastMapData?.workersOnSite || []).find((w) => String(w.id) === wid);
+                      if (row) {
+                        row.lat = lat;
+                        row.lng = lng;
+                        row.lastLocationAt = new Date().toISOString();
+                        row.positionSource = "live";
+                        if (typeof evt.accuracyMeters === "number") {
+                          row.accuracyMeters = evt.accuracyMeters;
+                        }
+                        if (String(selectedWorkerId) === wid) {
+                          renderSidebar(lastMapData);
+                        }
+                      }
+                    } else if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                      scheduleRealtimeRefresh();
+                    }
+                  }
+                } catch (_) { /* ignore */ }
+                scheduleRealtimeRefresh();
+              },
+            });
+          } else if (!opsMapEmbedded) {
+            realtimeMode = "sse";
+            let url = "/api/ops-os/events/stream";
+            if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
+            mapEventSource = new EventSource(url, { withCredentials: true });
+            mapEventSource.onmessage = (ev) => {
+              try {
+                const p = JSON.parse(ev.data);
+                if (p.type === "events") scheduleRealtimeRefresh();
+              } catch { /* ignore */ }
+            };
+          }
         }
         mapBootFinished = true;
       } catch (e) {
@@ -4305,7 +4328,8 @@
       setCommandMode(!commandMode);
     });
     document.addEventListener("visibilitychange", () => {
-      // Re-arm polling so visible tabs switch quickly to fast live cadence.
+      if (document.visibilityState !== "visible") return;
+      if (!window.BaupassAuth?.getSessionToken?.()) return;
       startLivePolling();
     });
     // Restore map operator preferences.

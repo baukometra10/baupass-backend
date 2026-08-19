@@ -87,6 +87,20 @@
       .join("");
   }
 
+  function hasAuthToken() {
+    return Boolean(
+      String(global.WorkPassStorage?.readSessionToken?.() || global.BaupassAuth?.getSessionToken?.() || "").trim(),
+    );
+  }
+
+  function isEmbedContext() {
+    try {
+      return global.self !== global.top || new URLSearchParams(global.location.search).get("embed") === "1";
+    } catch {
+      return true;
+    }
+  }
+
   function resolveAuthHeaders(getHeaders) {
     if (typeof getHeaders === "function") {
       try {
@@ -129,7 +143,11 @@
 
     const poll = async () => {
       if (stopped) return;
-      if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) return;
+      if (global.WorkPassStorage?.isSupportAssistQuietMode?.() && !hasAuthToken()) return;
+      if (!hasAuthToken()) {
+        stopped = true;
+        return;
+      }
       let url = "/api/v1/events/recent?limit=25";
       if (companyId) url += `&company_id=${encodeURIComponent(companyId)}`;
       if (sinceId) url += `&since_id=${encodeURIComponent(sinceId)}`;
@@ -142,7 +160,7 @@
           },
         });
         if (!response.ok) {
-          if (response.status === 401) {
+          if (response.status === 401 || response.status === 403) {
             stopped = true;
             if (feedEl) {
               feedEl.innerHTML = `<span class="muted">Sitzung abgelaufen — bitte neu anmelden.</span>`;
@@ -279,6 +297,17 @@
   }
 
   async function start({ companyId, feedEl, onMode, onEvent, getHeaders }) {
+    if (!hasAuthToken()) {
+      if (global.WorkPassStorage?.isSupportAssistQuietMode?.() || global.WorkPassStorage?.hasActiveSupportTabScope?.()) {
+        return () => {};
+      }
+    }
+    // Embeds + support tabs: skip Socket.IO (Waitress HTTP 400/401 storms), use HTTP poll only.
+    if (isEmbedContext() || global.WorkPassStorage?.isSupportAssistQuietMode?.()) {
+      if (!hasAuthToken()) return () => {};
+      onMode?.("polling");
+      return startPolling({ companyId, feedEl, onMode, onEvent, getHeaders });
+    }
     try {
       // Cheap public probe first — avoids Waitress WebSocket 400 reconnect storms.
       const caps = await fetch("/api/v1/realtime/capabilities", {

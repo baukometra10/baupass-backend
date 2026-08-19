@@ -3178,6 +3178,11 @@
     });
 
     async function boot() {
+      if (isSupportReadOnlyMode()) {
+        renderAgents();
+        ensureChatWelcome();
+        return;
+      }
       await loadAgents();
       renderAgents();
       await Promise.all([loadInsights(), loadSessions()]);
