@@ -632,6 +632,7 @@ def register_accounting_blueprint(flask_app) -> None:
         Canonical (Lohn v2.6+): POST /api/workpass/webhooks/accounting
         Legacy: /api/v2/accounting/webhook
         Handles employees.list.requested, payroll.month.requested, payslip.released,
+        document.released / tax.document.released (Lohnsteuerbescheinigung, Verdienstabrechnung, …),
         and accounting.message (store + pull /v1/messages/pending).
         """
         db = get_db()

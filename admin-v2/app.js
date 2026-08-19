@@ -2387,6 +2387,7 @@ function renderPayslipStudioList() {
           }
           const sentOn = archived ? formatPayslipShortDate(s.releasedAt || s.reviewedAt) : "";
           const metaParts = [
+            s.docTypeLabel || s.documentType || s.docType || "",
             s.badgeId,
             s.documentPeriod || s.period,
             formatPayslipMoney(s.netAmount ?? s.grossAmount, s.currency),

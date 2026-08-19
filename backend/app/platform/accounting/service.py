@@ -20,8 +20,38 @@ from .hours_service import aggregate_company_hours, normalize_period
 from .keys import invoice_storage_key, payroll_storage_key, require_company_id
 from .schema import ensure_accounting_schema
 
+from backend.app.platform.worker_documents import (
+    WORKER_PAYROLL_DOC_TYPES,
+    doc_type_label,
+    is_payroll_doc_type,
+    resolve_payroll_doc_type,
+)
+
 
 PAYROLL_BATCH_FORMAT = "platform.payroll.batch.v1"
+
+
+def _statement_doc_type(stmt: dict[str, Any] | None = None, item: dict[str, Any] | None = None) -> str:
+    """Canonical payroll document type stored on a statement (default Lohnabrechnung)."""
+    meta: dict[str, Any] = {}
+    if isinstance(stmt, dict):
+        try:
+            raw_meta = stmt.get("meta_json") or stmt.get("meta") or {}
+            if isinstance(raw_meta, str):
+                meta = json.loads(raw_meta or "{}")
+            elif isinstance(raw_meta, dict):
+                meta = raw_meta
+        except Exception:
+            meta = {}
+    doc = meta.get("document") if isinstance(meta.get("document"), dict) else {}
+    return resolve_payroll_doc_type(item or {}, stmt or {}, meta, doc)
+
+
+def _default_payroll_filename(doc_type: str, period: str, worker_key: str) -> str:
+    label = str(doc_type or "lohnabrechnung").strip().lower() or "lohnabrechnung"
+    period_s = str(period or "period").strip() or "period"
+    worker_s = str(worker_key or "worker").strip() or "worker"
+    return f"{label}_{period_s}_{worker_s}.pdf"
 PAYROLL_BATCH_PATH = "/v1/payroll/batch"
 
 # Process-local debounce so Lohn webhook storms cannot saturate Waitress/SQLite.
@@ -1751,7 +1781,11 @@ def ingest_statements(
             errors.append({"index": idx, "error": str(exc)})
             continue
         pdf_b64 = item.get("pdfBase64") or item.get("pdf_base64") or ""
-        filename = str(item.get("filename") or f"lohnabrechnung_{period}_{worker_id or worker_raw}.pdf").strip()
+        doc_type = resolve_payroll_doc_type(item, item.get("document") if isinstance(item.get("document"), dict) else {})
+        filename = str(
+            item.get("filename")
+            or _default_payroll_filename(doc_type, period, worker_id or worker_raw)
+        ).strip()
         if not filename.lower().endswith(".pdf"):
             filename = f"{filename}.pdf"
         file_path = ""
@@ -1789,6 +1823,8 @@ def ingest_statements(
         meta["externalEmployeeId"] = worker_raw
         meta["matchedBy"] = matched_by
         meta["matchConfidence"] = match_confidence
+        meta["docType"] = doc_type
+        meta["documentType"] = doc_type
         if file_path and file_size:
             meta["pdfSource"] = str(item.get("pdfSource") or meta.get("pdfSource") or "lohn_original")
         else:
@@ -2037,16 +2073,25 @@ def _generate_payslip_pdf_base64(
 
 
 def lohn_delivery_to_statement(delivery: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Map Lohn platform.employee.delivery.v1 (payslip) → ingest_statements row."""
+    """Map Lohn platform.employee.delivery.v1 (payslip / tax docs) → ingest_statements row."""
     if not isinstance(delivery, dict):
         return None
     dtype = str(delivery.get("type") or "").strip().lower()
     kind = str(delivery.get("kind") or "").strip().lower()
-    if dtype == "invoice":
+    if dtype in {"invoice", "invoices"}:
         return None
-    if dtype and dtype not in {"payslip", "payroll", "statement"}:
+    # Accept classic payslip types and any platform employee delivery (tax/earnings PDFs).
+    if dtype and dtype not in {"payslip", "payroll", "statement", "document"}:
         if kind != "platform.employee.delivery.v1":
-            return None
+            # Still allow known payroll document type names without the kind field.
+            if not is_payroll_doc_type(dtype) and resolve_payroll_doc_type(delivery) == "lohnabrechnung" and dtype not in {
+                "lohnsteuerbescheinigung",
+                "verdienstabrechnung",
+                "verdienstbescheinigung",
+                "tax_certificate",
+                "earnings_statement",
+            }:
+                return None
     company = delivery.get("company") if isinstance(delivery.get("company"), dict) else {}
     employee = delivery.get("employee") if isinstance(delivery.get("employee"), dict) else {}
     summary = delivery.get("summary") if isinstance(delivery.get("summary"), dict) else {}
@@ -2103,7 +2148,11 @@ def lohn_delivery_to_statement(delivery: dict[str, Any] | None) -> dict[str, Any
                     pass
     name = str(employee.get("name") or doc_emp.get("name") or "").strip()
     company_name = str(company.get("name") or doc_co.get("name") or "").strip()
-    title = str(delivery.get("title") or f"Entgeltabrechnung {period}").strip()
+    doc_type = resolve_payroll_doc_type(delivery, document, summary)
+    title = str(
+        delivery.get("title")
+        or f"{doc_type_label(doc_type, 'de')} {period}"
+    ).strip()
     delivery_id = str(delivery.get("deliveryId") or delivery.get("jobId") or "").strip()
     job_id = str(delivery.get("jobId") or document.get("jobId") or "").strip()
     pdf_b64 = (
@@ -2113,7 +2162,7 @@ def lohn_delivery_to_statement(delivery: dict[str, Any] | None) -> dict[str, Any
         or document.get("pdf_base64")
         or ""
     )
-    # Never invent a platform stub PDF — employee must get the real WorkPass Lohn Abrechnung.
+    # Never invent a platform stub PDF — employee must get the real WorkPass Lohn document.
     return {
         "companyId": company_id,
         "employeeId": employee_id,
@@ -2124,7 +2173,7 @@ def lohn_delivery_to_statement(delivery: dict[str, Any] | None) -> dict[str, Any
         "grossAmount": float(gross or 0) if gross is not None else 0,
         "netAmount": float(net) if net is not None else None,
         "currency": str(summary.get("currency") or document.get("currency") or "EUR"),
-        "filename": f"WorkPass-Lohn-{period}.pdf",
+        "filename": str(delivery.get("filename") or f"WorkPass-Lohn-{doc_type}-{period}.pdf"),
         "pdfBase64": pdf_b64,
         "externalRef": delivery_id[:120],
         "employeeName": name,
@@ -2134,6 +2183,9 @@ def lohn_delivery_to_statement(delivery: dict[str, Any] | None) -> dict[str, Any
         "source": "lohn_delivery",
         "pdfSource": "lohn_original" if pdf_b64 else "pending_lohn_capture",
         "document": document or None,
+        "docType": doc_type,
+        "documentType": doc_type,
+        "title": title,
     }
 
 
@@ -2160,6 +2212,12 @@ def statements_from_lohn_payload(data: dict[str, Any]) -> list[dict[str, Any]]:
                     ).strip()
                     if cid:
                         item = {**item, "companyId": cid}
+                doc_type = resolve_payroll_doc_type(
+                    item,
+                    item.get("document") if isinstance(item.get("document"), dict) else {},
+                    data,
+                )
+                item = {**item, "docType": item.get("docType") or doc_type, "documentType": item.get("documentType") or doc_type}
                 out.append(item)
                 continue
             converted = lohn_delivery_to_statement(item)
@@ -2310,13 +2368,19 @@ def pull_payslips_from_lohn(
     for d in deliveries:
         if not isinstance(d, dict):
             continue
-        if str(d.get("type") or "").lower() not in {"payslip", "payroll", ""}:
-            if d.get("kind") == "platform.employee.delivery.v1" and str(d.get("type") or "") == "invoice":
-                skipped.append({"deliveryId": d.get("deliveryId"), "reason": "invoice_skipped"})
-                continue
+        if str(d.get("type") or "").lower() in {"invoice", "invoices"}:
+            skipped.append({"deliveryId": d.get("deliveryId"), "reason": "invoice_skipped"})
+            continue
         # Prefer full payroll JSON from Lohn (delivery.document can be thin).
         job_id = str(d.get("jobId") or "").strip()
-        if job_id:
+        dtype_l = str(d.get("type") or d.get("documentType") or d.get("docType") or "").lower()
+        is_payslipish = resolve_payroll_doc_type(d) in {"lohnabrechnung", "gehaltsabrechnung"} or dtype_l in {
+            "payslip",
+            "payroll",
+            "statement",
+            "",
+        }
+        if job_id and is_payslipish:
             from urllib.parse import quote as _q
 
             _db_commit(db)
@@ -2530,6 +2594,7 @@ def _attach_worker_document(
     file_size: int,
     uploaded_by_user_id: str | None,
     period: str,
+    doc_type: str = "lohnabrechnung",
 ) -> str:
     doc_id = f"doc-{uuid.uuid4().hex[:12]}"
     from datetime import datetime, timezone
@@ -2537,6 +2602,7 @@ def _attach_worker_document(
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     notes = f"payroll_period={period}"
     stored_path = file_path
+    canonical_type = resolve_payroll_doc_type({"docType": doc_type})
     try:
         src = Path(str(file_path or ""))
         if src.is_file():
@@ -2560,7 +2626,7 @@ def _attach_worker_document(
                 doc_id,
                 worker_id,
                 company_id,
-                "lohnabrechnung",
+                canonical_type,
                 filename,
                 stored_path,
                 file_size,
@@ -2579,25 +2645,37 @@ def _attach_worker_document(
                 uploaded_by_user_id, created_at, notes)
             VALUES (?,?,?,?,?,?,?,?,?,?)
             """,
-            (doc_id, worker_id, company_id, "lohnabrechnung", filename, stored_path, file_size, uploaded_by_user_id, now, notes),
+            (
+                doc_id,
+                worker_id,
+                company_id,
+                canonical_type,
+                filename,
+                stored_path,
+                file_size,
+                uploaded_by_user_id,
+                now,
+                notes,
+            ),
         )
     return doc_id
 
 
 def _worker_document_delivery_ok(db, *, doc_id: str, worker_id: str) -> bool:
-    """True when the worker can actually open the attached Lohnabrechnung file."""
+    """True when the worker can actually open the attached payroll document file."""
     doc_id = str(doc_id or "").strip()
     worker_id = str(worker_id or "").strip()
     if not doc_id or not worker_id:
         return False
+    placeholders = ",".join("?" for _ in sorted(WORKER_PAYROLL_DOC_TYPES))
     try:
         row = db.execute(
-            """
+            f"""
             SELECT id, worker_id, file_path, file_size
             FROM worker_documents
-            WHERE id = ? AND worker_id = ? AND doc_type = 'lohnabrechnung'
+            WHERE id = ? AND worker_id = ? AND doc_type IN ({placeholders})
             """,
-            (doc_id, worker_id),
+            (doc_id, worker_id, *sorted(WORKER_PAYROLL_DOC_TYPES)),
         ).fetchone()
     except Exception:
         return False
@@ -2646,25 +2724,26 @@ def _refresh_worker_document_pdf(
     except Exception:
         stored_path = file_path
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    placeholders = ",".join("?" for _ in sorted(WORKER_PAYROLL_DOC_TYPES))
     try:
         if touch_created_at:
             db.execute(
-                """
+                f"""
                 UPDATE worker_documents
                 SET file_path = ?, file_size = ?, filename = ?, created_at = ?,
                     notes = COALESCE(notes, '')
-                WHERE id = ? AND doc_type = 'lohnabrechnung'
+                WHERE id = ? AND doc_type IN ({placeholders})
                 """,
-                (stored_path, file_size, filename, now, doc_id),
+                (stored_path, file_size, filename, now, doc_id, *sorted(WORKER_PAYROLL_DOC_TYPES)),
             )
         else:
             db.execute(
-                """
+                f"""
                 UPDATE worker_documents
                 SET file_path = ?, file_size = ?, filename = ?
-                WHERE id = ? AND doc_type = 'lohnabrechnung'
+                WHERE id = ? AND doc_type IN ({placeholders})
                 """,
-                (stored_path, file_size, filename, doc_id),
+                (stored_path, file_size, filename, doc_id, *sorted(WORKER_PAYROLL_DOC_TYPES)),
             )
         db.commit()
     except Exception:
@@ -2711,15 +2790,18 @@ def approve_batch(db, *, batch_id: str, actor_user_id: str, company_id: str | No
             errors.append({"statementId": stmt["id"], "error": "missing_pdf"})
             continue
         try:
+            doc_type = _statement_doc_type(stmt)
+            default_name = _default_payroll_filename(doc_type, stmt.get("period") or batch["period"], stmt.get("worker_id") or "worker")
             doc_id = _attach_worker_document(
                 db,
                 company_id=stmt["company_id"],
                 worker_id=stmt["worker_id"],
-                filename=stmt.get("filename") or "lohnabrechnung.pdf",
+                filename=stmt.get("filename") or default_name,
                 file_path=path,
                 file_size=int(stmt.get("file_size") or 0),
                 uploaded_by_user_id=actor_user_id,
                 period=stmt.get("period") or batch["period"],
+                doc_type=doc_type,
             )
             db.execute(
                 """
@@ -2737,8 +2819,8 @@ def approve_batch(db, *, batch_id: str, actor_user_id: str, company_id: str | No
                 _notify_worker_payroll_document(
                     db,
                     stmt["worker_id"],
-                    stmt.get("filename") or "lohnabrechnung.pdf",
-                    doc_type="lohnabrechnung",
+                    stmt.get("filename") or default_name,
+                    doc_type=doc_type,
                 )
             except Exception:
                 pass
@@ -2995,15 +3077,18 @@ def release_statement(
                 return {"ok": False, "error": "worker_unassigned", "hint": "Mitarbeiter zuweisen"}
             now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             try:
+                doc_type = _statement_doc_type(stmt)
+                default_name = _default_payroll_filename(doc_type, stmt.get("period") or "", worker_id or "worker")
                 new_doc_id = _attach_worker_document(
                     db,
                     company_id=stmt["company_id"],
                     worker_id=worker_id,
-                    filename=stmt.get("filename") or "lohnabrechnung.pdf",
+                    filename=stmt.get("filename") or default_name,
                     file_path=path,
                     file_size=int(stmt.get("file_size") or 0),
                     uploaded_by_user_id=actor_user_id,
                     period=stmt.get("period") or "",
+                    doc_type=doc_type,
                 )
                 db.execute(
                     """
@@ -3019,8 +3104,8 @@ def release_statement(
                     _notify_worker_payroll_document(
                         db,
                         worker_id,
-                        stmt.get("filename") or "lohnabrechnung.pdf",
-                        doc_type="lohnabrechnung",
+                        stmt.get("filename") or default_name,
+                        doc_type=doc_type,
                     )
                 except Exception:
                     pass
@@ -3031,7 +3116,7 @@ def release_statement(
                     "statementId": statement_id,
                     "workerDocumentId": new_doc_id,
                     "deliveredAt": now,
-                    "message": "Lohnabrechnung nachgeliefert an Mitarbeiter-App",
+                    "message": f"{doc_type_label(doc_type, 'de')} nachgeliefert an Mitarbeiter-App",
                 }
             except Exception as exc:
                 return {"ok": False, "error": str(exc)[:160]}
@@ -3042,13 +3127,15 @@ def release_statement(
             meta = {}
         from .lohn_sheet_pdf import is_exact_lohn_pdf_source
 
+        doc_type = _statement_doc_type(stmt)
+        default_name = _default_payroll_filename(doc_type, stmt.get("period") or "", worker_id or "worker")
         if is_exact_lohn_pdf_source((meta or {}).get("pdfSource")) and path and Path(path).is_file():
             _refresh_worker_document_pdf(
                 db,
                 stmt,
                 file_path=path,
                 file_size=int(stmt.get("file_size") or 0),
-                filename=stmt.get("filename") or "lohnabrechnung.pdf",
+                filename=stmt.get("filename") or default_name,
                 period=str(stmt.get("period") or ""),
                 touch_created_at=True,
             )
@@ -3058,8 +3145,8 @@ def release_statement(
                 _notify_worker_payroll_document(
                     db,
                     worker_id,
-                    stmt.get("filename") or "lohnabrechnung.pdf",
-                    doc_type="lohnabrechnung",
+                    stmt.get("filename") or default_name,
+                    doc_type=doc_type,
                 )
             except Exception:
                 pass
@@ -3069,7 +3156,7 @@ def release_statement(
                 "statementId": statement_id,
                 "workerDocumentId": doc_id,
                 "deliveredAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "message": "Lohnabrechnung erneut an Mitarbeiter-App gesendet",
+                "message": f"{doc_type_label(doc_type, 'de')} erneut an Mitarbeiter-App gesendet",
             }
         return {
             "ok": True,
@@ -3106,15 +3193,18 @@ def release_statement(
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
     try:
+        doc_type = _statement_doc_type(stmt)
+        default_name = _default_payroll_filename(doc_type, stmt.get("period") or "", stmt.get("worker_id") or "worker")
         doc_id = _attach_worker_document(
             db,
             company_id=stmt["company_id"],
             worker_id=stmt["worker_id"],
-            filename=stmt.get("filename") or "lohnabrechnung.pdf",
+            filename=stmt.get("filename") or default_name,
             file_path=path,
             file_size=int(stmt.get("file_size") or 0),
             uploaded_by_user_id=actor_user_id,
             period=stmt.get("period") or "",
+            doc_type=doc_type,
         )
         db.execute(
             """
@@ -3132,8 +3222,8 @@ def release_statement(
             _notify_worker_payroll_document(
                 db,
                 stmt["worker_id"],
-                stmt.get("filename") or "lohnabrechnung.pdf",
-                doc_type="lohnabrechnung",
+                stmt.get("filename") or default_name,
+                doc_type=doc_type,
             )
         except Exception:
             pass
@@ -3164,7 +3254,7 @@ def release_statement(
             "statement": repo.enrich_statement_row(db, refreshed),
             "batchStatus": (repo.get_batch(db, batch_id) or {}).get("status"),
             "inboxCleared": inbox_clear,
-            "message": "Lohnabrechnung an Mitarbeiter-App gesendet",
+            "message": f"{doc_type_label(doc_type, 'de')} an Mitarbeiter-App gesendet",
         }
     except Exception as exc:
         return {"ok": False, "error": str(exc)[:160]}

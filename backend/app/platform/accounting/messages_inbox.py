@@ -1341,8 +1341,19 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
             "error": fulfilled.get("error"),
         }
 
-    # ── payslip.released ──────────────────────────────────────────────
-    if event in {"payslip.released", "payslips.released", "statement.released", "statements.released"}:
+    # ── payslip / tax document released ───────────────────────────────
+    if event in {
+        "payslip.released",
+        "payslips.released",
+        "statement.released",
+        "statements.released",
+        "document.released",
+        "documents.released",
+        "tax.document.released",
+        "tax.documents.released",
+    }:
+        from backend.app.platform.worker_documents import doc_type_label, resolve_payroll_doc_type
+
         from .service import statements_from_lohn_payload
 
         statements = statements_from_lohn_payload(data)
@@ -1366,13 +1377,19 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
                         or (data.get("delivery") or {}).get("deliveryId")
                         or ""
                     ),
-                    notes=str(data.get("notes") or "payslip.released webhook"),
+                    notes=str(data.get("notes") or f"{event} webhook"),
                 )
             except Exception as exc:
                 ingest_result = {"ok": False, "error": str(exc)[:200]}
         created_n = int(ingest_result.get("createdCount") or 0) if isinstance(ingest_result, dict) else 0
         batch_id = str(ingest_result.get("batchId") or "") if isinstance(ingest_result, dict) else ""
         period_label = period or (ingest_result.get("period") if isinstance(ingest_result, dict) else "") or ""
+        first_doc_type = resolve_payroll_doc_type(
+            (statements[0] if isinstance(statements, list) and statements else {}) or {},
+            data,
+            data.get("delivery") if isinstance(data.get("delivery"), dict) else {},
+        )
+        doc_label = doc_type_label(first_doc_type, "de")
         store = upsert_accounting_messages(
             db,
             [
@@ -1381,11 +1398,11 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
                     "event": EVENT_ACCOUNTING_MESSAGE,
                     "kind": "payslip_released",
                     "subject": data.get("subject")
-                    or f"Lohnabrechnung eingegangen · {period_label}".strip(),
+                    or f"{doc_label} eingegangen · {period_label}".strip(),
                     "body": data.get("body")
                     or (
                         f"WorkPass Lohn hat {created_n or len(statements) if isinstance(statements, list) else 0} "
-                        f"Lohnabrechnung(en) für Periode {period_label} geliefert "
+                        f"{doc_label}-Dokument(e) für Periode {period_label} geliefert "
                         f"(Firma {company_id}"
                         f"{f', Batch {batch_id}' if batch_id else ''}). "
                         "Bitte im Posteingang prüfen und freigeben — erst danach sichtbar für Mitarbeitende."
@@ -1399,6 +1416,7 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
                     "batchId": batch_id,
                     "statusHint": "pending_approval",
                     "createdCount": created_n,
+                    "docType": first_doc_type,
                 }
             ],
             default_company=company_id,
@@ -1409,11 +1427,12 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
             "event": event,
             "companyId": company_id or None,
             "period": period_label or None,
+            "docType": first_doc_type,
             "ingest": ingest_result,
             "webhookStore": store,
             "status": "pending_approval",
-            "message": "Payslips ingested as pending_approval — human approve to show worker",
-            "note": "Never auto-approve payslips to employees",
+            "message": f"{doc_label} ingested as pending_approval — human approve to show worker",
+            "note": "Never auto-approve payroll documents to employees",
             "tenantIsolation": "companyId::employeeId::period",
         }
 

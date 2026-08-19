@@ -1615,6 +1615,8 @@ const UI_TRANSLATIONS = {
     docTypeGesundheitszeugnis: "Gesundheitszeugnis",
     docTypeLohnabrechnung: "Lohnabrechnung",
     docTypeGehaltsabrechnung: "Gehaltsabrechnung",
+    docTypeLohnsteuerbescheinigung: "Lohnsteuerbescheinigung",
+    docTypeVerdienstabrechnung: "Verdienstabrechnung",
     docTypeSonstiges: "Sonstiges",
     workerDocsHeading: "Gespeicherte Dokumente",
     workerDocsEmpty: "Keine Dokumente hinterlegt.",
@@ -2814,6 +2816,8 @@ const UI_TRANSLATIONS = {
     docTypeGesundheitszeugnis: "Health certificate",
     docTypeLohnabrechnung: "Payslip",
     docTypeGehaltsabrechnung: "Salary statement",
+    docTypeLohnsteuerbescheinigung: "Income tax certificate",
+    docTypeVerdienstabrechnung: "Earnings statement",
     docTypeSonstiges: "Other",
     workerDocsHeading: "Stored Documents",
     workerDocsEmpty: "No documents on file.",
@@ -5143,6 +5147,8 @@ const UI_TRANSLATIONS = {
     docTypeGesundheitszeugnis: "شهادة صحية",
     docTypeLohnabrechnung: "كشف الراتب",
     docTypeGehaltsabrechnung: "كشف الراتب",
+    docTypeLohnsteuerbescheinigung: "شهادة ضريبة الدخل",
+    docTypeVerdienstabrechnung: "كشف الأرباح",
     docTypeSonstiges: "أخرى",
     workerDocsHeading: "المستندات المحفوظة",
     workerDocsEmpty: "لا توجد مستندات.",
@@ -21253,6 +21259,8 @@ async function openInboxMailDetail(inboxId, cardEl) {
     gesundheitszeugnis: "Gesundheitszeugnis",
     lohnabrechnung: "Lohnabrechnung",
     gehaltsabrechnung: "Gehaltsabrechnung",
+    lohnsteuerbescheinigung: "Lohnsteuerbescheinigung",
+    verdienstabrechnung: "Verdienstabrechnung",
     sonstiges: "Sonstiges",
   };
 
@@ -30997,7 +31005,8 @@ function renderWorkerDocuments(docs, workerId, container, companyId = "") {
     String(new URLSearchParams(location.search).get("company_id") || "").trim();
   const ALL_DOC_TYPES = [
     "mindestlohnnachweis", "personalausweis", "sozialversicherungsnachweis",
-    "arbeitserlaubnis", "gesundheitszeugnis", "lohnabrechnung", "gehaltsabrechnung", "sonstiges",
+    "arbeitserlaubnis", "gesundheitszeugnis", "lohnabrechnung", "gehaltsabrechnung",
+    "lohnsteuerbescheinigung", "verdienstabrechnung", "sonstiges",
   ];
   const DOC_TYPES_REQUIRE_EXPIRY = new Set(["personalausweis", "arbeitserlaubnis", "gesundheitszeugnis"]);
 

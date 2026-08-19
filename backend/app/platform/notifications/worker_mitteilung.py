@@ -6,6 +6,9 @@ from typing import Any
 
 _DOC_LABELS_DE: dict[str, str] = {
     "lohnabrechnung": "Lohnabrechnung",
+    "gehaltsabrechnung": "Gehaltsabrechnung",
+    "lohnsteuerbescheinigung": "Lohnsteuerbescheinigung",
+    "verdienstabrechnung": "Verdienstabrechnung",
     "einsatzplan": "Einsatzplan",
     "personalausweis": "Personalausweis",
     "mindestlohnnachweis": "Mindestlohnnachweis",
