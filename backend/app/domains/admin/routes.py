@@ -134,7 +134,7 @@ def register_admin_blueprint(flask_app: Flask) -> None:
     def v2_admin_usage_stats():
         cid = company_id_from_user()
         if not cid:
-            return forbidden_company()
+            return jsonify({"ok": False, "error": "company_required", "skipped": True, "period": request.args.get("period") or "day"})
         period = request.args.get("period") or "day"
         return jsonify(build_usage_stats(get_db(), cid, period=period))
 

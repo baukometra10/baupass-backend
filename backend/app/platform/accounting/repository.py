@@ -436,7 +436,13 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
                 or pdf_immutable
                 or pdf_source == "lohn_original"
             )
-            preview_mode = "pdf" if certificate_like else "sheet"
+            # Any real PDF on disk is shown as-is (passthrough). Sheet only when no file exists.
+            if has_pdf or pdf_immutable or pdf_source == "lohn_original":
+                preview_mode = "pdf"
+            elif certificate_like:
+                preview_mode = "pdf"
+            else:
+                preview_mode = "sheet"
             datev_sources = {
                 "pending_datev_sheet",
                 "datev_sheet_html",
@@ -444,7 +450,11 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
                 "datev_sheet_weasyprint",
                 "datev_sheet_reportlab",
             }
-            pdf_suspect_remake = bool(certificate_like and pdf_source in datev_sources and has_pdf)
+            pdf_suspect_remake = bool(
+                (certificate_like or has_pdf)
+                and pdf_source in datev_sources
+                and has_pdf
+            )
     except Exception:
         doc_period = ""
         warnings, delivery_locked = [], status in {"released", "rejected"}

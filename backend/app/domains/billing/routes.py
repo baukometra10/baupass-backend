@@ -85,7 +85,8 @@ def register_billing_blueprint(flask_app: Flask) -> None:
     def v2_billing_overview():
         cid = company_id_from_user()
         if not cid:
-            return forbidden_company()
+            # Avoid console 400 noise when superadmin has no company selected yet.
+            return jsonify({"ok": False, "error": "company_required", "skipped": True})
         try:
             return jsonify(_service.subscription_overview(get_db(), cid))
         except ValueError as exc:

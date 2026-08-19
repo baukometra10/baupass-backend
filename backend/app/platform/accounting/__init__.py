@@ -1500,39 +1500,64 @@ def register_accounting_blueprint(flask_app) -> None:
         from .service import ensure_statement_delivery_pdf, repair_statement_original_pdf_from_lohn
         from backend.app.platform.worker_documents import resolve_payroll_doc_type
 
-        try:
-            meta = __import__("json").loads(stmt.get("meta_json") or "{}")
-        except Exception:
-            meta = {}
-        if not isinstance(meta, dict):
-            meta = {}
-        path = str(stmt.get("file_path") or "").strip()
-        immutable = bool(meta.get("pdfImmutable")) or is_exact_lohn_pdf_source(meta.get("pdfSource"))
-        doc_type = resolve_payroll_doc_type(meta, stmt)
-        certificate_doc = doc_type not in {"lohnabrechnung", "gehaltsabrechnung", ""}
-        # Serve stored original bytes first — never remake Vordienst/tax into an empty sheet.
-        if path and Path(path).is_file() and (Path(path).stat().st_size > 20):
+        def _meta(row: dict) -> dict:
+            try:
+                raw = __import__("json").loads(row.get("meta_json") or "{}")
+            except Exception:
+                raw = {}
+            return raw if isinstance(raw, dict) else {}
+
+        def _send(pdf_path: str, row: dict):
             download = str(request.args.get("download") or "").strip().lower() in {"1", "true", "yes"}
             return send_file(
-                path,
+                pdf_path,
                 mimetype="application/pdf",
                 as_attachment=download,
-                download_name=str(stmt.get("filename") or "lohnabrechnung.pdf"),
+                download_name=str(row.get("filename") or "document.pdf"),
                 conditional=True,
             )
+
+        meta = _meta(stmt)
+        path = str(stmt.get("file_path") or "").strip()
+        pdf_source = str(meta.get("pdfSource") or "").strip()
+        immutable = bool(meta.get("pdfImmutable")) or is_exact_lohn_pdf_source(pdf_source)
+        doc_type = resolve_payroll_doc_type(meta, stmt)
+        certificate_doc = doc_type not in {"lohnabrechnung", "gehaltsabrechnung", ""}
+        datev_sources = {
+            "pending_datev_sheet",
+            "datev_sheet_html",
+            "datev_sheet_chromium",
+            "datev_sheet_weasyprint",
+            "datev_sheet_reportlab",
+        }
+
+        # Certificates previously overwritten by Datev remakes: restore from Lohn if possible.
+        if certificate_doc and pdf_source in datev_sources:
+            repaired = repair_statement_original_pdf_from_lohn(db, stmt)
+            if repaired.get("ok"):
+                stmt = repo.get_statement(db, statement_id) or stmt
+                meta = _meta(stmt)
+                path = str(stmt.get("file_path") or repaired.get("path") or "")
+                pdf_source = str(meta.get("pdfSource") or pdf_source)
+
+        if path and Path(path).is_file() and Path(path).stat().st_size > 20:
+            # Never serve a Datev remake as if it were the original certificate.
+            if certificate_doc and pdf_source in datev_sources:
+                return jsonify(
+                    {
+                        "error": "original_pdf_required",
+                        "hint": "Datev-Remake verweigert — bitte Original erneut aus WorkPass Lohn senden",
+                        "docType": doc_type,
+                    }
+                ), 409
+            return _send(path, stmt)
+
         if immutable or certificate_doc:
             repaired = repair_statement_original_pdf_from_lohn(db, stmt)
             if repaired.get("ok"):
                 path = str(repaired.get("path") or "")
                 if path and Path(path).is_file():
-                    download = str(request.args.get("download") or "").strip().lower() in {"1", "true", "yes"}
-                    return send_file(
-                        path,
-                        mimetype="application/pdf",
-                        as_attachment=download,
-                        download_name=str(stmt.get("filename") or "lohnabrechnung.pdf"),
-                        conditional=True,
-                    )
+                    return _send(path, stmt)
             return jsonify(
                 {
                     "error": "missing_pdf",
@@ -1540,20 +1565,14 @@ def register_accounting_blueprint(flask_app) -> None:
                     "message": "Original-PDF fehlt — bitte erneut aus WorkPass Lohn mit pdfBase64 senden",
                 }
             ), 404
+
         built = ensure_statement_delivery_pdf(db, stmt, _batch)
         if built.get("ok"):
             stmt = repo.get_statement(db, statement_id) or stmt
         path = str(stmt.get("file_path") or built.get("path") or "")
         if not path or not Path(path).is_file():
             return jsonify({"error": "missing_pdf"}), 404
-        download = str(request.args.get("download") or "").strip().lower() in {"1", "true", "yes"}
-        return send_file(
-            path,
-            mimetype="application/pdf",
-            as_attachment=download,
-            download_name=str(stmt.get("filename") or "lohnabrechnung.pdf"),
-            conditional=True,
-        )
+        return _send(path, stmt)
 
     @accounting_bp.get("/payroll/statements/<batch_id>/<statement_id>/sheet")
     @require_auth
@@ -1561,9 +1580,12 @@ def register_accounting_blueprint(flask_app) -> None:
     def admin_statement_sheet(batch_id: str, statement_id: str):
         """Serve the WorkPass Lohn DatevSheet; fill empty Stammdaten only (Krankenkasse, Pers.-Nr.)."""
         from flask import Response
+        from pathlib import Path
 
         from .lohn_sheet import apply_sheet_chrome
+        from .lohn_sheet_pdf import is_exact_lohn_pdf_source
         from .service import resolve_statement_sheet
+        from backend.app.platform.worker_documents import resolve_payroll_doc_type
 
         user = g.current_user
         theme = request.args.get("theme") or request.headers.get("X-UI-Theme") or "light"
@@ -1572,6 +1594,26 @@ def register_accounting_blueprint(flask_app) -> None:
         batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
         if err:
             return err
+        try:
+            meta = __import__("json").loads(stmt.get("meta_json") or "{}")
+        except Exception:
+            meta = {}
+        if not isinstance(meta, dict):
+            meta = {}
+        path = str(stmt.get("file_path") or "").strip()
+        has_pdf = bool(path and Path(path).is_file() and Path(path).stat().st_size > 20)
+        immutable = bool(meta.get("pdfImmutable")) or is_exact_lohn_pdf_source(meta.get("pdfSource"))
+        doc_type = resolve_payroll_doc_type(meta, stmt)
+        # Original Lohn documents must never be replaced by a Datev sheet preview.
+        if immutable or has_pdf or doc_type not in {"lohnabrechnung", "gehaltsabrechnung", ""}:
+            return jsonify(
+                {
+                    "error": "use_original_pdf",
+                    "hint": "Original document from WorkPass Lohn — open /pdf unchanged",
+                    "docType": doc_type,
+                    "hasPdf": has_pdf,
+                }
+            ), 409
         # Exact WorkPass Lohn DatevSheet — no platform field injection in the preview.
         resolved = resolve_statement_sheet(db, stmt, batch, enrich=False)
         return Response(

@@ -2750,9 +2750,19 @@ function openPayslipSheetWindow(html) {
 
 function statementPrefersPdfPreview(stmt) {
   if (!stmt) return false;
-  if (stmt.pdfImmutable || stmt.pdfSuspectRemake) return true;
+  // Passthrough rule: any stored Lohn PDF must open as the original file — never Datev sheet.
+  if (stmt.hasPdf || stmt.pdfImmutable || Number(stmt.fileSize || 0) > 20) return true;
+  if (stmt.pdfSuspectRemake) return true;
   const src = String(stmt.pdfSource || "").toLowerCase();
-  if (src === "lohn_original") return true;
+  if (
+    src === "lohn_original"
+    || src === "lohn_html2canvas"
+    || src === "lohn_sheet_capture"
+  ) {
+    return true;
+  }
+  const mode = String(stmt.previewMode || "").toLowerCase();
+  if (mode === "pdf") return true;
   const docType = String(stmt.docType || stmt.documentType || "").toLowerCase();
   const sheetTypes = new Set(["lohnabrechnung", "gehaltsabrechnung", ""]);
   if (docType && !sheetTypes.has(docType)) return true;
@@ -2760,10 +2770,6 @@ function statementPrefersPdfPreview(stmt) {
   if (/vordienst|lohnsteuer|verdienst|jahresabrechnung|steuerbescheinigung|bescheinigung|شهادة|سنوي/.test(title)) {
     return true;
   }
-  const mode = String(stmt.previewMode || "").toLowerCase();
-  if (mode === "pdf") return true;
-  // Only trust sheet mode when nothing above marks it as a certificate.
-  if (mode === "sheet") return false;
   return false;
 }
 
@@ -2860,10 +2866,24 @@ async function selectPayslipStatement(batchId, statementId) {
   }
   const iframe = $("payslipStudioPdf");
   try {
-    const preferPdf = statementPrefersPdfPreview(stmt);
-    if (preferPdf) {
+    const docType = String(stmt.docType || stmt.documentType || "").toLowerCase();
+    const allowSheetFallback =
+      ["lohnabrechnung", "gehaltsabrechnung"].includes(docType)
+      && !stmt.pdfImmutable
+      && !stmt.hasPdf
+      && Number(stmt.fileSize || 0) <= 20
+      && String(stmt.pdfSource || "").toLowerCase() !== "lohn_original";
+    // Always try the unchanged Lohn PDF first. Datev sheet is last-resort for classic monthly slips only.
+    let usedPdf = false;
+    try {
       await loadPayslipStudioOriginalPdf(batchId, statementId, iframe);
-    } else {
+      usedPdf = true;
+    } catch (pdfErr) {
+      if (!allowSheetFallback) {
+        throw pdfErr;
+      }
+    }
+    if (!usedPdf) {
       setPayslipPreviewKind("sheet");
       const token = wpGet(TOKEN_KEY);
       const headers = { Accept: "text/html" };
