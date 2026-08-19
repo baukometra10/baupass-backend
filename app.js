@@ -678,6 +678,107 @@ function restoreSupportSpectatorSession(home) {
   }
 }
 
+function captureEmbedScrollState() {
+  const out = {
+    embedScrollX: 0,
+    embedScrollY: 0,
+    embedMainScrollTop: 0,
+    opsScrollY: 0,
+    opsMainScrollTop: 0,
+  };
+  try {
+    const view = getCurrentViewName();
+    const meta = ENTERPRISE_EMBED_META[view];
+    const iframe = meta ? document.getElementById(meta.frameId) : null;
+    const win = iframe?.contentWindow;
+    if (!win) return out;
+    out.embedScrollX = Number(win.scrollX || 0);
+    out.embedScrollY = Number(win.scrollY || 0);
+    const main = win.document?.querySelector("main, .content, #grid, .wrap, .dashboard-view, .page, .shell");
+    if (main) out.embedMainScrollTop = Number(main.scrollTop || 0);
+    const nested = win.document?.querySelector(
+      "iframe[data-ops-page], #operationsPanel iframe, .ops-embed-frame",
+    );
+    if (nested?.contentWindow) {
+      out.opsScrollY = Number(nested.contentWindow.scrollY || 0);
+      const nestedMain = nested.contentWindow.document?.querySelector("main, .content, #grid, .wrap");
+      if (nestedMain) out.opsMainScrollTop = Number(nestedMain.scrollTop || 0);
+    }
+  } catch {
+    // cross-origin or iframe not ready
+  }
+  return out;
+}
+
+function applyEmbedScrollMirror(uiState) {
+  if (!uiState || getSupportAssistAgentState()) return;
+  try {
+    const view = String(uiState.view || getCurrentViewName() || "").trim();
+    const meta = ENTERPRISE_EMBED_META[view];
+    const iframe = meta ? document.getElementById(meta.frameId) : null;
+    const win = iframe?.contentWindow;
+    if (!win) return;
+    const x = Number(uiState.embedScrollX);
+    const y = Number(uiState.embedScrollY);
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      if (Math.abs((win.scrollX || 0) - x) > 2 || Math.abs((win.scrollY || 0) - y) > 2) {
+        win.scrollTo(x, y);
+      }
+    }
+    const mainTop = Number(uiState.embedMainScrollTop);
+    if (Number.isFinite(mainTop)) {
+      const main = win.document?.querySelector("main, .content, #grid, .wrap, .dashboard-view, .page, .shell");
+      if (main && Math.abs((main.scrollTop || 0) - mainTop) > 2) {
+        main.scrollTop = mainTop;
+      }
+    }
+    const nested = win.document?.querySelector(
+      "iframe[data-ops-page], #operationsPanel iframe, .ops-embed-frame",
+    );
+    if (nested?.contentWindow) {
+      const oy = Number(uiState.opsScrollY);
+      if (Number.isFinite(oy) && Math.abs((nested.contentWindow.scrollY || 0) - oy) > 2) {
+        nested.contentWindow.scrollTo(0, oy);
+      }
+      const omt = Number(uiState.opsMainScrollTop);
+      if (Number.isFinite(omt)) {
+        const nestedMain = nested.contentWindow.document?.querySelector("main, .content, #grid, .wrap");
+        if (nestedMain && Math.abs((nestedMain.scrollTop || 0) - omt) > 2) {
+          nestedMain.scrollTop = omt;
+        }
+      }
+    }
+  } catch {
+    // iframe not ready
+  }
+}
+
+function bindAgentEmbedScrollCapture() {
+  const onEmbedScroll = () => {
+    if (!getSupportAssistAgentState()) return;
+    if (supportAssistScrollTimer) return;
+    supportAssistScrollTimer = window.setTimeout(() => {
+      supportAssistScrollTimer = null;
+      void pulseSupportAssist("ui_state", captureSupportAssistUiState());
+    }, 40);
+  };
+  Object.values(ENTERPRISE_EMBED_META).forEach((meta) => {
+    const iframe = document.getElementById(meta.frameId);
+    if (!iframe || iframe.dataset.supportScrollBound === "1") return;
+    iframe.dataset.supportScrollBound = "1";
+    const attach = () => {
+      try {
+        iframe.contentWindow?.addEventListener("scroll", onEmbedScroll, { passive: true, capture: true });
+        iframe.contentWindow?.document?.addEventListener("scroll", onEmbedScroll, { passive: true, capture: true });
+      } catch {
+        // not ready
+      }
+    };
+    iframe.addEventListener("load", attach);
+    attach();
+  });
+}
+
 function captureAdminV2EmbedStateFromDom() {
   const iframe = document.getElementById("adminV2Frame");
   try {
@@ -840,6 +941,7 @@ function captureSupportAssistUiState(extra) {
     loginOtpPending: Boolean(state.loginOtpPending),
     loginOtpLen: String(elements.loginOtpCode?.value || "").length,
     ...captureAdminV2EmbedState(),
+    ...captureEmbedScrollState(),
   };
   return extra && typeof extra === "object" ? { ...base, ...extra } : base;
 }
@@ -951,9 +1053,10 @@ function applySupportAssistUiState(uiState) {
   }
   const contentEl = document.querySelector(".content");
   const cst = Number(uiState.contentScrollTop);
-  if (contentEl && Number.isFinite(cst) && Math.abs(contentEl.scrollTop - cst) > 4) {
+  if (contentEl && Number.isFinite(cst) && Math.abs(contentEl.scrollTop - cst) > 2) {
     contentEl.scrollTop = cst;
   }
+  applyEmbedScrollMirror(uiState);
 
   window.BaupassSupportAssist?.updateSpectatorBanner?.(uiState);
   if (watching) {
@@ -998,7 +1101,7 @@ function startSupportAssistAgentUiCapture() {
       supportAssistScrollTimer = window.setTimeout(() => {
         supportAssistScrollTimer = null;
         pulseState();
-      }, 180);
+      }, 40);
     };
     document.addEventListener("input", onInput, true);
     document.addEventListener("scroll", onScroll, true);
@@ -1007,7 +1110,8 @@ function startSupportAssistAgentUiCapture() {
     window.__baupassSupportAssistScrollHandler = onScroll;
   }
   pulseState();
-  supportAssistAgentCaptureTimer = window.setInterval(pulseState, 800);
+  bindAgentEmbedScrollCapture();
+  supportAssistAgentCaptureTimer = window.setInterval(pulseState, 200);
 }
 
 function stopSupportAssistAgentUiCapture() {
@@ -1090,6 +1194,7 @@ function syncSupportAssistSpectatorWatch() {
 
   const watch = assist.readWatchState?.();
   if (watch?.watchToken && watch?.companyId && !watch?.agent) {
+    assist.startPolling?.(watch);
     return;
   }
 
@@ -1099,9 +1204,7 @@ function syncSupportAssistSpectatorWatch() {
     return;
   }
 
-  if (role === "company-admin") {
-    void assist.checkActiveForCompanyAdmin?.(companyId, token);
-  }
+  assist.startPublicSpectatorWatch?.(companyId, token);
 }
 const UI_TRANSLATIONS = {
   de: {

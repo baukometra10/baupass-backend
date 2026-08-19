@@ -483,9 +483,12 @@
   }
 
   async function bootstrapSession() {
-    if (WP?.isSupportAssistQuietMode?.()) {
-      const token = getSessionToken();
-      return { authenticated: Boolean(token), token, user: {} };
+    if (WP?.isAuthUnusable?.()) {
+      return { authenticated: false, token: getSessionToken(), user: {} };
+    }
+    const token = getSessionToken();
+    if (!token && WP?.isSupportAssistQuietMode?.()) {
+      return { authenticated: false, token: "", user: {} };
     }
     const data = await fetchApi("/api/session/bootstrap");
     if (

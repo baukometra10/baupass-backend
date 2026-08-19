@@ -882,7 +882,7 @@
 
   <script src="/workpass-storage.js?v=20260818wp8"></script>
   <script src="/tenant-brand-icon.js?v=20260705c"></script>
-  <script src="/embed-helpers.js?v=20260723insightNav1"></script>
+  <script src="/embed-helpers.js?v=20260819embed5"></script>
   <script src="/sector-copy.js?v=20260818opsSector1"></script>
   <script src="/ai-center-i18n-extra.js?v=20260705h"></script>
   <script src="/ai-voice-ui.js?v=20260725voice12"></script>
@@ -1831,6 +1831,33 @@
       } catch {
         // optional branding
       }
+    }
+
+    function isEmbedFrame() {
+      try {
+        return window.self !== window.top;
+      } catch {
+        return true;
+      }
+    }
+
+    function waitForParentToken(timeoutMs) {
+      const existing = String(window.WorkPassStorage?.readSessionToken?.() || "").trim();
+      if (existing) return Promise.resolve(existing);
+      return new Promise((resolve) => {
+        const timer = window.setTimeout(() => {
+          window.removeEventListener("message", onMsg);
+          resolve(String(window.WorkPassStorage?.readSessionToken?.() || "").trim());
+        }, Math.max(200, Number(timeoutMs) || 2000));
+        function onMsg(event) {
+          if (event.origin !== window.location.origin) return;
+          if (event.data?.type !== "baupass-sync-token" || !event.data.token) return;
+          window.clearTimeout(timer);
+          window.removeEventListener("message", onMsg);
+          resolve(String(event.data.token || "").trim());
+        }
+        window.addEventListener("message", onMsg);
+      });
     }
 
     async function bootstrapSession() {
@@ -3231,7 +3258,15 @@
 
     (async () => {
       try {
-        const bootData = await bootstrapSession();
+        if (isEmbedFrame()) {
+          await waitForParentToken(2200);
+        }
+        let bootData = await bootstrapSession();
+        if (!bootData?.user?.role && isEmbedFrame()) {
+          await waitForParentToken(1800);
+          bootData = await bootstrapSession();
+        }
+        if (!bootData?.user?.role) throw new Error("auth");
         bootUser = bootData?.user || null;
         currentRole = bootUser?.role || "";
         syncSelectedCompanyId(bootUser);
@@ -3287,6 +3322,9 @@
           await boot();
         }
       } catch {
+        if (isEmbedFrame() && window.WorkPassStorage?.isSupportAssistQuietMode?.()) {
+          document.getElementById("authErrText") && (document.getElementById("authErrText").textContent = "Support-Ansicht wird geladen…");
+        }
         showAuthError();
         applyUiLanguage();
       }

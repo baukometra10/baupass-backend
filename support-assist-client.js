@@ -411,7 +411,7 @@
     setSpectatorMode(true, state?.actorName, "Support verbindet…");
     stopPolling();
     pollOnce();
-    pollTimer = global.setInterval(pollOnce, 90);
+    pollTimer = global.setInterval(pollOnce, 50);
   }
 
   function stopPolling() {
@@ -485,14 +485,26 @@
     });
   }
 
-  function startPublicSpectatorWatch(companyId) {
+  function startPublicSpectatorWatch(companyId, token) {
     const cid = String(companyId || "").trim();
     if (!cid) return;
     if (publicWatchCompanyId === cid && publicWatchTimer) return;
     stopPublicSpectatorWatch();
     publicWatchCompanyId = cid;
-    publicWatchOnce(cid);
-    publicWatchTimer = global.setInterval(() => publicWatchOnce(cid), 1800);
+    const tick = () => {
+      const existing = readWatchState();
+      if (existing?.watchToken && existing.companyId === cid && !existing.agent) {
+        if (!pollTimer) startPolling(existing);
+        return;
+      }
+      if (token) {
+        void checkActiveForCompanyAdmin(cid, token);
+        return;
+      }
+      void publicWatchOnce(cid);
+    };
+    tick();
+    publicWatchTimer = global.setInterval(tick, 500);
   }
 
   function stopPublicSpectatorWatch() {
@@ -542,7 +554,7 @@
         agentMoveTimer = global.setTimeout(() => {
           agentMoveTimer = null;
           flushAgentMouse(state);
-        }, 80);
+        }, 32);
       }
     };
     global.document.addEventListener("mousemove", onMove, { passive: true });

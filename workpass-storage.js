@@ -598,6 +598,9 @@
       if (isSupportAssistQuietMode() && shouldBlockSupportWrite(url, input, init)) {
         return Promise.resolve(syntheticReadOnlyResponse());
       }
+      if (String(url || "").toLowerCase().includes("/api/v2/usage/event") && (isSupportAssistQuietMode() || isAuthUnusable())) {
+        return Promise.resolve(syntheticSupportResponse(url));
+      }
       if (isSupportAssistQuietMode() && shouldBlockSupportFetch(url)) {
         return Promise.resolve(syntheticSupportResponse(url));
       }

@@ -205,19 +205,25 @@ def register_admin_blueprint(flask_app: Flask) -> None:
         return jsonify(result), 200
 
     @admin_v2_bp.post("/usage/event")
-    @require_auth
-    @require_roles("superadmin", "company-admin", "foreman")
     def v2_log_usage_event():
+        """Fire-and-forget telemetry. Never 401 — a dead session just drops the event."""
         from flask import g
+        from backend.server import get_auth_token_from_request, get_user_from_session_token
 
+        token = (get_auth_token_from_request() or "").strip()
+        user = get_user_from_session_token(token) if token else None
+        if not user or user.get("support_read_only"):
+            return ("", 204)
+        if str(user.get("role") or "") not in {"superadmin", "company-admin", "foreman"}:
+            return ("", 204)
+        g.current_user = user
         cid = company_id_from_user()
         if not cid:
-            return forbidden_company()
+            return ("", 204)
         data = request.get_json(force=True, silent=True) or {}
         feature_id = str(data.get("feature_id") or data.get("featureId") or "").strip()
         if not feature_id:
-            return jsonify({"error": "feature_id_required"}), 400
-        user = getattr(g, "current_user", {}) or {}
+            return ("", 204)
         log_feature_usage(
             get_db(),
             cid,

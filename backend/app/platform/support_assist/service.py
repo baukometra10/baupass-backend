@@ -302,8 +302,8 @@ def get_watch_session(company_id: str, watch_token: str) -> dict[str, Any] | Non
         }
 
 
-_MOUSE_PERSIST_SECONDS = 0.25
-_UI_STATE_PERSIST_SECONDS = 0.8
+_MOUSE_PERSIST_SECONDS = 0.12
+_UI_STATE_PERSIST_SECONDS = 0.35
 
 
 def append_pulse(*, company_id: str, watch_token: str, event_type: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:

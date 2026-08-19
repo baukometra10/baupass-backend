@@ -1198,7 +1198,7 @@ body.support-assist-mirror-app.auth-locked #mainShell {
   background: #06b6d4;
   box-shadow: 0 0 0 1px rgba(15, 76, 92, 0.45), 0 8px 24px rgba(8, 24, 32, 0.28);
   pointer-events: none;
-  transition: none;
+  transition: left 40ms linear, top 40ms linear;
 }
 
 .support-assist-remote-cursor.hidden {

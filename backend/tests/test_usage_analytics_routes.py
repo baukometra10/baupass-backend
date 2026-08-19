@@ -37,6 +37,10 @@ class UsageAnalyticsRoutesTest(unittest.TestCase):
         res = self.client.get("/api/v2/admin/usage-stats")
         self.assertIn(res.status_code, (401, 403))
 
+    def test_usage_event_is_silent_without_session(self):
+        res = self.client.post("/api/v2/usage/event", json={"feature_id": "test", "source": "admin-v2"})
+        self.assertEqual(res.status_code, 204)
+
 
 if __name__ == "__main__":
     unittest.main()
