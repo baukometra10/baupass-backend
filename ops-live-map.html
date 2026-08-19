@@ -2248,8 +2248,8 @@
       </div>
     </div>
   </div>
-  <script src="/workpass-storage.js?v=20260819wp17"></script>
-  <script src="/embed-helpers.js?v=20260819embed13"></script>
+  <script src="/workpass-storage.js?v=20260819wp18"></script>
+  <script src="/embed-helpers.js?v=20260819embed14"></script>
   <script src="/sector-copy.js?v=20260818opsSector3"></script>
   <script src="/ops-live-map-i18n.js?v=20260818opsSector1"></script>
   <script>
@@ -2778,8 +2778,14 @@
     });
     window.addEventListener("baupass-token-synced", () => {
       if (!window.BaupassAuth?.getSessionToken?.()) return;
-      if (!mapBootFinished || !companyId) return;
-      // Resume transport after a prior 401 stop.
+      if (opsMapEmbedded) {
+        window.__baupassEmbedAuthConfirmed = true;
+      }
+      if (!mapBootFinished) {
+        boot().catch(() => {});
+        return;
+      }
+      if (!companyId) return;
       load().then(() => {
         startLivePolling();
       }).catch(() => {});
@@ -3937,6 +3943,8 @@
       }
     }
 
+    let livePollStoppedForAuth = false;
+
     async function load(options = {}) {
       if (window.WorkPassStorage?.isAuthUnusable?.()) return;
       const sessionTok = String(
@@ -3944,10 +3952,9 @@
         || window.WorkPassStorage?.readSessionToken?.()
         || "",
       ).trim();
-      // Hard stop: never hit /api/ops-os/live-map without a session token.
-      // Cookie-only retries happen inside WorkPassStorage/BaupassAuth; this gate
-      // prevents the initial unauthenticated 401 storm in the console.
-      if (!sessionTok) {
+      // Absolute hard stop: never send live-map to the network without a token.
+      // In embeds also wait until parent confirmed the support session.
+      if (!sessionTok || (opsMapEmbedded && !window.__baupassEmbedAuthConfirmed)) {
         if (opsMapEmbedded) {
           try {
             window.parent?.postMessage?.({ type: "baupass-request-token" }, window.location.origin);
@@ -3956,12 +3963,6 @@
           }
         }
         stopMapRealtimeTransport();
-        return;
-      }
-      if (
-        window.WorkPassStorage?.isSupportAssistQuietMode?.()
-        && !sessionTok
-      ) {
         return;
       }
       if (!companyId) {
@@ -3986,9 +3987,9 @@
         weakNetwork = true;
         const msg = String(error?.message || "").toLowerCase();
         if (msg === "auth" || error?.status === 401) {
-          // Stop hammering; wait for a fresh baupass-token-synced.
           stopMapRealtimeTransport();
           try {
+            window.__baupassEmbedAuthConfirmed = false;
             window.WorkPassStorage?.clearSessionTokens?.();
           } catch {
             // ignore
@@ -4000,6 +4001,7 @@
               // ignore
             }
           }
+          return;
         }
         const statusEl = document.getElementById("status");
         if (statusEl) {
@@ -4035,6 +4037,7 @@
         livePollTimer = 0;
       }
       livePollInFlight = false;
+      livePollStoppedForAuth = true;
     }
 
     function startLivePolling() {
@@ -4043,15 +4046,15 @@
         || window.WorkPassStorage?.readSessionToken?.()
         || "",
       ).trim();
-      if (!tok) {
+      if (!tok || (opsMapEmbedded && !window.__baupassEmbedAuthConfirmed)) {
         stopLivePolling();
         return;
       }
+      livePollStoppedForAuth = false;
       if (livePollTimer) window.clearTimeout(livePollTimer);
       const nextInterval = () => {
         const visible = document.visibilityState === "visible";
         if (realtimeMode === "websocket") {
-          // Still poll often — WS events can miss; pin must not sit still 12–20s.
           return visible ? (siteHasWorkers ? 3000 : 5000) : 25000;
         }
         if (weakNetwork) {
@@ -4061,6 +4064,16 @@
         return siteHasWorkers ? LIVE_POLL_MS_VISIBLE : LIVE_POLL_MS_VISIBLE_IDLE;
       };
       const tick = async () => {
+        if (livePollStoppedForAuth) return;
+        const stillTok = String(
+          window.BaupassAuth?.getSessionToken?.()
+          || window.WorkPassStorage?.readSessionToken?.()
+          || "",
+        ).trim();
+        if (!stillTok || (opsMapEmbedded && !window.__baupassEmbedAuthConfirmed)) {
+          stopLivePolling();
+          return;
+        }
         if (livePollInFlight) {
           livePollTimer = window.setTimeout(tick, nextInterval());
           return;
@@ -4069,10 +4082,12 @@
         try {
           await load({ force: true, lite: true });
         } catch (_) {
-          // keep polling
+          // load() already stops transport on auth errors
         } finally {
           livePollInFlight = false;
-          livePollTimer = window.setTimeout(tick, nextInterval());
+          if (!livePollStoppedForAuth) {
+            livePollTimer = window.setTimeout(tick, nextInterval());
+          }
         }
       };
       livePollTimer = window.setTimeout(tick, nextInterval());
@@ -4090,12 +4105,33 @@
 
     async function boot() {
       try {
-        // Wait for deferred Leaflet (max ~4s) so CDN no longer blocks HTML parse.
         await Promise.race([
           window.__opsMapLibsReady || Promise.resolve(),
           new Promise((resolve) => setTimeout(resolve, 4000)),
         ]);
-        await waitForEmbedSession();
+        await waitForEmbedSession(8000);
+        const hasToken = Boolean(
+          window.BaupassAuth?.getSessionToken?.()
+          || window.WorkPassStorage?.readSessionToken?.(),
+        );
+        if (opsMapEmbedded && (!hasToken || !window.__baupassEmbedAuthConfirmed)) {
+          mapBootFinished = true;
+          document.getElementById("status").textContent =
+            window.opsMapT("authRequired") || "Warte auf Support-Anmeldung…";
+          try {
+            window.parent?.postMessage?.({ type: "baupass-request-token" }, window.location.origin);
+          } catch {
+            // ignore
+          }
+          return;
+        }
+        if (!hasToken) {
+          mapBootFinished = true;
+          document.getElementById("status").textContent =
+            window.opsMapT("authRequired") || "Anmeldung erforderlich";
+          return;
+        }
+
         let boot = null;
         const bootstrapEmbedSession = async () => {
           if (window.BaupassAuth?.bootstrapSession) {
@@ -4109,20 +4145,11 @@
             new Promise((_, reject) => setTimeout(() => reject(new Error("bootstrap_timeout")), 3500)),
           ]);
         } catch {
-          if (!window.BaupassAuth?.getSessionToken?.()) {
-            try {
-              const res = await fetch("/api/session/bootstrap", {
-                credentials: "include",
-                headers: { Accept: "application/json" },
-              });
-              boot = await res.json().catch(() => ({}));
-              if (boot?.token) window.BaupassAuth?.persistSessionToken?.(boot.token);
-            } catch {
-              boot = { user: {} };
-            }
-          } else {
-            boot = { user: {} };
-          }
+          boot = { user: {} };
+        }
+        if (boot?.token) {
+          window.BaupassAuth?.persistSessionToken?.(boot.token);
+          window.__baupassEmbedAuthConfirmed = true;
         }
         const role = boot?.user?.role || "";
         if (role === "company-admin") companyId = boot.user.company_id || companyId;
@@ -4130,10 +4157,8 @@
           const previewCid = String(boot?.user?.preview_company_id || companyId || "").trim();
           if (previewCid) companyId = previewCid;
         }
-        if (window.BaupassAuth?.getSessionToken?.()) {
-          // boot already populated above
-        } else if (boot?.token) {
-          window.BaupassAuth?.persistSessionToken?.(boot.token);
+        if (boot?.user?.role) {
+          window.__baupassEmbedAuthConfirmed = true;
         }
         if (window.BaupassSectorCopy?.loadConfig) {
           await window.BaupassSectorCopy.loadConfig({
@@ -4168,86 +4193,66 @@
           };
         }
         await applyOpsMapBranding();
-        const hasToken = Boolean(
-          window.BaupassAuth?.getSessionToken?.()
-          || window.WorkPassStorage?.readSessionToken?.(),
-        );
-        // Never call live-map without a token — cookie/Bearer races cause console 401s.
-        if (!hasToken) {
-          mapBootFinished = true;
-          document.getElementById("status").textContent =
-            window.opsMapT("authRequired") || "Warte auf Support-Anmeldung…";
-          if (opsMapEmbedded) {
-            try {
-              window.parent?.postMessage?.({ type: "baupass-request-token" }, window.location.origin);
-            } catch {
-              // ignore
-            }
-          }
-          return;
-        }
         await load();
-        if (hasToken) {
-          startLivePolling();
-          if (window.SUPPIXOpsRealtime) {
-            opsRealtimeStop = await window.SUPPIXOpsRealtime.start({
-              companyId,
-              feedEl: null,
-              onMode: (mode) => {
-                if (!mode) return;
-                const previousMode = realtimeMode;
-                if (mode === previousMode) return;
-                if (previousMode === "websocket" && mode !== "websocket") {
-                  wsReconnectCount += 1;
-                }
-                realtimeMode = mode;
-                startLivePolling();
-                if (lastMapData) {
-                  renderMap(lastMapData);
-                }
-              },
-              onEvent: (evt) => {
-                try {
-                  if (evt && evt.type === "worker_live_location") {
-                    const wid = String(evt.worker_id || "");
-                    const lat = Number(evt.lat);
-                    const lng = Number(evt.lng);
-                    const marker = wid ? workerMarkersById.get(wid) : null;
-                    if (marker && Number.isFinite(lat) && Number.isFinite(lng)) {
-                      animateWorkerMarkerMove(wid, marker, lat, lng);
-                      const row = (lastMapData?.workersOnSite || []).find((w) => String(w.id) === wid);
-                      if (row) {
-                        row.lat = lat;
-                        row.lng = lng;
-                        row.lastLocationAt = new Date().toISOString();
-                        row.positionSource = "live";
-                        if (typeof evt.accuracyMeters === "number") {
-                          row.accuracyMeters = evt.accuracyMeters;
-                        }
-                        if (String(selectedWorkerId) === wid) {
-                          renderSidebar(lastMapData);
-                        }
-                      }
-                    } else if (Number.isFinite(lat) && Number.isFinite(lng)) {
-                      scheduleRealtimeRefresh();
-                    }
-                  }
-                } catch (_) { /* ignore */ }
-                scheduleRealtimeRefresh();
-              },
-            });
-          } else if (!opsMapEmbedded) {
-            realtimeMode = "sse";
-            let url = "/api/ops-os/events/stream";
-            if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-            mapEventSource = new EventSource(url, { withCredentials: true });
-            mapEventSource.onmessage = (ev) => {
+        startLivePolling();
+        if (window.SUPPIXOpsRealtime) {
+          opsRealtimeStop = await window.SUPPIXOpsRealtime.start({
+            companyId,
+            feedEl: null,
+            onMode: (mode) => {
+              if (!mode) return;
+              const previousMode = realtimeMode;
+              if (mode === previousMode) return;
+              if (previousMode === "websocket" && mode !== "websocket") {
+                wsReconnectCount += 1;
+              }
+              realtimeMode = mode;
+              startLivePolling();
+              if (lastMapData) {
+                renderMap(lastMapData);
+              }
+            },
+            onEvent: (evt) => {
               try {
-                const p = JSON.parse(ev.data);
-                if (p.type === "events") scheduleRealtimeRefresh();
-              } catch { /* ignore */ }
-            };
-          }
+                if (evt && evt.type === "worker_live_location") {
+                  const wid = String(evt.worker_id || "");
+                  const lat = Number(evt.lat);
+                  const lng = Number(evt.lng);
+                  const marker = wid ? workerMarkersById.get(wid) : null;
+                  if (marker && Number.isFinite(lat) && Number.isFinite(lng)) {
+                    animateWorkerMarkerMove(wid, marker, lat, lng);
+                    const row = (lastMapData?.workersOnSite || []).find((w) => String(w.id) === wid);
+                    if (row) {
+                      row.lat = lat;
+                      row.lng = lng;
+                      row.lastLocationAt = new Date().toISOString();
+                      row.positionSource = "live";
+                      if (typeof evt.accuracyMeters === "number") {
+                        row.accuracyMeters = evt.accuracyMeters;
+                      }
+                      if (String(selectedWorkerId) === wid) {
+                        renderSidebar(lastMapData);
+                      }
+                    }
+                  } else if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                    scheduleRealtimeRefresh();
+                  }
+                }
+              } catch (_) { /* ignore */ }
+              scheduleRealtimeRefresh();
+            },
+          });
+        } else if (!opsMapEmbedded) {
+          realtimeMode = "sse";
+          let url = "/api/ops-os/events/stream";
+          if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
+          mapEventSource = new EventSource(url, { withCredentials: true });
+          mapEventSource.onmessage = (ev) => {
+            try {
+              const p = JSON.parse(ev.data);
+              if (p.type === "events") scheduleRealtimeRefresh();
+            } catch { /* ignore */ }
+          };
         }
         mapBootFinished = true;
       } catch (e) {

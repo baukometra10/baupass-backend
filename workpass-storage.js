@@ -849,6 +849,21 @@
       ) {
         return Promise.resolve(syntheticSupportResponse(url));
       }
+      // Live-map in embeds: never hit the network until parent confirmed the session.
+      // Browser DevTools logs every real 401 — synthetic responses do not.
+      if (
+        String(url || "").toLowerCase().includes("/api/ops-os/live-map")
+        && global.self !== global.top
+        && !global.__baupassEmbedAuthConfirmed
+      ) {
+        return Promise.resolve(syntheticSupportResponse(url));
+      }
+      if (
+        String(url || "").toLowerCase().includes("/api/ops-os/live-map")
+        && !readSessionToken()
+      ) {
+        return Promise.resolve(syntheticSupportResponse(url));
+      }
       if ((isSupportAssistQuietMode() || isTtsUnusable()) && String(url || "").toLowerCase().includes("/api/ai/speak")) {
         return Promise.resolve(syntheticSupportResponse(url));
       }
