@@ -4125,8 +4125,13 @@
           };
         }
         await applyOpsMapBranding();
-        await load();
-        if (window.BaupassAuth?.getSessionToken?.()) {
+        const hasToken = Boolean(window.BaupassAuth?.getSessionToken?.());
+        // In embedded/support contexts the token can arrive a bit later via postMessage.
+        // Avoid the first unauthenticated load (401 storm) and rely on the token-synced handler.
+        if (!(opsMapEmbedded && !hasToken)) {
+          await load();
+        }
+        if (hasToken) {
           startLivePolling();
           if (window.SUPPIXOpsRealtime) {
             opsRealtimeStop = await window.SUPPIXOpsRealtime.start({
