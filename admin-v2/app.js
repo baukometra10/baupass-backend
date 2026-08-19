@@ -67,7 +67,8 @@ async function tryEmbedSessionFromControlPass() {
     });
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) {
-        tryEmbedSessionFromControlPass._cooldownUntil = Date.now() + 60000;
+        const quiet = WP?.isSupportAssistQuietMode?.() || WP?.hasActiveSupportTabScope?.();
+        tryEmbedSessionFromControlPass._cooldownUntil = Date.now() + (quiet ? 2500 : 60000);
       } else if (res.status >= 500) {
         tryEmbedSessionFromControlPass._cooldownUntil = Date.now() + 30000;
       }
@@ -299,14 +300,20 @@ async function probeSessionToken(token) {
   try {
     const res = await fetch(`${apiBase()}/api/v2/auth/session`, {
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      credentials: "include",
+      cache: "no-store",
     });
     if (res.ok) {
       probeSessionToken._ok = true;
       probeSessionToken._lastOk = true;
+      probeSessionToken._cooldownUntil = 0;
       return true;
     }
     if (res.status === 401 || res.status === 403) {
-      probeSessionToken._cooldownUntil = Date.now() + 60000;
+      // Support login rotates tokens — keep cooldown short so embeds recover quickly.
+      const quiet = window.WorkPassStorage?.isSupportAssistQuietMode?.()
+        || window.WorkPassStorage?.hasActiveSupportTabScope?.();
+      probeSessionToken._cooldownUntil = Date.now() + (quiet ? 2500 : 60000);
       probeSessionToken._lastOk = false;
     }
     return false;
@@ -637,11 +644,20 @@ window.addEventListener("message", (event) => {
   if (userFromParent && typeof userFromParent === "object" && userFromParent.id) {
     wpSet(USER_KEY, JSON.stringify(userFromParent));
   }
-  const prevToken = String(wpGet(TOKEN_KEY) || "").trim();
+  const prevToken = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || "").trim();
   const nextCid = String(event.data.companyId || "").trim();
   const prevCid = String(activeCompanyId() || "").trim();
   const tokenChanged = token !== prevToken;
   const companyChanged = Boolean(nextCid) && nextCid !== prevCid;
+  WP?.clearAuthUnusable?.();
+  WP?.purgeSharedLocalSessionTokens?.();
+  probeSessionToken._ok = true;
+  probeSessionToken._lastOk = true;
+  probeSessionToken._cooldownUntil = 0;
+  tryEmbedSessionFromControlPass._cooldownUntil = 0;
+  if (WP?.persistSessionToken) {
+    WP.persistSessionToken(token);
+  }
   wpSet(TOKEN_KEY, token);
   wpSet(CONTROL_TOKEN_KEY, token);
   if (nextCid) {
@@ -651,7 +667,24 @@ window.addEventListener("message", (event) => {
   if (opsFrame) {
     syncTokenToOpsEmbedFrame(opsFrame, nextCid || activeCompanyId());
   }
-  if ($("dashboardView")?.classList.contains("hidden")) {
+  // Also push into nested Lage live-map iframe.
+  document.querySelectorAll("iframe[src*='ops-live-map']").forEach((frame) => {
+    try {
+      frame.contentWindow?.postMessage(
+        {
+          type: "baupass-sync-token",
+          token,
+          companyId: nextCid || activeCompanyId() || "",
+          lang: getLang(),
+          user: getUser(),
+        },
+        window.location.origin,
+      );
+    } catch {
+      // ignore
+    }
+  });
+  if ($("dashboardView")?.classList.contains("hidden") || $("embedAuthView") && !$("embedAuthView").classList.contains("hidden")) {
     showSessionBoot();
     bootSession().catch(() => {});
     return;
@@ -1045,9 +1078,10 @@ async function api(path, options = {}) {
   if (options.body && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
+  const fetchOpts = { ...options, headers, credentials: "include", cache: "no-store" };
   const res = await (window.BaupassGuardian?.fetchWithGuardianRetry
-    ? window.BaupassGuardian.fetchWithGuardianRetry(`${apiBase()}${path}`, { ...options, headers })
-    : fetch(`${apiBase()}${path}`, { ...options, headers }));
+    ? window.BaupassGuardian.fetchWithGuardianRetry(`${apiBase()}${path}`, fetchOpts)
+    : fetch(`${apiBase()}${path}`, fetchOpts));
   const text = await res.text();
   let data = {};
   try {
@@ -10616,8 +10650,13 @@ async function bootSession() {
     && isEmbedMode()
     && (window.WorkPassStorage?.hasActiveSupportTabScope?.() || window.WorkPassStorage?.isSupportAssistQuietMode?.())
   ) {
-    token = await waitForEmbedParentToken(1600);
-    if (token) wpSet(TOKEN_KEY, token);
+    token = await waitForEmbedParentToken(4500);
+    if (token) {
+      WP?.clearAuthUnusable?.();
+      if (WP?.persistSessionToken) WP.persistSessionToken(token);
+      wpSet(TOKEN_KEY, token);
+      wpSet(CONTROL_TOKEN_KEY, token);
+    }
   }
   if (!embedSessionOk && (!token || !(await probeSessionToken(token)))) {
     const adopted = await adoptControlPassTokenIfValid();

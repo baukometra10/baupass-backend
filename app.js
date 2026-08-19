@@ -308,6 +308,7 @@ function persistSessionToken(value, { scoped = shouldUseTabScopedSession() } = {
     if (next) {
       WP?.clearAuthUnusable?.();
       if (scoped) {
+        WP?.purgeSharedLocalSessionTokens?.();
         WP?.setSessionItem?.(SESSION_TOKEN_STORAGE_KEY, next);
         WP?.setSessionItem?.(ADMIN_TOKEN_STORAGE_KEY, next);
         return;
@@ -19645,12 +19646,41 @@ function broadcastSessionToEmbeds() {
   if (!token) {
     return;
   }
-  postMessageToEmbedFrames({
+  const message = {
     type: "baupass-sync-token",
     token,
     companyId: getEffectiveUiCompanyId(),
     lang: getStoredUiLang(),
     user: state.currentUser,
+  };
+  postMessageToEmbedFrames(message);
+  // Nested embeds (admin-v2 → Live-Map / AI) often boot during the logout gap.
+  [250, 900, 2200, 4500].forEach((delay) => {
+    window.setTimeout(() => {
+      if (!token) return;
+      postMessageToEmbedFrames({
+        ...message,
+        token,
+        companyId: getEffectiveUiCompanyId(),
+        user: state.currentUser,
+      });
+    }, delay);
+  });
+}
+
+function reloadEnterpriseEmbedsForSupportSession() {
+  Object.values(ENTERPRISE_EMBED_META).forEach((meta) => {
+    const frame = document.getElementById(meta.frameId);
+    if (!frame) return;
+    const prev = String(frame.getAttribute("src") || "").trim();
+    if (!prev || prev === "about:blank" || prev.startsWith("about:")) return;
+    try {
+      const url = new URL(prev, window.location.href);
+      url.searchParams.set("_supportAuth", String(Date.now()));
+      frame.setAttribute("src", `${url.pathname}${url.search}${url.hash}`);
+    } catch {
+      frame.setAttribute("src", prev);
+    }
   });
 }
 
@@ -28127,6 +28157,8 @@ function bindCompanyRowActions() {
     const actorName = getCurrentUser()?.name || getCurrentUser()?.username || "Admin";
     state.supportLoginContext = { companyId, companyName, actorName };
     persistSupportLoginContext(state.supportLoginContext);
+    WP?.purgeSharedLocalSessionTokens?.();
+    WP?.clearAuthUnusable?.();
 
     await clearSuperadminPreviewMode({ refresh: false });
 
@@ -36497,6 +36529,13 @@ async function handleLoginSubmit(event) {
       }
     }
     broadcastSessionToEmbeds();
+    if (payload.user?.support_read_only) {
+      WP?.purgeSharedLocalSessionTokens?.();
+      WP?.clearAuthUnusable?.();
+      window.setTimeout(() => reloadEnterpriseEmbedsForSupportSession(), 180);
+      window.setTimeout(() => broadcastSessionToEmbeds(), 500);
+      window.setTimeout(() => broadcastSessionToEmbeds(), 1600);
+    }
     const assistAgent = getSupportAssistAgentState();
     if (assistAgent?.watchToken && window.BaupassSupportAssist?.startAgentBroadcast) {
       window.BaupassSupportAssist.startAgentBroadcast(assistAgent);

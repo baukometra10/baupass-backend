@@ -778,6 +778,7 @@
     }
     if (event.data.type === "baupass-sync-token") {
       if (event.data.token) {
+        WP?.clearAuthUnusable?.();
         persistSessionToken(event.data.token);
         global.dispatchEvent(new CustomEvent("baupass-token-synced", {
           detail: {

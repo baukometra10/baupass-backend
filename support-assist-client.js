@@ -707,7 +707,8 @@
     if (urlState) {
       const token = assistAuthToken();
       if (!token) {
-        writeWatchState(null);
+        // Support login screen: keep agent watch while waiting for Server-Admin login.
+        writeWatchState(urlState);
         return;
       }
       startAgentBroadcast(urlState);
@@ -718,6 +719,15 @@
     if (state.agent) {
       const token = assistAuthToken();
       if (!token) {
+        let supportCtx = null;
+        try {
+          supportCtx = JSON.parse(global.sessionStorage.getItem("workpass-support-login-context") || "null");
+        } catch {
+          supportCtx = null;
+        }
+        if (supportCtx?.companyId) {
+          return;
+        }
         writeWatchState(null);
         resetSpectatorUi();
         return;

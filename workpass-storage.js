@@ -309,7 +309,10 @@
     const val = String(token || "").trim();
     if (!val) return;
     clearAuthUnusable();
+    clearSharedAuthSessionProbe();
     if (hasActiveSupportTabScope()) {
+      // Never leave an invalidated localStorage Bearer that can win over the cookie.
+      purgeSharedLocalSessionTokens();
       SESSION_TOKEN_KEYS.forEach((key) => setSessionItem(key, val));
       return;
     }
@@ -458,9 +461,30 @@
   function noteAuthFailure(res, url) {
     if (!res || res.status !== 401 || !isApiUrl(url) || isAuthDeadAllowed(url)) return;
     const raw = String(url || "").toLowerCase();
+    // Support login gap / spectator polls: never poison the shared session from bare 401s.
+    if (isSupportAssistQuietMode() || hasActiveSupportTabScope()) {
+      if (!readSessionToken()) return;
+      if (isSpectatorWatchOnly()) return;
+    }
     if (raw.includes("/api/session/bootstrap") && !readSessionToken()) return;
     if (raw.includes("/api/v2/auth/session") && (!readSessionToken() || isSupportAssistQuietMode())) return;
     markAuthUnusable();
+  }
+
+  function purgeSharedLocalSessionTokens() {
+    try {
+      SESSION_TOKEN_KEYS.forEach((key) => {
+        global.localStorage.removeItem(key);
+        const legacy = legacyFor(key);
+        if (legacy) global.localStorage.removeItem(legacy);
+      });
+      global.localStorage.removeItem(KEYS.ADMIN_USER);
+      global.localStorage.removeItem(KEYS.ADMIN_SESSION);
+      const legacyUser = legacyFor(KEYS.ADMIN_USER);
+      if (legacyUser) global.localStorage.removeItem(legacyUser);
+    } catch {
+      // ignore
+    }
   }
 
   function isAuthSessionProbeUrl(url) {
@@ -624,10 +648,13 @@
     const scoped = hasActiveSupportTabScope() || isSupportAssistQuietMode();
     if (scoped) {
       if (isSpectatorWatchOnly()) {
+        // Spectator must use watch headers + customer cookie, never a stale Bearer.
         headers.delete("Authorization");
       } else if (token) {
         headers.set("Authorization", `Bearer ${token}`);
       } else {
+        // Agent support tab without token yet: strip any stale Bearer so cookie can win,
+        // and let the fetch guard short-circuit polls (see installSupportFetchGuard).
         headers.delete("Authorization");
       }
     } else if (token && !headers.has("Authorization")) {
@@ -679,6 +706,16 @@
       if (isSupportAssistQuietMode() && shouldBlockSupportFetch(url)) {
         return Promise.resolve(syntheticSupportResponse(url));
       }
+      // Agent support tab waiting for Server-Admin login: do not hammer APIs with bare 401s.
+      if (
+        hasActiveSupportTabScope()
+        && !isSpectatorWatchOnly()
+        && !readSessionToken()
+        && isApiUrl(url)
+        && !isAuthDeadAllowed(url)
+      ) {
+        return Promise.resolve(syntheticSupportResponse(url));
+      }
       const run = (nextInput, nextInit) => originalFetch(nextInput, nextInit).then((res) => {
         noteAuthFailure(res, url);
         if (res && !res.ok && String(url || "").toLowerCase().includes("/api/ai/speak")) {
@@ -723,6 +760,7 @@
     isAuthUnusable,
     markAuthUnusable,
     clearAuthUnusable,
+    purgeSharedLocalSessionTokens,
   };
 
   migrateOnce();
