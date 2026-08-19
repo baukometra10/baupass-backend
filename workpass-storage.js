@@ -459,6 +459,7 @@
     if (!res || res.status !== 401 || !isApiUrl(url) || isAuthDeadAllowed(url)) return;
     const raw = String(url || "").toLowerCase();
     if (raw.includes("/api/session/bootstrap") && !readSessionToken()) return;
+    if (raw.includes("/api/v2/auth/session") && (!readSessionToken() || isSupportAssistQuietMode())) return;
     markAuthUnusable();
   }
 
@@ -478,7 +479,9 @@
       } catch {
         body = "{}";
       }
-      if (res && res.status === 401) markAuthUnusable();
+      if (res && res.status === 401 && !isSupportAssistQuietMode() && readSessionToken()) {
+        markAuthUnusable();
+      }
       return { status: res.status, body, ok: Boolean(res.ok) };
     });
     root.__wpAuthSessionProbe = p;

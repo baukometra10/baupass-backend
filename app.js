@@ -564,7 +564,7 @@ function canSupportSpectatorReadApi() {
 }
 
 function appendSupportSpectatorHeaders(headers, auth) {
-  if (!auth || token) return headers;
+  if (!auth) return headers;
   const watch = window.BaupassSupportAssist?.readWatchState?.();
   if (!watch?.watchToken || !watch?.companyId || watch?.agent) return headers;
   if (!document.body?.classList.contains("support-assist-spectator-active")) return headers;
@@ -20833,10 +20833,23 @@ async function apiRequest(url, options = {}) {
     throw new Error("support_session_read_only");
   }
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
-  appendSupportSpectatorHeaders(headers, auth);
-  const requestToken = auth ? String(token || "") : "";
-  if (auth && token) {
-    headers.Authorization = `Bearer ${token}`;
+  const effectiveToken = auth
+    ? String(token || WP?.readSessionToken?.() || loadStoredSessionToken() || "").trim()
+    : "";
+  const spectatorBearerBlocked = Boolean(
+    auth
+    && effectiveToken
+    && document.body?.classList?.contains("support-assist-spectator-active")
+    && watchState?.watchToken
+    && watchState?.companyId
+    && !watchState?.agent,
+  );
+  appendSupportSpectatorHeaders(headers, auth && !spectatorBearerBlocked);
+  const requestToken = auth && !spectatorBearerBlocked ? effectiveToken : "";
+  if (requestToken) {
+    headers.Authorization = `Bearer ${requestToken}`;
+  } else {
+    delete headers.Authorization;
   }
 
   let response;
@@ -39095,6 +39108,12 @@ window.addEventListener("message", (event) => {
         );
       } catch {
         // iframe not ready
+      }
+    } else if (window.parent && window.parent !== window) {
+      try {
+        window.parent.postMessage({ type: "baupass-request-token" }, window.location.origin);
+      } catch {
+        // ignore
       }
     }
     return;

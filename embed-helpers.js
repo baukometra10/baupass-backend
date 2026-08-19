@@ -843,11 +843,27 @@
     persistCompanyId,
   };
 
-  if (isEmbedMode() && !getSessionToken()) {
+  function requestEmbedTokenFromHost() {
+    if (getSessionToken()) return;
+    const origin = global.location.origin;
+    if (!origin) return;
     try {
-      global.parent.postMessage({ type: "baupass-request-token" }, global.location.origin);
+      global.parent.postMessage({ type: "baupass-request-token" }, origin);
     } catch {
       // parent not ready
     }
+    try {
+      if (global.top && global.top !== global && global.top !== global.parent) {
+        global.top.postMessage({ type: "baupass-request-token" }, origin);
+      }
+    } catch {
+      // top not reachable
+    }
   }
+
+  if (isEmbedMode() && !getSessionToken()) {
+    requestEmbedTokenFromHost();
+  }
+
+  global.BaupassEmbedRequestToken = requestEmbedTokenFromHost;
 })(window);

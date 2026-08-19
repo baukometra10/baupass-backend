@@ -292,6 +292,7 @@ async function probeSessionToken(token) {
   if (!token) return false;
   if (window.WorkPassStorage?.isAuthUnusable?.()) return false;
   if (isSupportReadOnlySession() && probeSessionToken._ok) return true;
+  if (isSupportSpectatorEmbed()) return Boolean(token);
   if (probeSessionToken._cooldownUntil && Date.now() < probeSessionToken._cooldownUntil) {
     return Boolean(probeSessionToken._lastOk);
   }
@@ -508,8 +509,45 @@ function applyParentCompanyId(companyId) {
   void loadSectorTerminologyForAdmin();
 }
 
+function replyEmbedTokenRequest(event) {
+  const tok = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || wpGet(CONTROL_TOKEN_KEY) || "").trim();
+  if (tok) {
+    try {
+      event.source?.postMessage(
+        {
+          type: "baupass-sync-token",
+          token: tok,
+          companyId: activeCompanyId() || "",
+          lang: getLang(),
+          user: getUser(),
+        },
+        window.location.origin,
+      );
+    } catch {
+      // iframe not ready
+    }
+    const opsFrame = document.querySelector("#opsEmbedFrame");
+    if (opsFrame) {
+      syncTokenToOpsEmbedFrame(opsFrame, activeCompanyId());
+    }
+    return true;
+  }
+  if (window.parent && window.parent !== window) {
+    try {
+      window.parent.postMessage({ type: "baupass-request-token" }, window.location.origin);
+    } catch {
+      // ignore
+    }
+  }
+  return false;
+}
+
 window.addEventListener("message", (event) => {
   if (!event?.data || event.origin !== window.location.origin) return;
+  if (event.data.type === "baupass-request-token") {
+    replyEmbedTokenRequest(event);
+    return;
+  }
   if (event.data.type === "baupass-open-command-palette") {
     if (!$("dashboardView")?.classList.contains("hidden")) {
       applyParentCompanyId(event.data.companyId);
@@ -608,6 +646,10 @@ window.addEventListener("message", (event) => {
   wpSet(CONTROL_TOKEN_KEY, token);
   if (nextCid) {
     applyParentCompanyId(nextCid);
+  }
+  const opsFrame = document.querySelector("#opsEmbedFrame");
+  if (opsFrame) {
+    syncTokenToOpsEmbedFrame(opsFrame, nextCid || activeCompanyId());
   }
   if ($("dashboardView")?.classList.contains("hidden")) {
     showSessionBoot();
@@ -5748,7 +5790,7 @@ function buildOpsEmbedUrl(pagePath, companyId) {
 
 function syncTokenToOpsEmbedFrame(frame, companyId) {
   if (!frame) return;
-  const token = (wpGet(CONTROL_TOKEN_KEY) || wpGet(TOKEN_KEY) || "").trim();
+  const token = String(WP?.readSessionToken?.() || wpGet(CONTROL_TOKEN_KEY) || wpGet(TOKEN_KEY) || "").trim();
   if (!token) return;
   const send = () => {
     try {
@@ -5758,6 +5800,7 @@ function syncTokenToOpsEmbedFrame(frame, companyId) {
           token,
           companyId: companyId || activeCompanyId() || "",
           lang: getLang(),
+          user: getUser(),
         },
         window.location.origin,
       );
@@ -5770,6 +5813,9 @@ function syncTokenToOpsEmbedFrame(frame, companyId) {
     frame.addEventListener("load", send);
   }
   send();
+  window.setTimeout(send, 350);
+  window.setTimeout(send, 1200);
+  window.setTimeout(send, 2800);
 }
 
 function initOpsEmbedTabs(panel, companyId) {

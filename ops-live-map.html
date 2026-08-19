@@ -2248,8 +2248,8 @@
       </div>
     </div>
   </div>
-  <script src="/workpass-storage.js?v=20260819wp10"></script>
-  <script src="/embed-helpers.js?v=20260819embed6"></script>
+  <script src="/workpass-storage.js?v=20260819wp11"></script>
+  <script src="/embed-helpers.js?v=20260819embed7"></script>
   <script src="/sector-copy.js?v=20260818opsSector3"></script>
   <script src="/ops-live-map-i18n.js?v=20260818opsSector1"></script>
   <script>
@@ -2723,6 +2723,14 @@
       } catch {
         // parent not ready
       }
+      try {
+        if (window.top && window.top !== window) {
+          window.top.postMessage({ type: "baupass-request-token" }, window.location.origin);
+        }
+      } catch {
+        // top not reachable
+      }
+      window.BaupassEmbedRequestToken?.();
       const deadline = Date.now() + maxMs;
       while (Date.now() < deadline) {
         if (window.BaupassAuth?.getSessionToken?.()) return true;
