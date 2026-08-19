@@ -554,16 +554,22 @@ window.addEventListener("message", (event) => {
     }
     if (tab && document.querySelector(`.tab[data-tab="${tab}"]`)) {
       switchToTab(tab, { silent: true });
-      refreshActiveTab().catch(notifyTabError);
+      if (!shouldSkipSupportBackgroundLoads()) {
+        refreshActiveTab().catch(notifyTabError);
+      }
       return;
     }
     if (opsPage) {
       const activeTab = document.querySelector(".tab.active")?.dataset?.tab || "";
       if (activeTab === "operations") {
-        refreshActiveTab().catch(notifyTabError);
+        if (!shouldSkipSupportBackgroundLoads()) {
+          refreshActiveTab().catch(notifyTabError);
+        }
       } else if (document.querySelector(`.tab[data-tab="operations"]`)) {
         switchToTab("operations", { silent: true });
-        refreshActiveTab().catch(notifyTabError);
+        if (!shouldSkipSupportBackgroundLoads()) {
+          refreshActiveTab().catch(notifyTabError);
+        }
       }
     }
     return;
@@ -783,6 +789,25 @@ function isSupportReadOnlySession() {
   } catch {
     return false;
   }
+}
+
+function isSupportSpectatorEmbed() {
+  if (!isEmbedMode()) return false;
+  try {
+    if (global.document?.body?.classList?.contains("support-assist-spectator-active")) return true;
+    const watchRaw = global.sessionStorage?.getItem("baupass-support-assist-watch");
+    const watch = watchRaw ? JSON.parse(watchRaw) : null;
+    return Boolean(watch?.watchToken && watch?.companyId && !watch?.agent);
+  } catch {
+    return false;
+  }
+}
+
+function shouldSkipSupportBackgroundLoads() {
+  return Boolean(
+    isSupportSpectatorEmbed()
+    || window.WorkPassStorage?.isAuthUnusable?.(),
+  );
 }
 
 function isSuperadminUser() {
@@ -1422,6 +1447,12 @@ async function openLohnSystem() {
 
 async function refreshLohnBadgeOnly() {
   if (!canAccessWorkpassLohnUi()) {
+    updateLohnNavBadge(0);
+    paintLohnBadge($("opsStripLohnBadge"), 0);
+    void syncLohnOpenButton();
+    return;
+  }
+  if (shouldSkipSupportBackgroundLoads()) {
     updateLohnNavBadge(0);
     paintLohnBadge($("opsStripLohnBadge"), 0);
     void syncLohnOpenButton();
@@ -2667,7 +2698,7 @@ async function selectPayslipStatement(batchId, statementId) {
 }
 
 async function refreshPayslipStudio({ keepSelection = false } = {}) {
-  if (window.WorkPassStorage?.isAuthUnusable?.()) return;
+  if (shouldSkipSupportBackgroundLoads()) return;
   const cid = activeCompanyId();
   const inbox = payslipStudioState.inbox === "archive" ? "archive" : "open";
   const params = new URLSearchParams();
@@ -3024,7 +3055,7 @@ async function openLohnDrawer() {
     closeLohnDrawer();
     return;
   }
-  if (window.WorkPassStorage?.isAuthUnusable?.()) return;
+  if (shouldSkipSupportBackgroundLoads()) return;
   const drawer = $("lohnDrawer");
   const body = $("lohnDrawerBody");
   if (!drawer || !body) return;
@@ -9274,6 +9305,10 @@ async function loadOverview() {
   $("overviewQuickBar")?.classList.remove("hidden");
   renderQuickLinks();
   const q = companyQuery();
+  if (shouldSkipSupportBackgroundLoads()) {
+    $("statCards").innerHTML = `<p class="muted">${escapeHtml(t("common.loading") || "Live-Ansicht…")}</p>`;
+    return;
+  }
   if (getUser().role === "superadmin" && !q) {
     $("statCards").innerHTML = emptyStateHtml(t("common.selectCompany"));
     const bp = $("billingSummaryPanel");
@@ -10470,6 +10505,9 @@ function superadminNeedsCompany() {
 async function refreshActiveTab() {
   if (superadminNeedsCompany()) {
     showActionToast(t("common.selectCompany"), true);
+    return;
+  }
+  if (shouldSkipSupportBackgroundLoads()) {
     return;
   }
   const active = document.querySelector(".tab.active");

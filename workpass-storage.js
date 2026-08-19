@@ -362,6 +362,12 @@
     "/api/platform/enterprise-catalog",
   ];
 
+  const SUPPORT_SPECTATOR_FETCH_BLOCK = [
+    "/api/payroll/accounting/",
+    "/api/payroll/statements/",
+    "/api/dashboard/role",
+  ];
+
   const SUPPORT_WRITE_BLOCK = [
     "/review-open",
     "/payroll/statements/",
@@ -501,6 +507,12 @@
     return SUPPORT_FETCH_BLOCK.some((part) => raw.includes(part));
   }
 
+  function shouldBlockSpectatorFetch(url) {
+    if (hasActiveSupportTabScope()) return false;
+    const raw = String(url || "").toLowerCase();
+    return SUPPORT_SPECTATOR_FETCH_BLOCK.some((part) => raw.includes(part));
+  }
+
   function shouldBlockSupportWrite(url, input, init) {
     const method = requestMethod(input, init);
     if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return false;
@@ -524,6 +536,18 @@
     });
   }
 
+  function isSpectatorWatchOnly() {
+    try {
+      const watchRaw =
+        global.sessionStorage.getItem("baupass-support-assist-watch")
+        || global.sessionStorage.getItem(KEYS.SUPPORT_ASSIST_WATCH);
+      const watch = watchRaw ? JSON.parse(watchRaw) : null;
+      return Boolean(watch?.watchToken && watch?.companyId && !watch?.agent);
+    } catch {
+      return false;
+    }
+  }
+
   function syntheticSupportResponse(url) {
     const raw = String(url || "").toLowerCase();
     if (raw.includes("/api/platform/sector-config")) {
@@ -532,6 +556,47 @@
         terms: {},
         label: "",
       }), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (raw.includes("/api/payroll/statements/pending")) {
+      return new Response(JSON.stringify({ ok: true, batches: [], count: 0, inbox: "open" }), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (raw.includes("/api/payroll/accounting/messages")) {
+      return new Response(JSON.stringify({
+        ok: true,
+        messages: [],
+        notifications: [],
+        count: 0,
+        notificationCount: 0,
+      }), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (raw.includes("/api/payroll/accounting/data-alerts")) {
+      return new Response(JSON.stringify({ ok: true, alerts: [] }), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (raw.includes("/api/payroll/accounting/period-requests")) {
+      return new Response(JSON.stringify({ ok: true, requests: [] }), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (raw.includes("/api/dashboard/role")) {
+      return new Response(JSON.stringify({ widgets: [] }), {
         status: 200,
         statusText: "OK",
         headers: { "Content-Type": "application/json" },
@@ -553,7 +618,9 @@
     );
     const scoped = hasActiveSupportTabScope() || isSupportAssistQuietMode();
     if (scoped) {
-      if (token) {
+      if (isSpectatorWatchOnly()) {
+        headers.delete("Authorization");
+      } else if (token) {
         headers.set("Authorization", `Bearer ${token}`);
       } else {
         headers.delete("Authorization");
@@ -590,7 +657,7 @@
     global.fetch = function baupassSupportFetch(input, init) {
       const url = typeof input === "string" ? input : (input && input.url) || "";
       if (isAuthUnusable() && isApiUrl(url) && !isAuthDeadAllowed(url)) {
-        return Promise.resolve(syntheticAuthDeadResponse());
+        return Promise.resolve(syntheticSupportResponse(url));
       }
       if ((isSupportAssistQuietMode() || isTtsUnusable()) && String(url || "").toLowerCase().includes("/api/ai/speak")) {
         return Promise.resolve(syntheticSupportResponse(url));
@@ -599,6 +666,9 @@
         return Promise.resolve(syntheticReadOnlyResponse());
       }
       if (String(url || "").toLowerCase().includes("/api/v2/usage/event") && (isSupportAssistQuietMode() || isAuthUnusable())) {
+        return Promise.resolve(syntheticSupportResponse(url));
+      }
+      if (isSupportAssistQuietMode() && shouldBlockSpectatorFetch(url)) {
         return Promise.resolve(syntheticSupportResponse(url));
       }
       if (isSupportAssistQuietMode() && shouldBlockSupportFetch(url)) {
