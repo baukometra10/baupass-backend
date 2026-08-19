@@ -1617,6 +1617,7 @@ const UI_TRANSLATIONS = {
     docTypeGehaltsabrechnung: "Gehaltsabrechnung",
     docTypeLohnsteuerbescheinigung: "Lohnsteuerbescheinigung",
     docTypeVerdienstabrechnung: "Verdienstabrechnung",
+    docTypeVerdienstbescheinigung: "Verdienstbescheinigung",
     docTypeJahresabrechnung: "Jahresabrechnung",
     docTypeVordienstbescheinigung: "Vordienstbescheinigung",
     docTypeLohn_unterlage: "Lohn-Unterlage",
@@ -2821,6 +2822,7 @@ const UI_TRANSLATIONS = {
     docTypeGehaltsabrechnung: "Salary statement",
     docTypeLohnsteuerbescheinigung: "Income tax certificate",
     docTypeVerdienstabrechnung: "Earnings statement",
+    docTypeVerdienstbescheinigung: "Earnings certificate",
     docTypeJahresabrechnung: "Annual statement",
     docTypeVordienstbescheinigung: "Prior employment certificate",
     docTypeLohn_unterlage: "Payroll document",
@@ -5154,7 +5156,8 @@ const UI_TRANSLATIONS = {
     docTypeLohnabrechnung: "كشف الراتب",
     docTypeGehaltsabrechnung: "كشف الراتب",
     docTypeLohnsteuerbescheinigung: "شهادة ضريبة الدخل",
-    docTypeVerdienstabrechnung: "كشف الأرباح",
+    docTypeVerdienstabrechnung: "شهادة الدخل",
+    docTypeVerdienstbescheinigung: "شهادة الدخل",
     docTypeJahresabrechnung: "كشف حساب سنوي",
     docTypeVordienstbescheinigung: "شهادة خدمة سابقة",
     docTypeLohn_unterlage: "مستند رواتب",
@@ -21270,6 +21273,7 @@ async function openInboxMailDetail(inboxId, cardEl) {
     gehaltsabrechnung: "Gehaltsabrechnung",
     lohnsteuerbescheinigung: "Lohnsteuerbescheinigung",
     verdienstabrechnung: "Verdienstabrechnung",
+    verdienstbescheinigung: "Verdienstbescheinigung",
     jahresabrechnung: "Jahresabrechnung",
     vordienstbescheinigung: "Vordienstbescheinigung",
     lohn_unterlage: "Lohn-Unterlage",
@@ -31018,7 +31022,7 @@ function renderWorkerDocuments(docs, workerId, container, companyId = "") {
   const ALL_DOC_TYPES = [
     "mindestlohnnachweis", "personalausweis", "sozialversicherungsnachweis",
     "arbeitserlaubnis", "gesundheitszeugnis", "lohnabrechnung", "gehaltsabrechnung",
-    "lohnsteuerbescheinigung", "verdienstabrechnung", "jahresabrechnung",
+    "lohnsteuerbescheinigung", "verdienstabrechnung", "verdienstbescheinigung", "jahresabrechnung",
     "vordienstbescheinigung", "lohn_unterlage", "sonstiges",
   ];
   const DOC_TYPES_REQUIRE_EXPIRY = new Set(["personalausweis", "arbeitserlaubnis", "gesundheitszeugnis"]);

@@ -2121,6 +2121,7 @@ def lohn_delivery_to_statement(delivery: dict[str, Any] | None) -> dict[str, Any
                 "verdienstbescheinigung",
                 "tax_certificate",
                 "earnings_statement",
+                "earnings_certificate",
             }:
                 return None
     company = delivery.get("company") if isinstance(delivery.get("company"), dict) else {}

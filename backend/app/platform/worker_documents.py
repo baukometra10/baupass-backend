@@ -17,6 +17,7 @@ ALLOWED_WORKER_DOC_TYPES = frozenset(
         "gehaltsabrechnung",
         "lohnsteuerbescheinigung",
         "verdienstabrechnung",
+        "verdienstbescheinigung",
         "jahresabrechnung",
         "vordienstbescheinigung",
         "lohn_unterlage",
@@ -30,6 +31,7 @@ WORKER_PAYROLL_DOC_TYPES = frozenset(
         "gehaltsabrechnung",
         "lohnsteuerbescheinigung",
         "verdienstabrechnung",
+        "verdienstbescheinigung",
         "jahresabrechnung",
         "vordienstbescheinigung",
         "lohn_unterlage",
@@ -95,7 +97,12 @@ DOC_TYPE_LABELS: dict[str, dict[str, str]] = {
     "verdienstabrechnung": {
         "de": "Verdienstabrechnung",
         "en": "Earnings statement",
-        "ar": "كشف الأرباح",
+        "ar": "شهادة الدخل",
+    },
+    "verdienstbescheinigung": {
+        "de": "Verdienstbescheinigung",
+        "en": "Earnings certificate",
+        "ar": "شهادة الدخل",
     },
     "jahresabrechnung": {
         "de": "Jahresabrechnung",
@@ -149,9 +156,9 @@ def normalize_doc_type(raw: str) -> str:
         "lohnsteuer": "lohnsteuerbescheinigung",
         "lohnsteuer_bescheinigung": "lohnsteuerbescheinigung",
         "earnings_statement": "verdienstabrechnung",
-        "verdienstbescheinigung": "verdienstabrechnung",
-        "verdienst_bescheinigung": "verdienstabrechnung",
         "verdienst_abrechnung": "verdienstabrechnung",
+        "earnings_certificate": "verdienstbescheinigung",
+        "verdienst_bescheinigung": "verdienstbescheinigung",
         "annual_statement": "jahresabrechnung",
         "jahres_abrechnung": "jahresabrechnung",
         "year_end": "jahresabrechnung",
@@ -165,6 +172,21 @@ def normalize_doc_type(raw: str) -> str:
     return aliases.get(value, value)
 
 
+_GENERIC_PAYSLIP_TYPES = frozenset(
+    {
+        "lohnabrechnung",
+        "gehaltsabrechnung",
+        "payslip",
+        "payroll",
+        "statement",
+        "lohn",
+        "entgeltabrechnung",
+        "monatsabrechnung",
+    }
+)
+_GENERIC_DOCUMENT_TYPES = frozenset({"lohn_unterlage", "document", "payroll_document", "unterlage"})
+
+
 def infer_payroll_doc_type_from_title(title: str) -> str | None:
     """Map free-text Lohn titles (DE/EN/AR) to a payroll doc type."""
     raw = str(title or "").strip()
@@ -176,22 +198,41 @@ def infer_payroll_doc_type_from_title(title: str) -> str | None:
         return as_type
     text = raw.lower()
     text_compact = re.sub(r"[\s_\-./]+", "", text)
+    # More specific certificates before generic Abrechnung / كشف حساب.
     rules: list[tuple[str, tuple[str, ...]]] = [
         (
             "vordienstbescheinigung",
             ("vordienst", "prior employment", "previous employment", "خدمة سابقة", "خدمة سابقه"),
         ),
         (
-            "jahresabrechnung",
-            ("jahresabrechnung", "jahres", "annual", "year-end", "yearend", "سنوي", "كشف حساب سنوي"),
+            "verdienstbescheinigung",
+            (
+                "verdienstbescheinigung",
+                "earnings certificate",
+                "شهادة الدخل",
+                "شهادة الأرباح",
+                "شهادة الارباح",
+            ),
+        ),
+        (
+            "verdienstabrechnung",
+            ("verdienstabrechnung", "earnings statement", "earnings", "كشف أرباح", "كشف الارباح"),
         ),
         (
             "lohnsteuerbescheinigung",
             ("lohnsteuer", "tax certificate", "income tax", "ضريبة الدخل", "ضريبة"),
         ),
         (
-            "verdienstabrechnung",
-            ("verdienstabrechnung", "verdienstbescheinigung", "earnings", "كشف أرباح", "كشف الارباح"),
+            "jahresabrechnung",
+            (
+                "jahresabrechnung",
+                "jahresabschluss",
+                "annual statement",
+                "year-end",
+                "yearend",
+                "سنوي",
+                "كشف حساب سنوي",
+            ),
         ),
         (
             "gehaltsabrechnung",
@@ -235,9 +276,25 @@ def resolve_document_title(*sources: object) -> str:
 
 
 def resolve_payroll_doc_type(*sources: object, default: str = "lohnabrechnung") -> str:
-    """Pick a canonical payroll doc type from delivery/statement dicts and titles."""
+    """Pick a canonical payroll doc type from delivery/statement dicts and titles.
+
+    Explicit Lohn titles such as Verdienstbescheinigung win over a generic
+    ``type: payslip`` / ``documentType: lohnabrechnung`` envelope.
+    """
     fallback = normalize_doc_type(default) if is_payroll_doc_type(default) else "lohnabrechnung"
-    generic = {"lohn_unterlage", "document", "payroll_document", "unterlage"}
+
+    title_inferred: str | None = None
+    for src in sources:
+        if not isinstance(src, dict):
+            continue
+        title = resolve_document_title(src)
+        if not title:
+            continue
+        inferred = infer_payroll_doc_type_from_title(title)
+        if inferred:
+            title_inferred = inferred
+            break
+
     for src in sources:
         if not isinstance(src, dict):
             continue
@@ -248,20 +305,32 @@ def resolve_payroll_doc_type(*sources: object, default: str = "lohnabrechnung") 
             raw_l = str(raw).strip().lower()
             if raw_l in {"invoice", "invoices"} or normalize_doc_type(raw_l) in {"invoice", "invoices"}:
                 continue
-            # Generic "document" must not win over an explicit title like Vordienstbescheinigung.
-            if raw_l in generic or normalize_doc_type(raw_l) == "lohn_unterlage":
+            # Generic "document" must not win over an explicit title.
+            if raw_l in _GENERIC_DOCUMENT_TYPES or normalize_doc_type(raw_l) == "lohn_unterlage":
                 continue
             norm = normalize_doc_type(str(raw))
+            # Generic payslip envelope + specific title → keep the certificate type.
+            if raw_l in _GENERIC_PAYSLIP_TYPES or norm in {"lohnabrechnung", "gehaltsabrechnung"}:
+                if title_inferred and title_inferred not in {"lohnabrechnung", "gehaltsabrechnung"}:
+                    return title_inferred
             if is_payroll_doc_type(norm):
                 return norm
             inferred = infer_payroll_doc_type_from_title(str(raw))
             if inferred:
+                if inferred in {"lohnabrechnung", "gehaltsabrechnung"} and title_inferred and title_inferred not in {
+                    "lohnabrechnung",
+                    "gehaltsabrechnung",
+                }:
+                    return title_inferred
                 return inferred
         title = resolve_document_title(src)
         if title:
             inferred = infer_payroll_doc_type_from_title(title)
             if inferred:
                 return inferred
+
+    if title_inferred:
+        return title_inferred
     for src in sources:
         if isinstance(src, dict) and resolve_document_title(src):
             return "lohn_unterlage"

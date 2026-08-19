@@ -9,6 +9,7 @@ _DOC_LABELS_DE: dict[str, str] = {
     "gehaltsabrechnung": "Gehaltsabrechnung",
     "lohnsteuerbescheinigung": "Lohnsteuerbescheinigung",
     "verdienstabrechnung": "Verdienstabrechnung",
+    "verdienstbescheinigung": "Verdienstbescheinigung",
     "jahresabrechnung": "Jahresabrechnung",
     "vordienstbescheinigung": "Vordienstbescheinigung",
     "lohn_unterlage": "Lohn-Unterlage",

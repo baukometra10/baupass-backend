@@ -20,7 +20,7 @@ def test_normalize_doc_type_tax_aliases():
     assert normalize_doc_type("lohnsteuerbescheinigung") == "lohnsteuerbescheinigung"
     assert normalize_doc_type("tax_certificate") == "lohnsteuerbescheinigung"
     assert normalize_doc_type("Lohnsteuer") == "lohnsteuerbescheinigung"
-    assert normalize_doc_type("verdienstbescheinigung") == "verdienstabrechnung"
+    assert normalize_doc_type("verdienstbescheinigung") == "verdienstbescheinigung"
     assert normalize_doc_type("earnings_statement") == "verdienstabrechnung"
     assert normalize_doc_type("payslip") == "lohnabrechnung"
     assert normalize_doc_type("vordienstbescheinigung") == "vordienstbescheinigung"
@@ -31,6 +31,7 @@ def test_infer_payroll_doc_type_from_title():
     from backend.app.platform.worker_documents import infer_payroll_doc_type_from_title
 
     assert infer_payroll_doc_type_from_title("Vordienstbescheinigung Max Mustermann") == "vordienstbescheinigung"
+    assert infer_payroll_doc_type_from_title("Verdienstbescheinigung") == "verdienstbescheinigung"
     assert infer_payroll_doc_type_from_title("Jahresabrechnung 2025") == "jahresabrechnung"
     assert infer_payroll_doc_type_from_title("Monatsabrechnung März 2026") == "lohnabrechnung"
     assert infer_payroll_doc_type_from_title("كشف حساب سنوي") == "jahresabrechnung"
@@ -40,6 +41,7 @@ def test_resolve_preserves_exact_title():
     from backend.app.platform.worker_documents import display_document_label, resolve_document_title
 
     assert resolve_document_title({"title": "Vordienstbescheinigung"}) == "Vordienstbescheinigung"
+    assert resolve_document_title({"title": "Verdienstbescheinigung"}) == "Verdienstbescheinigung"
     assert (
         display_document_label({"title": "Jahresabrechnung 2025"}, doc_type="jahresabrechnung")
         == "Jahresabrechnung 2025"
@@ -48,11 +50,42 @@ def test_resolve_preserves_exact_title():
 
 def test_resolve_payroll_doc_type_from_delivery():
     assert resolve_payroll_doc_type({"documentType": "lohnsteuerbescheinigung"}) == "lohnsteuerbescheinigung"
-    assert resolve_payroll_doc_type({"type": "verdienstbescheinigung"}) == "verdienstabrechnung"
+    assert resolve_payroll_doc_type({"type": "verdienstbescheinigung"}) == "verdienstbescheinigung"
     assert resolve_payroll_doc_type({"type": "payslip"}) == "lohnabrechnung"
     assert resolve_payroll_doc_type({"type": "invoice"}) == "lohnabrechnung"
+    # Generic payslip envelope must not override a specific Lohn title.
+    assert (
+        resolve_payroll_doc_type({"type": "payslip", "title": "Verdienstbescheinigung"})
+        == "verdienstbescheinigung"
+    )
+    assert (
+        resolve_payroll_doc_type({"type": "document", "title": "Verdienstbescheinigung"})
+        == "verdienstbescheinigung"
+    )
     assert "lohnsteuerbescheinigung" in WORKER_PAYROLL_DOC_TYPES
-    assert "verdienstabrechnung" in WORKER_PAYROLL_DOC_TYPES
+    assert "verdienstbescheinigung" in WORKER_PAYROLL_DOC_TYPES
+
+
+def test_lohn_delivery_title_maps_verdienst_not_payslip():
+    from backend.app.platform.accounting.service import lohn_delivery_to_statement
+
+    stmt = lohn_delivery_to_statement(
+        {
+            "kind": "platform.employee.delivery.v1",
+            "type": "payslip",
+            "title": "Verdienstbescheinigung",
+            "company": {"id": "cmp-test"},
+            "employee": {"id": "emp-1", "name": "Max Mustermann"},
+            "period": "2026-01",
+            "pdfBase64": MINIMAL_PDF,
+            "deliveryId": "del-vb-1",
+        }
+    )
+    assert stmt is not None
+    assert stmt["title"] == "Verdienstbescheinigung"
+    assert stmt["docType"] == "verdienstbescheinigung"
+    assert stmt["pdfSource"] == "lohn_original"
+    assert stmt["pdfImmutable"] is True
 
 
 def test_lohn_delivery_title_maps_vordienst():

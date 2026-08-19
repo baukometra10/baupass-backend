@@ -67,7 +67,7 @@ def build_hr_compliance_snapshot(db, company_id: str) -> dict[str, Any]:
           AND w.deleted_at IS NULL
           AND wd.doc_type IN (
             'lohnabrechnung', 'gehaltsabrechnung', 'lohnsteuerbescheinigung',
-            'verdienstabrechnung', 'jahresabrechnung', 'vordienstbescheinigung', 'lohn_unterlage'
+            'verdienstabrechnung', 'verdienstbescheinigung', 'jahresabrechnung', 'vordienstbescheinigung', 'lohn_unterlage'
           )
           AND substr(wd.created_at, 1, 7) = ?
         """,
