@@ -847,7 +847,13 @@
     }
     if (event.data.type === "baupass-sync-token") {
       if (event.data.token) {
-        WP?.clearAuthUnusable?.();
+        const prevTok = String(getSessionToken() || "").trim();
+        const nextTok = String(event.data.token || "").trim();
+        const tokenChanged = Boolean(nextTok) && nextTok !== prevTok;
+        if (tokenChanged) {
+          WP?.clearAuthUnusable?.();
+          WP?.clearSupportFetchCooldowns?.();
+        }
         persistSessionToken(event.data.token);
         // Parent-synced token is authoritative for embeds (support login handoff).
         try {
@@ -861,6 +867,7 @@
           detail: {
             token: String(event.data.token),
             companyId: String(event.data.companyId || "").trim(),
+            tokenChanged,
           },
         }));
       }

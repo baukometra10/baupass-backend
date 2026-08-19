@@ -400,6 +400,8 @@
   /** Background polls that must not hit the network without a confirmed support session. */
   const SUPPORT_POLL_BLOCK = [
     "/api/dashboard/role",
+    "/api/platform/capabilities",
+    "/api/ai/status",
     "/api/leave-requests",
     "/api/ops-os/live-map",
     "/api/ops-os/summary",
@@ -409,6 +411,39 @@
     "/api/inbox",
     "/api/payroll/accounting/messages",
   ];
+
+  // One-shot Hub reads — never lock these forever for spectator, but still cool down after 401.
+  const SUPPORT_HUB_READ_ALLOW = [
+    "/api/platform/enterprise-catalog",
+    "/api/session/bootstrap",
+    "/api/companies",
+  ];
+
+  const SHARED_SUPPORT_POLL_FAIL_KEY = "baupass-support-poll-auth-failed";
+
+  function isSupportPollAuthFailed() {
+    try {
+      return getSharedRoot().sessionStorage.getItem(SHARED_SUPPORT_POLL_FAIL_KEY) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  function markSupportPollAuthFailed() {
+    try {
+      getSharedRoot().sessionStorage.setItem(SHARED_SUPPORT_POLL_FAIL_KEY, "1");
+    } catch {
+      // ignore
+    }
+  }
+
+  function clearSupportPollAuthFailed() {
+    try {
+      getSharedRoot().sessionStorage.removeItem(SHARED_SUPPORT_POLL_FAIL_KEY);
+    } catch {
+      // ignore
+    }
+  }
 
   const SHARED_SUPPORT_COOLDOWN_KEY = "baupass-support-fetch-cooldown";
 
@@ -534,9 +569,13 @@
 
   function markSupportFetchCooldown(url, status) {
     if (status !== 401 && status !== 403) return;
-    // Customer spectator must keep retrying with their own Bearer — never lock Hub/KI reads.
-    if (isSpectatorWatchOnly()) return;
     if (!isSupportAssistQuietMode() && !hasActiveSupportTabScope()) return;
+    // Spectator: cool down noisy polls so DevTools is not flooded; keep Hub catalog retries short.
+    if (isSpectatorWatchOnly()) {
+      const raw = String(url || "").toLowerCase();
+      const isHubRead = SUPPORT_HUB_READ_ALLOW.some((part) => raw.includes(part));
+      if (isHubRead) return;
+    }
     const key = supportFetchKey(url);
     const until = Date.now() + SUPPORT_FETCH_COOLDOWN_MS;
     supportFetchCooldownUntil.set(key, until);
@@ -550,6 +589,7 @@
     } catch {
       // ignore
     }
+    clearSupportPollAuthFailed();
   }
 
   function isAuthDeadAllowed(url) {
@@ -754,6 +794,24 @@
         headers: { "Content-Type": "application/json" },
       });
     }
+    if (raw.includes("/api/platform/capabilities")) {
+      return new Response(JSON.stringify({
+        maturityLevel: "—",
+        maturityScore: null,
+        dataLayer: { runtime: "—", redisConfigured: false },
+      }), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (raw.includes("/api/ai/status")) {
+      return new Response(JSON.stringify({ configured: false }), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     if (raw.includes("/api/ai/agents")) {
       return new Response(JSON.stringify({ agents: [] }), {
         status: 200,
@@ -901,8 +959,9 @@
       if (
         (isSupportAssistQuietMode() || hasActiveSupportTabScope())
         && shouldBlockSupportPoll(url)
-        && (shouldDeferSupportPoll() || isSupportFetchCoolingDown(url))
       ) {
+        // Never hit the network for background polls during Firmen-Support.
+        // One real 401 is enough to flood DevTools when Hub/Betrieb remount.
         return Promise.resolve(syntheticSupportResponse(url));
       }
       // Agent support tab waiting for Server-Admin login: do not hammer APIs with bare 401s.
@@ -926,13 +985,14 @@
       }
       const run = (nextInput, nextInit) => originalFetch(nextInput, nextInit).then(async (res) => {
         // Support/embed: stale Bearer wins over a valid cookie → one cookie-only retry.
-        // Never for customer spectator — stripping their Bearer breaks Hub catalog.
+        // Never for spectator, and never for noisy poll endpoints (each retry is another console 401).
         if (
           res
           && res.status === 401
           && isApiUrl(url)
           && !isAuthDeadAllowed(url)
           && !isSpectatorWatchOnly()
+          && !shouldBlockSupportPoll(url)
           && (hasActiveSupportTabScope() || isEmbedWithoutSessionToken())
         ) {
           const hdrs = new Headers(
@@ -953,11 +1013,24 @@
             const retryRes = await originalFetch(nextInput, retryInit);
             noteAuthFailure(retryRes, url);
             markSupportFetchCooldown(url, retryRes?.status);
+            if (retryRes && (retryRes.status === 401 || retryRes.status === 403)) {
+              return syntheticSupportResponse(url);
+            }
             return retryRes;
           }
         }
         noteAuthFailure(res, url);
         markSupportFetchCooldown(url, res?.status);
+        // Support quiet/poll: after a real 401, hand callers a synthetic OK so they stop retry loops.
+        if (
+          res
+          && (res.status === 401 || res.status === 403)
+          && (isSupportAssistQuietMode() || hasActiveSupportTabScope())
+          && shouldBlockSupportPoll(url)
+        ) {
+          markSupportPollAuthFailed();
+          return syntheticSupportResponse(url);
+        }
         if (res && !res.ok && String(url || "").toLowerCase().includes("/api/ai/speak")) {
           markTtsUnusable();
         }
@@ -1003,6 +1076,7 @@
     clearAuthUnusable,
     purgeSharedLocalSessionTokens,
     clearSupportFetchCooldowns,
+    clearSupportPollAuthFailed,
   };
 
   migrateOnce();

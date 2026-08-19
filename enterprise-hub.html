@@ -572,10 +572,10 @@
     </div>
   </div>
 
-  <script src="/workpass-storage.js?v=20260819wp20"></script>
+  <script src="/workpass-storage.js?v=20260819wp21"></script>
   <script src="/enterprise-hub-i18n.js?v=20260705b"></script>
   <script src="/sector-copy.js?v=20260818opsSector1"></script>
-  <script src="/embed-helpers.js?v=20260819embed16"></script>
+  <script src="/embed-helpers.js?v=20260819embed17"></script>
   <script src="/ai-voice-ui.js?v=20260725voice12"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
   <script>
@@ -800,7 +800,11 @@
         : (opts?.headers || {});
       const res = await fetch(path, { credentials: "include", ...opts, headers });
       const data = await res.json().catch(() => ({}));
-      if (res.status === 401 && !retried && window.BaupassAuth?.bootstrapSession) {
+      // Support quiet: do not bootstrap-retry on 401 (each retry is another console error).
+      const quiet =
+        window.WorkPassStorage?.isSupportAssistQuietMode?.()
+        || window.WorkPassStorage?.hasActiveSupportTabScope?.();
+      if (res.status === 401 && !retried && !quiet && window.BaupassAuth?.bootstrapSession) {
         try {
           await window.BaupassAuth.bootstrapSession();
           return api(path, opts, true);
@@ -1754,35 +1758,31 @@
       if (event.data.type !== "baupass-sync-token") return;
       const lang = String(event.data.lang || "").trim().slice(0, 2);
       if (lang) syncHubLangFromParent(lang);
-      if (event.data.token) {
-        window.BaupassAuth?.persistSessionToken?.(event.data.token);
-        try {
-          window.__baupassEmbedAuthConfirmed = true;
-          window.WorkPassStorage?.clearAuthUnusable?.();
-          window.WorkPassStorage?.clearSupportFetchCooldowns?.();
-        } catch {
-          // ignore
-        }
-      }
+      // Token persist + catalog reload handled via baupass-token-synced (embed-helpers).
       const cid = String(event.data.companyId || "").trim();
       if (cid && currentUserRole === "superadmin" && cid !== selectedCompanyId) {
         selectedCompanyId = cid;
         const sel = document.getElementById("companySelect");
         if (sel) sel.value = cid;
         updateEmbedLayersHint();
+        loadCatalog().catch(() => {});
       }
-      // Spectator/agent embeds often boot before the parent token arrives — always reload.
-      loadCatalog().catch(() => {});
     });
 
-    window.addEventListener("baupass-token-synced", () => {
+    // Single reload path for token sync (debounced; only when token actually changes).
+    let hubTokenSyncReloadTimer = 0;
+    window.addEventListener("baupass-token-synced", (ev) => {
       try {
         window.__baupassEmbedAuthConfirmed = true;
-        window.WorkPassStorage?.clearSupportFetchCooldowns?.();
       } catch {
         // ignore
       }
-      loadCatalog().catch(() => {});
+      const changed = Boolean(ev?.detail?.tokenChanged);
+      if (!changed && catalog) return;
+      window.clearTimeout(hubTokenSyncReloadTimer);
+      hubTokenSyncReloadTimer = window.setTimeout(() => {
+        loadCatalog().catch(() => {});
+      }, 200);
     });
 
     function wireHubEmbedNav() {
