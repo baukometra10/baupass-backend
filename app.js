@@ -19676,7 +19676,11 @@ function suspendEnterpriseEmbedsForSupportHandoff() {
   Object.values(ENTERPRISE_EMBED_META).forEach((meta) => {
     const frame = document.getElementById(meta.frameId);
     if (!frame) return;
-    frame.removeAttribute("src");
+    try {
+      frame.src = "about:blank";
+    } catch {
+      frame.removeAttribute("src");
+    }
     delete frame.dataset.baupassTokenSyncBound;
     delete frame.dataset.supportScrollBound;
   });

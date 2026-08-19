@@ -3,7 +3,7 @@
  * No bundler — only deferred classic-script injection + idle secondary chunk.
  */
 (function (global) {
-  var APP_SRC = "./app.js?v=20260819assist29";
+  var APP_SRC = "./app.js?v=20260819assist30";
   var SECONDARY_SRC = "./app-secondary.js?v=20260817sector1";
 
   var bootResolve;

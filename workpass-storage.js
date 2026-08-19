@@ -120,9 +120,20 @@
     }
   }
 
+  function parentStorageApi() {
+    try {
+      if (global.self === global.top) return null;
+      return global.top?.WorkPassStorage || null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Support tab is active — do not leak main-tab credentials from localStorage. */
   function hasActiveSupportTabScope() {
     try {
+      const parentApi = parentStorageApi();
+      if (parentApi?.hasActiveSupportTabScope?.() === true) return true;
       const ctxRaw = global.sessionStorage.getItem(KEYS.SUPPORT_LOGIN_CONTEXT);
       if (ctxRaw) {
         const ctx = JSON.parse(ctxRaw);
@@ -151,6 +162,8 @@
 
   function isSupportAssistQuietMode() {
     try {
+      const parentApi = parentStorageApi();
+      if (parentApi?.isSupportAssistQuietMode?.() === true) return true;
       if (hasActiveSupportTabScope()) return true;
       if (global.document?.body?.classList?.contains("support-assist-spectator-active")) return true;
       const watchRaw =
@@ -514,9 +527,6 @@
     const until = Date.now() + SUPPORT_FETCH_COOLDOWN_MS;
     supportFetchCooldownUntil.set(key, until);
     writeSharedSupportCooldown(key, until);
-    if (shouldBlockSupportPoll(url)) {
-      markAuthUnusable();
-    }
   }
 
   function clearSupportFetchCooldowns() {
@@ -616,8 +626,20 @@
     return SUPPORT_POLL_BLOCK.some((part) => raw.includes(part));
   }
 
+  function isEmbedWithoutSessionToken() {
+    try {
+      if (global.self === global.top) return false;
+      const params = new URLSearchParams(String(global.location.search || ""));
+      if (params.get("embed") !== "1") return false;
+      return !readSessionToken();
+    } catch {
+      return false;
+    }
+  }
+
   function shouldDeferSupportPoll() {
     if (isAuthUnusable()) return true;
+    if (isEmbedWithoutSessionToken()) return true;
     return !readSessionToken();
   }
 
@@ -737,6 +759,13 @@
         headers: { "Content-Type": "application/json" },
       });
     }
+    if (raw.includes("/api/support-assist/pulse") || raw.includes("/api/support-assist/end")) {
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        statusText: "OK",
+        headers: { "Content-Type": "application/json" },
+      });
+    }
     if (raw.includes("/api/v1/events/recent") || raw.includes("/api/v1/realtime/")) {
       return new Response(JSON.stringify({ events: [], socketio: false, websocket: { enabled: false } }), {
         status: 200,
@@ -811,6 +840,13 @@
       if (isAuthUnusable() && isApiUrl(url) && !isAuthDeadAllowed(url)) {
         return Promise.resolve(syntheticSupportResponse(url));
       }
+      if (
+        isEmbedWithoutSessionToken()
+        && isApiUrl(url)
+        && !isAuthDeadAllowed(url)
+      ) {
+        return Promise.resolve(syntheticSupportResponse(url));
+      }
       if ((isSupportAssistQuietMode() || isTtsUnusable()) && String(url || "").toLowerCase().includes("/api/ai/speak")) {
         return Promise.resolve(syntheticSupportResponse(url));
       }
@@ -840,6 +876,12 @@
         && !readSessionToken()
         && isApiUrl(url)
         && !isAuthDeadAllowed(url)
+      ) {
+        return Promise.resolve(syntheticSupportResponse(url));
+      }
+      if (
+        String(url || "").toLowerCase().includes("/api/support-assist/pulse")
+        && (isSupportFetchCoolingDown(url) || (!readSessionToken() && !parentStorageApi()?.readSessionToken?.()))
       ) {
         return Promise.resolve(syntheticSupportResponse(url));
       }

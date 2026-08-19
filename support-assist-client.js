@@ -515,11 +515,12 @@
     publicWatchCompanyId = "";
   }
 
+  let pulseDisabled = false;
   let agentMoveTimer = null;
   let pendingMouse = null;
 
   function flushAgentMouse(state) {
-    if (!pendingMouse || !state?.companyId || !state?.watchToken) return;
+    if (pulseDisabled || !pendingMouse || !state?.companyId || !state?.watchToken) return;
     if (!assistAuthToken()) return;
     const payload = pendingMouse;
     pendingMouse = null;
@@ -542,6 +543,7 @@
 
   function startAgentBroadcast(state) {
     if (!state?.companyId || !state?.watchToken) return;
+    pulseDisabled = false;
     isAgent = true;
     setSpectatorMode(false);
     writeWatchState({ companyId: state.companyId, watchToken: state.watchToken, actorName: state.actorName, agent: true });
@@ -637,11 +639,10 @@
     writeWatchState(null);
   }
 
-  let pulseDisabled = false;
-
   function handleInvalidAssistSession() {
     if (pulseDisabled) return;
     pulseDisabled = true;
+    pendingMouse = null;
     stopAgentBroadcast(readWatchState());
     global.BaupassSession?.stopSupportAssistAgentUiCapture?.();
   }
