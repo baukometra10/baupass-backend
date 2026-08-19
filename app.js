@@ -19567,7 +19567,7 @@ function buildEnterpriseEmbedUrl(item) {
   const params = [];
   if (item.embed) {
     params.push("embed=1");
-    params.push("v=20260819supportMirror3");
+    params.push("v=20260819supportMirror4");
   } else if (item.version) {
     params.push("v=20260601hubupgrade1");
   }

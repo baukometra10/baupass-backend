@@ -391,11 +391,9 @@
     "/api/guardian/remediate",
   ];
 
-  // Spectator keeps customer session for reads; only block sensitive payroll mutation surfaces.
-  const SUPPORT_SPECTATOR_FETCH_BLOCK = [
-    "/api/payroll/accounting/",
-    "/api/payroll/statements/",
-  ];
+  // Spectator keeps customer session for reads. Mutations stay blocked via SUPPORT_WRITE_BLOCK.
+  // Do not blanket-block payroll GETs — support must be able to open/view Lohnabrechnung.
+  const SUPPORT_SPECTATOR_FETCH_BLOCK = [];
 
   /** Background polls that must not hit the network without a confirmed support session. */
   const SUPPORT_POLL_BLOCK = [
@@ -956,12 +954,18 @@
       if (isSupportAssistQuietMode() && shouldBlockSupportFetch(url)) {
         return Promise.resolve(syntheticSupportResponse(url));
       }
+      // Background polls: allow when session is ready (read-only viewing).
+      // Block only when auth is missing/failed/cooling — never blank the whole Betrieb/Hub.
       if (
         (isSupportAssistQuietMode() || hasActiveSupportTabScope())
         && shouldBlockSupportPoll(url)
+        && (
+          shouldDeferSupportPoll()
+          || isSupportFetchCoolingDown(url)
+          || isSupportPollAuthFailed()
+          || (global.self !== global.top && !global.__baupassEmbedAuthConfirmed)
+        )
       ) {
-        // Never hit the network for background polls during Firmen-Support.
-        // One real 401 is enough to flood DevTools when Hub/Betrieb remount.
         return Promise.resolve(syntheticSupportResponse(url));
       }
       // Agent support tab waiting for Server-Admin login: do not hammer APIs with bare 401s.
