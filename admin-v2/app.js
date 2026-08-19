@@ -667,24 +667,7 @@ window.addEventListener("message", (event) => {
   if (opsFrame) {
     syncTokenToOpsEmbedFrame(opsFrame, nextCid || activeCompanyId());
   }
-  // Also push into nested Lage live-map iframe.
-  document.querySelectorAll("iframe[src*='ops-live-map']").forEach((frame) => {
-    try {
-      frame.contentWindow?.postMessage(
-        {
-          type: "baupass-sync-token",
-          token,
-          companyId: nextCid || activeCompanyId() || "",
-          lang: getLang(),
-          user: getUser(),
-        },
-        window.location.origin,
-      );
-    } catch {
-      // ignore
-    }
-  });
-  if ($("dashboardView")?.classList.contains("hidden") || $("embedAuthView") && !$("embedAuthView").classList.contains("hidden")) {
+  if ($("dashboardView")?.classList.contains("hidden")) {
     showSessionBoot();
     bootSession().catch(() => {});
     return;
@@ -879,10 +862,13 @@ function isSupportSpectatorEmbed() {
 }
 
 function shouldSkipSupportBackgroundLoads() {
-  return Boolean(
-    isSupportSpectatorEmbed()
-    || window.WorkPassStorage?.isAuthUnusable?.(),
-  );
+  if (isSupportSpectatorEmbed()) return true;
+  if (window.WorkPassStorage?.isAuthUnusable?.()) return true;
+  const tok = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || "").trim();
+  if (!tok && (window.WorkPassStorage?.hasActiveSupportTabScope?.() || window.WorkPassStorage?.isSupportAssistQuietMode?.())) {
+    return true;
+  }
+  return false;
 }
 
 function isSuperadminUser() {

@@ -2573,9 +2573,16 @@
       }
     };
     // Near-realtime pin movement while workers are on site (HTTP poll + WS refresh).
-    const LIVE_POLL_MS_VISIBLE = 1500;
-    const LIVE_POLL_MS_VISIBLE_IDLE = 4000;
-    const LIVE_POLL_MS_HIDDEN = 12000;
+    const opsMapEmbedded = (() => {
+      try {
+        return new URLSearchParams(window.location.search).get("embed") === "1" || window.self !== window.top;
+      } catch {
+        return false;
+      }
+    })();
+    const LIVE_POLL_MS_VISIBLE = opsMapEmbedded ? 6000 : 1500;
+    const LIVE_POLL_MS_VISIBLE_IDLE = opsMapEmbedded ? 12000 : 4000;
+    const LIVE_POLL_MS_HIDDEN = opsMapEmbedded ? 30000 : 12000;
     const MARKER_MOVE_ANIM_MS = 450;
     const EVENT_REFRESH_THROTTLE_MS = 250;
     const WEAK_NETWORK_THRESHOLD_MS = 1800;
@@ -2764,7 +2771,11 @@
     }
 
     let mapBootFinished = false;
+    window.addEventListener("baupass-session-cleared", () => {
+      stopLivePolling();
+    });
     window.addEventListener("baupass-token-synced", () => {
+      if (!window.BaupassAuth?.getSessionToken?.()) return;
       if (!mapBootFinished || !companyId) return;
       load().catch(() => {});
     });
@@ -3951,7 +3962,19 @@
       }
     }
 
+    function stopLivePolling() {
+      if (livePollTimer) {
+        window.clearTimeout(livePollTimer);
+        livePollTimer = 0;
+      }
+      livePollInFlight = false;
+    }
+
     function startLivePolling() {
+      if (!window.BaupassAuth?.getSessionToken?.()) {
+        stopLivePolling();
+        return;
+      }
       if (livePollTimer) window.clearTimeout(livePollTimer);
       const nextInterval = () => {
         const visible = document.visibilityState === "visible";

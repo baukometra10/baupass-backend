@@ -411,7 +411,7 @@
     setSpectatorMode(true, state?.actorName, "Support verbindet…");
     stopPolling();
     pollOnce();
-    pollTimer = global.setInterval(pollOnce, 50);
+    pollTimer = global.setInterval(pollOnce, 400);
   }
 
   function stopPolling() {

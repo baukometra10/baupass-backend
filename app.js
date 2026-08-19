@@ -1131,7 +1131,7 @@ function startSupportAssistAgentUiCapture() {
   }
   pulseState();
   bindAgentEmbedScrollCapture();
-  supportAssistAgentCaptureTimer = window.setInterval(pulseState, 400);
+  supportAssistAgentCaptureTimer = window.setInterval(pulseState, 1500);
 }
 
 function stopSupportAssistAgentUiCapture() {
@@ -19642,7 +19642,7 @@ function postMessageToEmbedFrames(message) {
   });
 }
 
-function broadcastSessionToEmbeds() {
+function broadcastSessionToEmbeds(options = {}) {
   if (!token) {
     return;
   }
@@ -19654,33 +19654,30 @@ function broadcastSessionToEmbeds() {
     user: state.currentUser,
   };
   postMessageToEmbedFrames(message);
-  // Nested embeds (admin-v2 → Live-Map / AI) often boot during the logout gap.
-  [250, 900, 2200, 4500].forEach((delay) => {
-    window.setTimeout(() => {
-      if (!token) return;
-      postMessageToEmbedFrames({
-        ...message,
-        token,
-        companyId: getEffectiveUiCompanyId(),
-        user: state.currentUser,
-      });
-    }, delay);
-  });
+  if (options.once) return;
+  clearTimeout(broadcastSessionToEmbeds._retryTimer);
+  broadcastSessionToEmbeds._retryTimer = window.setTimeout(() => {
+    if (!token) return;
+    postMessageToEmbedFrames({
+      ...message,
+      companyId: getEffectiveUiCompanyId(),
+      user: state.currentUser,
+    });
+  }, 900);
 }
 
-function reloadEnterpriseEmbedsForSupportSession() {
+function suspendEnterpriseEmbedsForSupportHandoff() {
+  clearTimeout(broadcastSessionToEmbeds._retryTimer);
+  broadcastSessionClearToEmbeds();
+  if (scheduleCriticalEmbedWarm) {
+    scheduleCriticalEmbedWarm._armed = false;
+  }
   Object.values(ENTERPRISE_EMBED_META).forEach((meta) => {
     const frame = document.getElementById(meta.frameId);
     if (!frame) return;
-    const prev = String(frame.getAttribute("src") || "").trim();
-    if (!prev || prev === "about:blank" || prev.startsWith("about:")) return;
-    try {
-      const url = new URL(prev, window.location.href);
-      url.searchParams.set("_supportAuth", String(Date.now()));
-      frame.setAttribute("src", `${url.pathname}${url.search}${url.hash}`);
-    } catch {
-      frame.setAttribute("src", prev);
-    }
+    frame.removeAttribute("src");
+    delete frame.dataset.baupassTokenSyncBound;
+    delete frame.dataset.supportScrollBound;
   });
 }
 
@@ -19802,6 +19799,8 @@ function warmEnterpriseEmbed(viewName, { force = false } = {}) {
 }
 
 function scheduleCriticalEmbedWarm() {
+  if (state.supportLoginContext?.companyId || loadSupportLoginContext()?.companyId) return;
+  if (isSupportReadOnlyMode()) return;
   if (scheduleCriticalEmbedWarm._armed) return;
   scheduleCriticalEmbedWarm._armed = true;
   const run = () => {
@@ -24412,7 +24411,7 @@ function closeCompanyBrandingPdfModal() {
   }
 }
 
-async function clearSuperadminPreviewMode({ refresh = true } = {}) {
+async function clearSuperadminPreviewMode({ refresh = true, localOnly = false } = {}) {
   superadminUiPreviewCompanyId = "";
   companyBrandingPreviewOverride = "";
   try {
@@ -24420,16 +24419,23 @@ async function clearSuperadminPreviewMode({ refresh = true } = {}) {
   } catch {
     // ignore
   }
-  try {
-    await apiRequest(API_BASE + "/api/superadmin/preview-session", { method: "POST", body: { company_id: null } });
-  } catch (e) {
-    console.warn("[preview] Fehler beim Beenden der Vorschau-Session:", e);
+  const inSupportHandoff = Boolean(
+    localOnly
+    || state.supportLoginContext?.companyId
+    || loadSupportLoginContext()?.companyId,
+  );
+  if (!inSupportHandoff && token) {
+    try {
+      await apiRequest(API_BASE + "/api/superadmin/preview-session", { method: "POST", body: { company_id: null } });
+    } catch (e) {
+      console.warn("[preview] Fehler beim Beenden der Vorschau-Session:", e);
+    }
   }
   syncSuperadminCompanyPickerUi();
   if (refresh) {
     refreshAll();
-  } else {
-    broadcastSessionToEmbeds();
+  } else if (!inSupportHandoff) {
+    broadcastSessionToEmbeds({ once: true });
     reloadActiveEnterpriseEmbed();
   }
 }
@@ -28159,8 +28165,9 @@ function bindCompanyRowActions() {
     persistSupportLoginContext(state.supportLoginContext);
     WP?.purgeSharedLocalSessionTokens?.();
     WP?.clearAuthUnusable?.();
+    suspendEnterpriseEmbedsForSupportHandoff();
 
-    await clearSuperadminPreviewMode({ refresh: false });
+    await clearSuperadminPreviewMode({ refresh: false, localOnly: true });
 
     let assistState = null;
     try {
@@ -36528,13 +36535,10 @@ async function handleLoginSubmit(event) {
         }
       }
     }
-    broadcastSessionToEmbeds();
+    broadcastSessionToEmbeds({ once: true });
     if (payload.user?.support_read_only) {
       WP?.purgeSharedLocalSessionTokens?.();
       WP?.clearAuthUnusable?.();
-      window.setTimeout(() => reloadEnterpriseEmbedsForSupportSession(), 180);
-      window.setTimeout(() => broadcastSessionToEmbeds(), 500);
-      window.setTimeout(() => broadcastSessionToEmbeds(), 1600);
     }
     const assistAgent = getSupportAssistAgentState();
     if (assistAgent?.watchToken && window.BaupassSupportAssist?.startAgentBroadcast) {
@@ -36774,6 +36778,7 @@ async function handleLogout(options = {}) {
   const { preserveSupportContext = false } = options;
   const assistAgent = getSupportAssistAgentState();
   if (assistAgent && preserveSupportContext) {
+    suspendEnterpriseEmbedsForSupportHandoff();
     prepareSupportLoginScreen();
     await pulseSupportAssist("login_screen", captureSupportAssistUiState({ authVisible: true, loggedIn: false }));
   }
