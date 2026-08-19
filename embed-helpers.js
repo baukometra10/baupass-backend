@@ -487,7 +487,7 @@
       return { authenticated: false, token: getSessionToken(), user: {} };
     }
     const token = getSessionToken();
-    if (!token && WP?.isSupportAssistQuietMode?.()) {
+    if (!token && WP?.isSupportAssistQuietMode?.() && !isEmbedMode()) {
       return { authenticated: false, token: "", user: {} };
     }
     const data = await fetchApi("/api/session/bootstrap");

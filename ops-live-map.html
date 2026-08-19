@@ -2248,8 +2248,8 @@
       </div>
     </div>
   </div>
-  <script src="/workpass-storage.js?v=20260819wp11"></script>
-  <script src="/embed-helpers.js?v=20260819embed7"></script>
+  <script src="/workpass-storage.js?v=20260819wp12"></script>
+  <script src="/embed-helpers.js?v=20260819embed8"></script>
   <script src="/sector-copy.js?v=20260818opsSector3"></script>
   <script src="/ops-live-map-i18n.js?v=20260818opsSector1"></script>
   <script>
@@ -4002,24 +4002,44 @@
         ]);
         await waitForEmbedSession();
         let boot = null;
-        if (window.BaupassAuth?.getSessionToken?.()) {
-          try {
-            boot = await Promise.race([
-              window.BaupassAuth.bootstrapSession
-                ? window.BaupassAuth.bootstrapSession()
-                : api("/api/session/bootstrap"),
-              new Promise((_, reject) => setTimeout(() => reject(new Error("bootstrap_timeout")), 2500)),
-            ]);
-          } catch {
+        const bootstrapEmbedSession = async () => {
+          if (window.BaupassAuth?.bootstrapSession) {
+            return window.BaupassAuth.bootstrapSession();
+          }
+          return api("/api/session/bootstrap");
+        };
+        try {
+          boot = await Promise.race([
+            bootstrapEmbedSession(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("bootstrap_timeout")), 3500)),
+          ]);
+        } catch {
+          if (!window.BaupassAuth?.getSessionToken?.()) {
+            try {
+              const res = await fetch("/api/session/bootstrap", {
+                credentials: "include",
+                headers: { Accept: "application/json" },
+              });
+              boot = await res.json().catch(() => ({}));
+              if (boot?.token) window.BaupassAuth?.persistSessionToken?.(boot.token);
+            } catch {
+              boot = { user: {} };
+            }
+          } else {
             boot = { user: {} };
           }
-        } else if (window.BaupassAuth?.bootstrapSession) {
-          boot = await window.BaupassAuth.bootstrapSession();
-        } else {
-          boot = await api("/api/session/bootstrap");
         }
         const role = boot?.user?.role || "";
         if (role === "company-admin") companyId = boot.user.company_id || companyId;
+        if (role === "superadmin") {
+          const previewCid = String(boot?.user?.preview_company_id || companyId || "").trim();
+          if (previewCid) companyId = previewCid;
+        }
+        if (window.BaupassAuth?.getSessionToken?.()) {
+          // boot already populated above
+        } else if (boot?.token) {
+          window.BaupassAuth?.persistSessionToken?.(boot.token);
+        }
         if (window.BaupassSectorCopy?.loadConfig) {
           await window.BaupassSectorCopy.loadConfig({
             lang: window.getOpsMapLang?.() || "de",
@@ -4028,7 +4048,7 @@
           });
           window.applyOpsMapI18n?.();
         }
-        if (role === "superadmin") {
+        if (role === "superadmin" && !boot?.user?.support_read_only) {
           const sel = document.getElementById("companySelect");
           sel.style.display = "inline-block";
           const rows = await api("/api/companies");
