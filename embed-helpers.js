@@ -434,7 +434,11 @@
   function authHeaders(extra = {}) {
     const headers = { ...(extra || {}) };
     const token = getSessionToken();
-    if (token && !headers.Authorization) {
+    const preferCookie =
+      isEmbedMode()
+      && (WP?.isSupportAssistQuietMode?.() || WP?.hasActiveSupportTabScope?.())
+      && !global.__baupassEmbedAuthConfirmed;
+    if (token && !headers.Authorization && !preferCookie) {
       headers.Authorization = `Bearer ${token}`;
     }
     const csrf = readCsrfToken();
@@ -442,6 +446,24 @@
       headers["X-CSRF-Token"] = csrf;
     }
     return headers;
+  }
+
+  function clearTabScopedBearerTokens() {
+    try {
+      if (WP?.clearSessionTokens) {
+        WP.clearSessionTokens();
+        return;
+      }
+      TOKEN_KEYS.forEach((key) => {
+        try {
+          global.sessionStorage.removeItem(key);
+        } catch {
+          // ignore
+        }
+      });
+    } catch {
+      // ignore
+    }
   }
 
   async function fetchApi(path, opts = {}) {
@@ -454,18 +476,34 @@
     if (!["GET", "HEAD", "OPTIONS"].includes(method) && body === undefined) {
       body = {};
     }
-    const res = await fetchWithGuardianRetry(path, {
+    const buildBody = () => (
+      body === undefined
+        ? undefined
+        : typeof body === "string"
+          ? body
+          : JSON.stringify(body)
+    );
+    const runOnce = (hdrs) => fetchWithGuardianRetry(path, {
       credentials: "include",
       ...opts,
       method,
-      headers,
-      body:
-        body === undefined
-          ? undefined
-          : typeof body === "string"
-            ? body
-            : JSON.stringify(body),
+      headers: hdrs,
+      body: buildBody(),
     });
+    let res = await runOnce(headers);
+    // Stale Bearer always wins over a valid session cookie. On 401, drop Authorization
+    // once and retry cookie-only (critical for Firmen-Support embeds / live-map).
+    if (
+      res.status === 401
+      && headers.Authorization
+      && !opts.__baupassCookieRetry
+      && (isEmbedMode() || WP?.isSupportAssistQuietMode?.() || WP?.hasActiveSupportTabScope?.())
+    ) {
+      clearTabScopedBearerTokens();
+      const cookieHeaders = { ...(headers || {}) };
+      delete cookieHeaders.Authorization;
+      res = await runOnce(cookieHeaders);
+    }
     const data = await res.json().catch(() => ({}));
     if (res.status === 401) {
       const err = new Error("auth");
@@ -490,6 +528,21 @@
     if (!token && WP?.isSupportAssistQuietMode?.() && !isEmbedMode()) {
       return { authenticated: false, token: "", user: {} };
     }
+    // Embedded support: wait briefly for parent token before probing, to avoid 401 noise.
+    if (!token && isEmbedMode() && WP?.isSupportAssistQuietMode?.()) {
+      await new Promise((resolve) => global.setTimeout(resolve, 250));
+      if (!getSessionToken()) {
+        try {
+          global.parent?.postMessage?.({ type: "baupass-request-token" }, global.location.origin);
+        } catch {
+          // ignore
+        }
+        await new Promise((resolve) => global.setTimeout(resolve, 400));
+      }
+      if (!getSessionToken()) {
+        return { authenticated: false, token: "", user: {} };
+      }
+    }
     const data = await fetchApi("/api/session/bootstrap");
     if (
       data?.authenticated === false ||
@@ -502,6 +555,11 @@
     }
     if (data.token) {
       persistSessionToken(data.token);
+    }
+    try {
+      global.__baupassEmbedAuthConfirmed = true;
+    } catch {
+      // ignore
     }
     return data;
   }
@@ -752,9 +810,10 @@
   }
 
   function clearEmbeddedSession() {
-    if (WP?.hasActiveSupportTabScope?.() || WP?.isSupportAssistQuietMode?.()) {
-      global.dispatchEvent(new CustomEvent("baupass-session-cleared"));
-      return;
+    try {
+      global.__baupassEmbedAuthConfirmed = false;
+    } catch {
+      // ignore
     }
     try {
       if (WP?.clearSessionTokens) {
@@ -764,6 +823,13 @@
         global.localStorage.removeItem("workpass-admin-token");
         global.localStorage.removeItem("workpass-admin-user");
       }
+      TOKEN_KEYS.forEach((key) => {
+        try {
+          global.sessionStorage.removeItem(key);
+        } catch {
+          // ignore
+        }
+      });
     } catch {
       // ignore
     }
@@ -780,6 +846,14 @@
       if (event.data.token) {
         WP?.clearAuthUnusable?.();
         persistSessionToken(event.data.token);
+        // Parent-synced token is authoritative for embeds (support login handoff).
+        try {
+          global.__baupassEmbedAuthConfirmed = Boolean(
+            event.data.user?.support_read_only || event.data.user?.role,
+          );
+        } catch {
+          global.__baupassEmbedAuthConfirmed = true;
+        }
         global.dispatchEvent(new CustomEvent("baupass-token-synced", {
           detail: {
             token: String(event.data.token),

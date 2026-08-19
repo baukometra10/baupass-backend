@@ -517,7 +517,8 @@ function applyParentCompanyId(companyId) {
 }
 
 function replyEmbedTokenRequest(event) {
-  const tok = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || wpGet(CONTROL_TOKEN_KEY) || "").trim();
+  // Prefer tab-scoped support token; never forward a stale control-pass Bearer into nested embeds.
+  const tok = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || "").trim();
   if (tok) {
     try {
       event.source?.postMessage(
@@ -5810,7 +5811,11 @@ function buildOpsEmbedUrl(pagePath, companyId) {
 
 function syncTokenToOpsEmbedFrame(frame, companyId) {
   if (!frame) return;
-  const token = String(WP?.readSessionToken?.() || wpGet(CONTROL_TOKEN_KEY) || wpGet(TOKEN_KEY) || "").trim();
+  if (isSupportReadOnlySession() || window.WorkPassStorage?.isSupportAssistQuietMode?.()) {
+    const tok = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || "").trim();
+    if (!tok) return;
+  }
+  const token = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || "").trim();
   if (!token) return;
   const send = () => {
     try {
@@ -6687,9 +6692,9 @@ function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, fe
       : canAi
         ? "/ai-command-center.html"
         : "/enterprise-hub.html";
-  const mapSrc = mapEager && canLiveMap
+  const mapSrc = mapEager && canLiveMap && !isSupportReadOnlySession() && !window.WorkPassStorage?.isSupportAssistQuietMode?.()
     ? `/ops-live-map.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}`
-    : mapEager && canCmdCenter
+    : mapEager && canCmdCenter && !isSupportReadOnlySession() && !window.WorkPassStorage?.isSupportAssistQuietMode?.()
       ? `/ops-command-center.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}`
       : "about:blank";
   panel.dataset.opsCid = String(cid || "");

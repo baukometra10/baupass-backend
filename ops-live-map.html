@@ -2248,8 +2248,8 @@
       </div>
     </div>
   </div>
-  <script src="/workpass-storage.js?v=20260819wp16"></script>
-  <script src="/embed-helpers.js?v=20260819embed12"></script>
+  <script src="/workpass-storage.js?v=20260819wp17"></script>
+  <script src="/embed-helpers.js?v=20260819embed13"></script>
   <script src="/sector-copy.js?v=20260818opsSector3"></script>
   <script src="/ops-live-map-i18n.js?v=20260818opsSector1"></script>
   <script>
@@ -2292,8 +2292,8 @@
       const io = add("https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js", {
         crossorigin: "anonymous",
       });
-      io.onload = () => add("/ops-realtime.js?v=20260819quiet3");
-      io.onerror = () => add("/ops-realtime.js?v=20260819quiet3");
+      io.onload = () => add("/ops-realtime.js?v=20260819quiet4");
+      io.onerror = () => add("/ops-realtime.js?v=20260819quiet4");
     })();
   </script>
   <script>
@@ -2779,7 +2779,10 @@
     window.addEventListener("baupass-token-synced", () => {
       if (!window.BaupassAuth?.getSessionToken?.()) return;
       if (!mapBootFinished || !companyId) return;
-      load().catch(() => {});
+      // Resume transport after a prior 401 stop.
+      load().then(() => {
+        startLivePolling();
+      }).catch(() => {});
     });
 
     function showLocalizedError(errorCode) {
@@ -3936,10 +3939,28 @@
 
     async function load(options = {}) {
       if (window.WorkPassStorage?.isAuthUnusable?.()) return;
+      const sessionTok = String(
+        window.BaupassAuth?.getSessionToken?.()
+        || window.WorkPassStorage?.readSessionToken?.()
+        || "",
+      ).trim();
+      // Hard stop: never hit /api/ops-os/live-map without a session token.
+      // Cookie-only retries happen inside WorkPassStorage/BaupassAuth; this gate
+      // prevents the initial unauthenticated 401 storm in the console.
+      if (!sessionTok) {
+        if (opsMapEmbedded) {
+          try {
+            window.parent?.postMessage?.({ type: "baupass-request-token" }, window.location.origin);
+          } catch {
+            // ignore
+          }
+        }
+        stopMapRealtimeTransport();
+        return;
+      }
       if (
         window.WorkPassStorage?.isSupportAssistQuietMode?.()
-        && !window.BaupassAuth?.getSessionToken?.()
-        && !window.WorkPassStorage?.readSessionToken?.()
+        && !sessionTok
       ) {
         return;
       }
@@ -3963,6 +3984,23 @@
         renderMap(data).catch(() => {});
       } catch (error) {
         weakNetwork = true;
+        const msg = String(error?.message || "").toLowerCase();
+        if (msg === "auth" || error?.status === 401) {
+          // Stop hammering; wait for a fresh baupass-token-synced.
+          stopMapRealtimeTransport();
+          try {
+            window.WorkPassStorage?.clearSessionTokens?.();
+          } catch {
+            // ignore
+          }
+          if (opsMapEmbedded) {
+            try {
+              window.parent?.postMessage?.({ type: "baupass-request-token" }, window.location.origin);
+            } catch {
+              // ignore
+            }
+          }
+        }
         const statusEl = document.getElementById("status");
         if (statusEl) {
           statusEl.textContent = showLocalizedError(error?.message || "server");
@@ -4000,7 +4038,12 @@
     }
 
     function startLivePolling() {
-      if (!window.BaupassAuth?.getSessionToken?.()) {
+      const tok = String(
+        window.BaupassAuth?.getSessionToken?.()
+        || window.WorkPassStorage?.readSessionToken?.()
+        || "",
+      ).trim();
+      if (!tok) {
         stopLivePolling();
         return;
       }
@@ -4125,12 +4168,25 @@
           };
         }
         await applyOpsMapBranding();
-        const hasToken = Boolean(window.BaupassAuth?.getSessionToken?.());
-        // In embedded/support contexts the token can arrive a bit later via postMessage.
-        // Avoid the first unauthenticated load (401 storm) and rely on the token-synced handler.
-        if (!(opsMapEmbedded && !hasToken)) {
-          await load();
+        const hasToken = Boolean(
+          window.BaupassAuth?.getSessionToken?.()
+          || window.WorkPassStorage?.readSessionToken?.(),
+        );
+        // Never call live-map without a token — cookie/Bearer races cause console 401s.
+        if (!hasToken) {
+          mapBootFinished = true;
+          document.getElementById("status").textContent =
+            window.opsMapT("authRequired") || "Warte auf Support-Anmeldung…";
+          if (opsMapEmbedded) {
+            try {
+              window.parent?.postMessage?.({ type: "baupass-request-token" }, window.location.origin);
+            } catch {
+              // ignore
+            }
+          }
+          return;
         }
+        await load();
         if (hasToken) {
           startLivePolling();
           if (window.SUPPIXOpsRealtime) {

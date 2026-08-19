@@ -19561,7 +19561,7 @@ function buildEnterpriseEmbedUrl(item) {
   const params = [];
   if (item.embed) {
     params.push("embed=1");
-    params.push("v=20260819opsmap401fix1");
+    params.push("v=20260819opsmapFinal1");
   } else if (item.version) {
     params.push("v=20260601hubupgrade1");
   }
@@ -36511,6 +36511,12 @@ async function handleLoginSubmit(event) {
     state.loginOtpPending = false;
     state.loginSetupEmailPending = false;
     sessionKnownExpired = false;
+    // Support login: purge stale shared Bearers BEFORE writing/broadcasting the new token.
+    // Otherwise embeds may briefly send an old Authorization header that wins over the cookie.
+    if (payload.user?.support_read_only) {
+      WP?.purgeSharedLocalSessionTokens?.();
+      WP?.clearAuthUnusable?.();
+    }
     token = payload.token;
     persistSessionToken(token, { scoped: shouldUseTabScopedSession(payload.user) });
     state.currentUser = payload.user;
@@ -36542,8 +36548,9 @@ async function handleLoginSubmit(event) {
     }
     broadcastSessionToEmbeds({ once: true });
     if (payload.user?.support_read_only) {
-      WP?.purgeSharedLocalSessionTokens?.();
-      WP?.clearAuthUnusable?.();
+      // Rebroadcast after embeds may have finished suspending/blanking.
+      window.setTimeout(() => broadcastSessionToEmbeds({ once: true }), 400);
+      window.setTimeout(() => broadcastSessionToEmbeds({ once: true }), 1400);
     }
     const assistAgent = getSupportAssistAgentState();
     if (assistAgent?.watchToken && window.BaupassSupportAssist?.startAgentBroadcast) {

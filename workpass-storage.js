@@ -795,15 +795,17 @@
       || undefined,
     );
     const scoped = hasActiveSupportTabScope() || isSupportAssistQuietMode();
+    const preferCookie =
+      scoped
+      && global.self !== global.top
+      && !global.__baupassEmbedAuthConfirmed;
     if (scoped) {
-      if (isSpectatorWatchOnly()) {
-        // Spectator must use watch headers + customer cookie, never a stale Bearer.
+      if (isSpectatorWatchOnly() || preferCookie) {
+        // Spectator / unverified embed: never send a possibly-stale Bearer.
         headers.delete("Authorization");
       } else if (token) {
         headers.set("Authorization", `Bearer ${token}`);
       } else {
-        // Agent support tab without token yet: strip any stale Bearer so cookie can win,
-        // and let the fetch guard short-circuit polls (see installSupportFetchGuard).
         headers.delete("Authorization");
       }
     } else if (token && !headers.has("Authorization")) {
@@ -888,7 +890,36 @@
       if (isSupportFetchCoolingDown(url)) {
         return Promise.resolve(syntheticSupportResponse(url));
       }
-      const run = (nextInput, nextInit) => originalFetch(nextInput, nextInit).then((res) => {
+      const run = (nextInput, nextInit) => originalFetch(nextInput, nextInit).then(async (res) => {
+        // Support/embed: stale Bearer wins over a valid cookie → one cookie-only retry.
+        if (
+          res
+          && res.status === 401
+          && isApiUrl(url)
+          && !isAuthDeadAllowed(url)
+          && (isSupportAssistQuietMode() || hasActiveSupportTabScope() || isEmbedWithoutSessionToken() || (global.self !== global.top))
+        ) {
+          const hdrs = new Headers(
+            (nextInit && nextInit.headers)
+            || (nextInput && typeof nextInput !== "string" && nextInput.headers)
+            || undefined,
+          );
+          if (hdrs.has("Authorization")) {
+            hdrs.delete("Authorization");
+            try {
+              SESSION_TOKEN_KEYS.forEach((key) => {
+                try { global.sessionStorage.removeItem(key); } catch { /* ignore */ }
+              });
+            } catch {
+              // ignore
+            }
+            const retryInit = { ...(nextInit || {}), headers: hdrs, credentials: "include" };
+            const retryRes = await originalFetch(nextInput, retryInit);
+            noteAuthFailure(retryRes, url);
+            markSupportFetchCooldown(url, retryRes?.status);
+            return retryRes;
+          }
+        }
         noteAuthFailure(res, url);
         markSupportFetchCooldown(url, res?.status);
         if (res && !res.ok && String(url || "").toLowerCase().includes("/api/ai/speak")) {
