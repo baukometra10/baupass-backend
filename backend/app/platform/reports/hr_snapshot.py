@@ -65,7 +65,10 @@ def build_hr_compliance_snapshot(db, company_id: str) -> dict[str, Any]:
         JOIN workers w ON w.id = wd.worker_id
         WHERE w.company_id = ?
           AND w.deleted_at IS NULL
-          AND wd.doc_type IN ('lohnabrechnung', 'gehaltsabrechnung', 'lohnsteuerbescheinigung', 'verdienstabrechnung')
+          AND wd.doc_type IN (
+            'lohnabrechnung', 'gehaltsabrechnung', 'lohnsteuerbescheinigung',
+            'verdienstabrechnung', 'jahresabrechnung', 'vordienstbescheinigung', 'lohn_unterlage'
+          )
           AND substr(wd.created_at, 1, 7) = ?
         """,
         (company_id, month_prefix),

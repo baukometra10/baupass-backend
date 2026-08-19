@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 import secrets
 import shutil
 import threading
@@ -22,8 +23,10 @@ from .schema import ensure_accounting_schema
 
 from backend.app.platform.worker_documents import (
     WORKER_PAYROLL_DOC_TYPES,
+    display_document_label,
     doc_type_label,
     is_payroll_doc_type,
+    resolve_document_title,
     resolve_payroll_doc_type,
 )
 
@@ -1610,23 +1613,27 @@ def ensure_statement_delivery_pdf(
     existing_source = str(existing_meta.get("pdfSource") or "")
     existing_size = int(stmt.get("file_size") or 0)
     path = str(stmt.get("file_path") or "").strip()
-    # Never replace the authentic Lohn PDF / html2canvas capture with a remake.
+    # Never replace the authentic Lohn PDF — deliver bytes as received, any size.
     if (
         not force
         and is_exact_lohn_pdf_source(existing_source)
-        and existing_size >= 8000
         and path
         and Path(path).is_file()
     ):
-        return {
-            "ok": True,
-            "path": path,
-            "fileSize": existing_size,
-            "filename": stmt.get("filename") or "",
-            "period": str(stmt.get("period") or ""),
-            "pdfSource": existing_source,
-            "skipped": "exact_lohn",
-        }
+        try:
+            on_disk = Path(path).stat().st_size
+        except Exception:
+            on_disk = existing_size
+        if on_disk > 20 or existing_size > 20:
+            return {
+                "ok": True,
+                "path": path,
+                "fileSize": on_disk or existing_size,
+                "filename": stmt.get("filename") or "",
+                "period": str(stmt.get("period") or ""),
+                "pdfSource": existing_source,
+                "skipped": "exact_lohn",
+            }
     # Locked high-fidelity deliveries stay immutable.
     already_html = is_high_fidelity_pdf_source(existing_source) and existing_size >= 12000
     if not force and statement_delivery_locked(stmt, existing_meta) and already_html:
@@ -1781,10 +1788,18 @@ def ingest_statements(
             errors.append({"index": idx, "error": str(exc)})
             continue
         pdf_b64 = item.get("pdfBase64") or item.get("pdf_base64") or ""
-        doc_type = resolve_payroll_doc_type(item, item.get("document") if isinstance(item.get("document"), dict) else {})
+        doc_type = resolve_payroll_doc_type(
+            item,
+            item.get("document") if isinstance(item.get("document"), dict) else {},
+        )
+        title = resolve_document_title(item, item.get("document") if isinstance(item.get("document"), dict) else {})
         filename = str(
             item.get("filename")
-            or _default_payroll_filename(doc_type, period, worker_id or worker_raw)
+            or (
+                f"{re.sub(r'[^A-Za-z0-9._-]+', '_', title)[:80]}.pdf"
+                if title
+                else _default_payroll_filename(doc_type, period, worker_id or worker_raw)
+            )
         ).strip()
         if not filename.lower().endswith(".pdf"):
             filename = f"{filename}.pdf"
@@ -1825,8 +1840,12 @@ def ingest_statements(
         meta["matchConfidence"] = match_confidence
         meta["docType"] = doc_type
         meta["documentType"] = doc_type
+        title = resolve_document_title(item, item.get("document") if isinstance(item.get("document"), dict) else {})
+        if title:
+            meta["title"] = title
         if file_path and file_size:
             meta["pdfSource"] = str(item.get("pdfSource") or meta.get("pdfSource") or "lohn_original")
+            meta["pdfImmutable"] = True
         else:
             meta["pdfSource"] = str(item.get("pdfSource") or meta.get("pdfSource") or "pending_lohn_capture")
         if invoice_key:
@@ -2149,10 +2168,11 @@ def lohn_delivery_to_statement(delivery: dict[str, Any] | None) -> dict[str, Any
     name = str(employee.get("name") or doc_emp.get("name") or "").strip()
     company_name = str(company.get("name") or doc_co.get("name") or "").strip()
     doc_type = resolve_payroll_doc_type(delivery, document, summary)
-    title = str(
-        delivery.get("title")
-        or f"{doc_type_label(doc_type, 'de')} {period}"
+    title = resolve_document_title(delivery, document, summary) or str(
+        delivery.get("title") or ""
     ).strip()
+    if not title:
+        title = f"{doc_type_label(doc_type, 'de')} {period}"
     delivery_id = str(delivery.get("deliveryId") or delivery.get("jobId") or "").strip()
     job_id = str(delivery.get("jobId") or document.get("jobId") or "").strip()
     pdf_b64 = (
@@ -2163,6 +2183,7 @@ def lohn_delivery_to_statement(delivery: dict[str, Any] | None) -> dict[str, Any
         or ""
     )
     # Never invent a platform stub PDF — employee must get the real WorkPass Lohn document.
+    safe_title = re.sub(r"[^A-Za-z0-9._-]+", "_", title).strip("_")[:80] or doc_type
     return {
         "companyId": company_id,
         "employeeId": employee_id,
@@ -2173,7 +2194,7 @@ def lohn_delivery_to_statement(delivery: dict[str, Any] | None) -> dict[str, Any
         "grossAmount": float(gross or 0) if gross is not None else 0,
         "netAmount": float(net) if net is not None else None,
         "currency": str(summary.get("currency") or document.get("currency") or "EUR"),
-        "filename": str(delivery.get("filename") or f"WorkPass-Lohn-{doc_type}-{period}.pdf"),
+        "filename": str(delivery.get("filename") or f"{safe_title}-{period}.pdf"),
         "pdfBase64": pdf_b64,
         "externalRef": delivery_id[:120],
         "employeeName": name,
@@ -2182,6 +2203,7 @@ def lohn_delivery_to_statement(delivery: dict[str, Any] | None) -> dict[str, Any
         "jobId": job_id or str(delivery.get("jobId") or ""),
         "source": "lohn_delivery",
         "pdfSource": "lohn_original" if pdf_b64 else "pending_lohn_capture",
+        "pdfImmutable": bool(pdf_b64),
         "document": document or None,
         "docType": doc_type,
         "documentType": doc_type,
@@ -2217,7 +2239,18 @@ def statements_from_lohn_payload(data: dict[str, Any]) -> list[dict[str, Any]]:
                     item.get("document") if isinstance(item.get("document"), dict) else {},
                     data,
                 )
-                item = {**item, "docType": item.get("docType") or doc_type, "documentType": item.get("documentType") or doc_type}
+                title = resolve_document_title(
+                    item,
+                    item.get("document") if isinstance(item.get("document"), dict) else {},
+                    data,
+                )
+                item = {
+                    **item,
+                    "docType": item.get("docType") or doc_type,
+                    "documentType": item.get("documentType") or doc_type,
+                }
+                if title and not item.get("title"):
+                    item = {**item, "title": title}
                 out.append(item)
                 continue
             converted = lohn_delivery_to_statement(item)
@@ -3178,8 +3211,8 @@ def release_statement(
         meta_now = json.loads(stmt.get("meta_json") or "{}")
     except Exception:
         meta_now = {}
-    # Exact Lohn PDF / html2canvas capture must be forwarded unchanged.
-    if is_exact_lohn_pdf_source((meta_now or {}).get("pdfSource")):
+    # Exact Lohn PDF must be forwarded unchanged — never remake tax/earnings docs.
+    if is_exact_lohn_pdf_source((meta_now or {}).get("pdfSource")) or bool((meta_now or {}).get("pdfImmutable")):
         built = ensure_statement_delivery_pdf(db, stmt, batch, force=False)
     else:
         force_pdf = not is_high_fidelity_pdf_source((meta_now or {}).get("pdfSource"))

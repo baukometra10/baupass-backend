@@ -2386,8 +2386,9 @@ function renderPayslipStudioList() {
             badges.push(`<span class="payslip-match is-locked">${escapeHtml(t("lohn.locked") || "Gesperrt")}</span>`);
           }
           const sentOn = archived ? formatPayslipShortDate(s.releasedAt || s.reviewedAt) : "";
+          const docTitle = String(s.title || s.docTypeLabel || s.documentType || s.docType || "").trim();
           const metaParts = [
-            s.docTypeLabel || s.documentType || s.docType || "",
+            docTitle,
             s.badgeId,
             s.documentPeriod || s.period,
             formatPayslipMoney(s.netAmount ?? s.grossAmount, s.currency),

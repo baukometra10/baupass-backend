@@ -23,6 +23,27 @@ def test_normalize_doc_type_tax_aliases():
     assert normalize_doc_type("verdienstbescheinigung") == "verdienstabrechnung"
     assert normalize_doc_type("earnings_statement") == "verdienstabrechnung"
     assert normalize_doc_type("payslip") == "lohnabrechnung"
+    assert normalize_doc_type("vordienstbescheinigung") == "vordienstbescheinigung"
+    assert normalize_doc_type("jahresabrechnung") == "jahresabrechnung"
+
+
+def test_infer_payroll_doc_type_from_title():
+    from backend.app.platform.worker_documents import infer_payroll_doc_type_from_title
+
+    assert infer_payroll_doc_type_from_title("Vordienstbescheinigung Max Mustermann") == "vordienstbescheinigung"
+    assert infer_payroll_doc_type_from_title("Jahresabrechnung 2025") == "jahresabrechnung"
+    assert infer_payroll_doc_type_from_title("Monatsabrechnung März 2026") == "lohnabrechnung"
+    assert infer_payroll_doc_type_from_title("كشف حساب سنوي") == "jahresabrechnung"
+
+
+def test_resolve_preserves_exact_title():
+    from backend.app.platform.worker_documents import display_document_label, resolve_document_title
+
+    assert resolve_document_title({"title": "Vordienstbescheinigung"}) == "Vordienstbescheinigung"
+    assert (
+        display_document_label({"title": "Jahresabrechnung 2025"}, doc_type="jahresabrechnung")
+        == "Jahresabrechnung 2025"
+    )
 
 
 def test_resolve_payroll_doc_type_from_delivery():
@@ -34,25 +55,55 @@ def test_resolve_payroll_doc_type_from_delivery():
     assert "verdienstabrechnung" in WORKER_PAYROLL_DOC_TYPES
 
 
-def test_lohn_delivery_maps_tax_document_type():
+def test_lohn_delivery_title_maps_vordienst():
     from backend.app.platform.accounting.service import lohn_delivery_to_statement
 
     stmt = lohn_delivery_to_statement(
         {
             "kind": "platform.employee.delivery.v1",
-            "type": "lohnsteuerbescheinigung",
-            "documentType": "lohnsteuerbescheinigung",
+            "type": "document",
+            "title": "Vordienstbescheinigung",
             "company": {"id": "cmp-test"},
             "employee": {"id": "emp-1", "name": "Max Mustermann"},
             "period": "2026-01",
             "pdfBase64": MINIMAL_PDF,
-            "deliveryId": "del-tax-1",
+            "deliveryId": "del-vd-1",
         }
     )
     assert stmt is not None
-    assert stmt["docType"] == "lohnsteuerbescheinigung"
-    assert stmt["documentType"] == "lohnsteuerbescheinigung"
-    assert "Lohnsteuer" in stmt["filename"] or "lohnsteuer" in stmt["filename"].lower()
+    assert stmt["title"] == "Vordienstbescheinigung"
+    assert stmt["docType"] == "vordienstbescheinigung"
+    assert stmt["pdfSource"] == "lohn_original"
+    assert stmt["pdfImmutable"] is True
+
+
+def test_ensure_statement_keeps_original_pdf(tmp_path, monkeypatch):
+    from backend.app.platform.accounting.service import ensure_statement_delivery_pdf
+
+    pdf_path = tmp_path / "orig.pdf"
+    pdf_path.write_bytes(b"%PDF-1.4 small original from Lohn\n%%EOF\n")
+    stmt = {
+        "id": "stmt-1",
+        "company_id": "cmp-test",
+        "period": "2026-01",
+        "file_path": str(pdf_path),
+        "file_size": pdf_path.stat().st_size,
+        "filename": "Vordienstbescheinigung.pdf",
+        "meta_json": json.dumps({"pdfSource": "lohn_original", "pdfImmutable": True, "title": "Vordienstbescheinigung"}),
+    }
+
+    class _FakeDb:
+        def execute(self, *a, **k):
+            raise AssertionError("must not rewrite original Lohn PDF")
+
+        def commit(self):
+            raise AssertionError("must not rewrite original Lohn PDF")
+
+    out = ensure_statement_delivery_pdf(_FakeDb(), stmt, {"period": "2026-01"}, force=False)
+    assert out.get("ok") is True
+    assert out.get("skipped") == "exact_lohn"
+    assert out.get("path") == str(pdf_path)
+    assert pdf_path.read_bytes().startswith(b"%PDF")
 
 
 def test_lohn_delivery_payslip_regression():

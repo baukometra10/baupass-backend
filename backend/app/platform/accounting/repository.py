@@ -398,6 +398,7 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
     delivery_locked = status in {"released", "rejected"}
     doc_type = "lohnabrechnung"
     doc_type_label_de = "Lohnabrechnung"
+    title = ""
     try:
         import json as _json
 
@@ -407,14 +408,19 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
             doc_period = str(doc.get("period") or meta.get("period") or "").strip()[:7]
             warnings = meta.get("stammdatenWarnings") if isinstance(meta.get("stammdatenWarnings"), list) else []
             delivery_locked = bool(meta.get("deliveryLocked")) or status in {"released", "rejected"}
-            from backend.app.platform.worker_documents import doc_type_label, resolve_payroll_doc_type
+            from backend.app.platform.worker_documents import (
+                display_document_label,
+                resolve_document_title,
+                resolve_payroll_doc_type,
+            )
 
             doc_type = resolve_payroll_doc_type(meta, doc, out)
-            doc_type_label_de = doc_type_label(doc_type, "de")
+            title = resolve_document_title(meta, doc, out)
+            doc_type_label_de = display_document_label(meta, doc, out, doc_type=doc_type, lang="de")
     except Exception:
         doc_period = ""
         warnings, delivery_locked = [], status in {"released", "rejected"}
-        doc_type, doc_type_label_de = "lohnabrechnung", "Lohnabrechnung"
+        doc_type, doc_type_label_de, title = "lohnabrechnung", "Lohnabrechnung", ""
     out.update(
         {
             "statementId": out.get("id"),
@@ -427,6 +433,7 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
             "documentPeriod": doc_period or str(out.get("period") or ""),
             "docType": doc_type,
             "documentType": doc_type,
+            "title": title,
             "docTypeLabel": doc_type_label_de,
             "firstName": first,
             "lastName": last,

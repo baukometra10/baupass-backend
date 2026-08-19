@@ -1352,7 +1352,11 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
         "tax.document.released",
         "tax.documents.released",
     }:
-        from backend.app.platform.worker_documents import doc_type_label, resolve_payroll_doc_type
+        from backend.app.platform.worker_documents import (
+            display_document_label,
+            resolve_document_title,
+            resolve_payroll_doc_type,
+        )
 
         from .service import statements_from_lohn_payload
 
@@ -1384,12 +1388,19 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
         created_n = int(ingest_result.get("createdCount") or 0) if isinstance(ingest_result, dict) else 0
         batch_id = str(ingest_result.get("batchId") or "") if isinstance(ingest_result, dict) else ""
         period_label = period or (ingest_result.get("period") if isinstance(ingest_result, dict) else "") or ""
+        first = (statements[0] if isinstance(statements, list) and statements else {}) or {}
         first_doc_type = resolve_payroll_doc_type(
-            (statements[0] if isinstance(statements, list) and statements else {}) or {},
+            first,
             data,
             data.get("delivery") if isinstance(data.get("delivery"), dict) else {},
         )
-        doc_label = doc_type_label(first_doc_type, "de")
+        doc_label = display_document_label(
+            first,
+            data,
+            data.get("delivery") if isinstance(data.get("delivery"), dict) else {},
+            doc_type=first_doc_type,
+            lang="de",
+        ) or resolve_document_title(first, data) or first_doc_type
         store = upsert_accounting_messages(
             db,
             [
