@@ -361,33 +361,27 @@
     removeSessionItem(KEYS.ADMIN_SESSION);
   }
 
+  // Noise / write / remediation only. Safe GETs needed for Support mirroring stay allowed.
   const SUPPORT_FETCH_BLOCK = [
     "/api/ai/speak",
     "/api/ai/transcribe",
-    "/api/ai/insights",
     "/api/ai/operator/",
-    "/api/ai/briefing",
-    "/api/ai/status",
     "/api/v2/usage/event",
     "/api/v2/admin/usage-stats",
     "/api/chat/calls/incoming",
     "/api/e2e/identity",
     "/api/guardian/remediate",
-    "/api/platform/sector-config",
-    "/api/companies/current/branding",
-    "/api/platform/enterprise-catalog",
   ];
 
+  // Spectator keeps customer session for reads; only block sensitive payroll mutation surfaces.
   const SUPPORT_SPECTATOR_FETCH_BLOCK = [
     "/api/payroll/accounting/",
     "/api/payroll/statements/",
-    "/api/dashboard/role",
   ];
 
   /** Background polls that must not hit the network without a confirmed support session. */
   const SUPPORT_POLL_BLOCK = [
     "/api/dashboard/role",
-    "/api/ai/agents",
     "/api/leave-requests",
     "/api/ops-os/live-map",
     "/api/ops-os/summary",

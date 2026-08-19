@@ -880,7 +880,7 @@
     </div>
   </div>
 
-  <script src="/workpass-storage.js?v=20260819wp18"></script>
+  <script src="/workpass-storage.js?v=20260819wp19"></script>
   <script src="/tenant-brand-icon.js?v=20260705c"></script>
   <script src="/embed-helpers.js?v=20260819embed14"></script>
   <script src="/sector-copy.js?v=20260818opsSector1"></script>
@@ -1923,8 +1923,7 @@
 
     async function loadAgents() {
       if (
-        isSupportReadOnlyMode()
-        || (isEmbedFrame() && window.WorkPassStorage?.isSupportAssistQuietMode?.() && !window.WorkPassStorage?.readSessionToken?.())
+        (isEmbedFrame() && window.WorkPassStorage?.isSupportAssistQuietMode?.() && !window.WorkPassStorage?.readSessionToken?.())
         || window.WorkPassStorage?.isAuthUnusable?.()
       ) {
         agents = [];
@@ -2562,8 +2561,7 @@
         return;
       }
       if (
-        isSupportReadOnlyMode()
-        || (isEmbedFrame() && window.WorkPassStorage?.isSupportAssistQuietMode?.() && !window.WorkPassStorage?.readSessionToken?.())
+        (isEmbedFrame() && window.WorkPassStorage?.isSupportAssistQuietMode?.() && !window.WorkPassStorage?.readSessionToken?.())
         || window.WorkPassStorage?.isAuthUnusable?.()
       ) {
         host.innerHTML = "";
@@ -3194,13 +3192,18 @@
     });
 
     async function boot() {
-      if (isSupportReadOnlyMode()) {
-        renderAgents();
-        ensureChatWelcome();
-        return;
-      }
+      // Support / spectator: still load agents + sessions for viewing (writes stay blocked).
       await loadAgents();
       renderAgents();
+      if (isSupportReadOnlyMode()) {
+        ensureChatWelcome();
+        try {
+          await loadSessions();
+        } catch {
+          // optional
+        }
+        return;
+      }
       await Promise.all([loadInsights(), loadSessions()]);
       ensureChatWelcome();
       startInsightsPolling();

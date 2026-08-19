@@ -843,7 +843,8 @@ function getUser() {
 
 function isSupportReadOnlySession() {
   try {
-    if (global.WorkPassStorage?.isSupportAssistQuietMode?.()) return true;
+    // Only the support agent's read-only session. Customer's spectator tab must keep
+    // full read access so mirrored Betrieb/KI/Hub show the same details.
     return Boolean(getUser()?.support_read_only);
   } catch {
     return false;
@@ -863,9 +864,10 @@ function isSupportSpectatorEmbed() {
 }
 
 function shouldSkipSupportBackgroundLoads() {
-  if (isSupportSpectatorEmbed()) return true;
   if (window.WorkPassStorage?.isAuthUnusable?.()) return true;
   const tok = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || "").trim();
+  // Spectator embeds keep the customer's session — allow data loads so mirrored Betrieb
+  // shows the same details as the support agent. Only skip when auth is missing.
   if (!tok && (window.WorkPassStorage?.hasActiveSupportTabScope?.() || window.WorkPassStorage?.isSupportAssistQuietMode?.())) {
     return true;
   }

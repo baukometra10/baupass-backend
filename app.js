@@ -901,14 +901,17 @@ function applySupportAssistEmbedMirror(uiState) {
 }
 
 function scheduleSpectatorEmbedTokenSync(iframe, viewName) {
-  if (!iframe || !token) return;
-  const syncKey = `${String(viewName || "").trim()}|${String(token).slice(0, 10)}`;
+  // Spectator uses the customer's own session token so mirrored embeds load real data.
+  const syncToken = String(token || window.WorkPassStorage?.readSessionToken?.() || "").trim();
+  if (!iframe || !syncToken) return;
+  const syncKey = `${String(viewName || "").trim()}|${String(syncToken).slice(0, 10)}`;
   const now = Date.now();
   if (syncKey === lastSpectatorEmbedTokenSyncKey && now - lastSpectatorEmbedTokenSyncAt < 8000) {
     return;
   }
   lastSpectatorEmbedTokenSyncKey = syncKey;
   lastSpectatorEmbedTokenSyncAt = now;
+  const companyId = getEffectiveUiCompanyId() || getSupportSpectatorCompanyId() || "";
   const sync = () => {
     broadcastSessionToEmbeds();
     const lang = getStoredUiLang();
@@ -917,9 +920,10 @@ function scheduleSpectatorEmbedTokenSync(iframe, viewName) {
       iframe.contentWindow?.postMessage(
         {
           type: "baupass-sync-token",
-          token,
-          companyId: getEffectiveUiCompanyId(),
+          token: syncToken,
+          companyId,
           lang,
+          user: state.currentUser,
         },
         window.location.origin,
       );
@@ -1049,6 +1053,8 @@ function applySupportAssistUiState(uiState) {
     if (watching && ENTERPRISE_EMBED_META[targetView]) {
       const meta = ENTERPRISE_EMBED_META[targetView];
       const iframe = document.getElementById(meta.frameId);
+      // Always (re)load mirrored embeds so spectator sees the same content as the agent.
+      loadEnterpriseEmbed(targetView);
       if (iframe) {
         scheduleSpectatorEmbedTokenSync(iframe, targetView);
       }
@@ -19561,7 +19567,7 @@ function buildEnterpriseEmbedUrl(item) {
   const params = [];
   if (item.embed) {
     params.push("embed=1");
-    params.push("v=20260819opsmapFinal2");
+    params.push("v=20260819supportMirror1");
   } else if (item.version) {
     params.push("v=20260601hubupgrade1");
   }
