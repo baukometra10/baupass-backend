@@ -1762,12 +1762,24 @@ def ingest_statements(
         if not worker_raw:
             errors.append({"index": idx, "error": "employee_id_required"})
             continue
-        from .messages_inbox import resolve_company_worker
+        from .messages_inbox import resolve_company_worker, resolve_company_worker_by_name
 
         resolved = resolve_company_worker(db, company_id, worker_raw)
         matched_by = ""
         match_confidence = ""
         stmt_status = "pending"
+        if not resolved:
+            name_hint = str(
+                item.get("employeeName")
+                or item.get("employee_name")
+                or item.get("name")
+                or ((item.get("employee") or {}) if isinstance(item.get("employee"), dict) else {}).get("name")
+                or ""
+            ).strip()
+            if not name_hint and " " in worker_raw and not worker_raw.startswith(("emp-", "w-", "worker-")):
+                name_hint = worker_raw
+            if name_hint:
+                resolved = resolve_company_worker_by_name(db, company_id, name_hint)
         if resolved:
             worker_id = str(resolved.get("id") or "").strip()
             matched_by = str(resolved.get("matchedBy") or "id")

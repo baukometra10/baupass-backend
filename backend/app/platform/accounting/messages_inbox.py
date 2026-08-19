@@ -248,6 +248,54 @@ def resolve_company_worker(db, company_id: str, raw_id: str) -> dict[str, Any] |
     }
 
 
+def resolve_company_worker_by_name(db, company_id: str, full_name: str) -> dict[str, Any] | None:
+    """Fallback match when Lohn only sent a display name (same company scope as studio)."""
+    company_id = str(company_id or "").strip()
+    name = " ".join(str(full_name or "").strip().split())
+    if not company_id or len(name) < 3:
+        return None
+    name_l = name.lower()
+    try:
+        rows = db.execute(
+            """
+            SELECT id, first_name, last_name, badge_id
+            FROM workers
+            WHERE company_id = ? AND deleted_at IS NULL
+            """,
+            (company_id,),
+        ).fetchall()
+    except Exception:
+        return None
+    exact = []
+    partial = []
+    for row in rows or []:
+        first = str(row["first_name"] or "").strip()
+        last = str(row["last_name"] or "").strip()
+        display = f"{first} {last}".strip()
+        display_l = display.lower()
+        if not display_l:
+            continue
+        if display_l == name_l or f"{last} {first}".strip().lower() == name_l:
+            exact.append(row)
+        elif name_l in display_l or display_l in name_l:
+            partial.append(row)
+    pick = exact[0] if len(exact) == 1 else (partial[0] if len(partial) == 1 else None)
+    if not pick:
+        return None
+    first = str(pick["first_name"] or "").strip()
+    last = str(pick["last_name"] or "").strip()
+    display = f"{first} {last}".strip() or str(pick["badge_id"] or pick["id"] or "").strip()
+    return {
+        "id": str(pick["id"] or "").strip(),
+        "firstName": first,
+        "lastName": last,
+        "badgeId": str(pick["badge_id"] or "").strip(),
+        "displayName": display,
+        "matchedBy": "name",
+        "matchConfidence": "strong" if exact else "weak",
+    }
+
+
 def annotate_text_with_worker_name(text: str, *, worker_id: str, display_name: str) -> str:
     """If body/subject only shows a raw ID, append the human name once."""
     raw = str(text or "")

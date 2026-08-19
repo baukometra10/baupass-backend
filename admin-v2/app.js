@@ -2686,6 +2686,62 @@ function openPayslipSheetWindow(html) {
   openPayslipSheetOverlay(viewerHtml);
 }
 
+function statementPrefersPdfPreview(stmt) {
+  if (!stmt) return false;
+  const mode = String(stmt.previewMode || "").toLowerCase();
+  if (mode === "pdf") return true;
+  if (mode === "sheet") return false;
+  const docType = String(stmt.docType || stmt.documentType || "").toLowerCase();
+  const sheetTypes = new Set(["lohnabrechnung", "gehaltsabrechnung", ""]);
+  return Boolean(docType && !sheetTypes.has(docType));
+}
+
+async function loadPayslipStudioOriginalPdf(batchId, statementId, iframe) {
+  const token = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || "").trim();
+  const headers = { Accept: "application/pdf" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(
+    `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf`,
+    { headers },
+  );
+  if (!res.ok) {
+    let msg = `PDF ${res.status}`;
+    try {
+      const j = await res.json();
+      msg = j.error || msg;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  if (payslipStudioState.pdfObjectUrl) {
+    try {
+      URL.revokeObjectURL(payslipStudioState.pdfObjectUrl);
+    } catch {
+      /* ignore */
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  payslipStudioState.pdfObjectUrl = url;
+  payslipStudioState.sheetHtml = "";
+  invalidatePayslipCaptureCache();
+  if (iframe) {
+    iframe.removeAttribute("srcdoc");
+    iframe.onload = () => {
+      try {
+        schedulePayslipPreviewFit();
+        const wrap = iframe.closest(".payslip-studio-pdf-wrap");
+        if (wrap) wrap.scrollTop = 0;
+      } catch {
+        /* ignore */
+      }
+    };
+    iframe.src = url;
+  }
+  return url;
+}
+
 async function selectPayslipStatement(batchId, statementId) {
   payslipStudioState.activeBatchId = String(batchId || "");
   payslipStudioState.activeStmtId = String(statementId || "");
@@ -2712,40 +2768,53 @@ async function selectPayslipStatement(batchId, statementId) {
   }
   const iframe = $("payslipStudioPdf");
   try {
-    const token = wpGet(TOKEN_KEY);
-    const headers = { Accept: "text/html" };
-    if (token) headers.Authorization = `Bearer ${token}`;
-    const sheetRes = await fetch(
-      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/sheet?theme=${encodeURIComponent(currentUiTheme())}&embed=1`,
-      { headers },
-    );
-    if (!sheetRes.ok) throw new Error(`Abrechnung ${sheetRes.status}`);
-    const sheetHtml = await sheetRes.text();
-    payslipStudioState.sheetHtml = sheetHtml;
-    invalidatePayslipCaptureCache();
-    warmPayslipCaptureLibs();
-    if (iframe) {
-      iframe.removeAttribute("src");
-      iframe.srcdoc = sheetHtml;
-      iframe.onload = () => {
-        try {
-          lockPayslipIframeChrome(iframe);
-          schedulePayslipPreviewFit();
-          setTimeout(schedulePayslipPreviewFit, 120);
-          warmPayslipCaptureLibs();
-          schedulePayslipPdfPrep(batchId, statementId);
-          const wrap = iframe.closest(".payslip-studio-pdf-wrap");
-          if (wrap) wrap.scrollTop = 0;
-          try {
-            iframe.contentWindow?.scrollTo?.(0, 0);
-          } catch {
-            /* ignore */
-          }
-        } catch {
-          /* cross-origin / not ready */
+    const preferPdf = statementPrefersPdfPreview(stmt);
+    if (preferPdf) {
+      try {
+        await loadPayslipStudioOriginalPdf(batchId, statementId, iframe);
+      } catch (pdfErr) {
+        // Fall back to Datev sheet only for classic monthly payslips.
+        if (!["lohnabrechnung", "gehaltsabrechnung"].includes(String(stmt.docType || "").toLowerCase())) {
+          throw pdfErr;
         }
-      };
-      schedulePayslipPreviewFit();
+      }
+    }
+    if (!preferPdf || !payslipStudioState.pdfObjectUrl) {
+      const token = wpGet(TOKEN_KEY);
+      const headers = { Accept: "text/html" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const sheetRes = await fetch(
+        `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/sheet?theme=${encodeURIComponent(currentUiTheme())}&embed=1`,
+        { headers },
+      );
+      if (!sheetRes.ok) throw new Error(`Abrechnung ${sheetRes.status}`);
+      const sheetHtml = await sheetRes.text();
+      payslipStudioState.sheetHtml = sheetHtml;
+      invalidatePayslipCaptureCache();
+      warmPayslipCaptureLibs();
+      if (iframe) {
+        iframe.removeAttribute("src");
+        iframe.srcdoc = sheetHtml;
+        iframe.onload = () => {
+          try {
+            lockPayslipIframeChrome(iframe);
+            schedulePayslipPreviewFit();
+            setTimeout(schedulePayslipPreviewFit, 120);
+            warmPayslipCaptureLibs();
+            schedulePayslipPdfPrep(batchId, statementId);
+            const wrap = iframe.closest(".payslip-studio-pdf-wrap");
+            if (wrap) wrap.scrollTop = 0;
+            try {
+              iframe.contentWindow?.scrollTo?.(0, 0);
+            } catch {
+              /* ignore */
+            }
+          } catch {
+            /* cross-origin / not ready */
+          }
+        };
+        schedulePayslipPreviewFit();
+      }
     }
     if (!isPayslipLocked(stmt) && payslipStudioState.inbox !== "archive" && !isSupportReadOnlySession()) {
       await api(
@@ -2911,6 +2980,11 @@ async function handlePayslipStudioClick(ev) {
     return;
   }
   if (action === "open-window") {
+    const stmt = currentPayslipStatement();
+    if (payslipStudioState.pdfObjectUrl && statementPrefersPdfPreview(stmt)) {
+      window.open(payslipStudioState.pdfObjectUrl, "_blank", "noopener");
+      return;
+    }
     if (!String(payslipStudioState.sheetHtml || "").trim()) {
       toast(t("lohn.sheetMissing") || "Keine Abrechnung geladen — Eintrag erneut wählen", "error");
       return;
@@ -2965,13 +3039,23 @@ async function handlePayslipStudioClick(ev) {
     }
     payslipStudioState.downloadInFlight = true;
     if (act) act.setAttribute("disabled", "disabled");
-    const hadReady = Boolean(getFreshPayslipCapture(batchId, statementId)?.blobUrl);
+    const stmtDl = currentPayslipStatement();
+    const useOriginal = statementPrefersPdfPreview(stmtDl) || Boolean(payslipStudioState.pdfObjectUrl);
+    const hadReady = useOriginal
+      ? Boolean(payslipStudioState.pdfObjectUrl)
+      : Boolean(getFreshPayslipCapture(batchId, statementId)?.blobUrl);
     try {
       if (!hadReady) showActionToast(t("lohn.preparingPdf") || "PDF wird erstellt…");
-      const url = await fetchPayslipPdfBlobUrl(batchId, statementId);
+      let url = "";
+      if (useOriginal) {
+        url = payslipStudioState.pdfObjectUrl || (await loadPayslipStudioOriginalPdf(batchId, statementId, null));
+      } else {
+        url = await fetchPayslipPdfBlobUrl(batchId, statementId);
+      }
       const a = document.createElement("a");
       a.href = url;
-      a.download = currentPayslipStatement()?.filename || "Lohnabrechnung.pdf";
+      a.download = stmtDl?.filename || stmtDl?.title || "Lohnabrechnung.pdf";
+      if (!String(a.download).toLowerCase().endsWith(".pdf")) a.download = `${a.download}.pdf`;
       a.rel = "noopener";
       document.body.appendChild(a);
       a.click();
@@ -3031,20 +3115,30 @@ async function handlePayslipStudioClick(ev) {
     payslipStudioState.releaseInFlight = true;
     const releaseBtn = act;
     if (releaseBtn) releaseBtn.setAttribute("disabled", "disabled");
-    const alreadyReady = Boolean(getFreshPayslipCapture(batchId, statementId)?.synced);
+    const preferOriginalPdf =
+      statementPrefersPdfPreview(stmtNow)
+      || Boolean(stmtNow?.pdfImmutable)
+      || Boolean(payslipStudioState.pdfObjectUrl);
+    const alreadyReady = preferOriginalPdf
+      ? Boolean(payslipStudioState.pdfObjectUrl || stmtNow?.hasPdf)
+      : Boolean(getFreshPayslipCapture(batchId, statementId)?.synced);
     try {
       showActionToast(
         alreadyReady
           ? (t("lohn.sending") || "Wird gesendet…")
           : (t("lohn.preparingPdf") || "PDF wird erstellt…"),
       );
-      const captured = await syncPayslipStudioPdfFromHtml(batchId, statementId);
-      if (!alreadyReady) showActionToast(t("lohn.sending") || "Wird gesendet…");
-      if (!captured?.ok) {
-        throw new Error(
-          t("lohn.captureRequired")
-            || "PDF-Erfassung fehlgeschlagen — Abrechnung erneut öffnen und senden",
-        );
+      if (!preferOriginalPdf) {
+        const captured = await syncPayslipStudioPdfFromHtml(batchId, statementId);
+        if (!alreadyReady) showActionToast(t("lohn.sending") || "Wird gesendet…");
+        if (!captured?.ok) {
+          throw new Error(
+            t("lohn.captureRequired")
+              || "PDF-Erfassung fehlgeschlagen — Abrechnung erneut öffnen und senden",
+          );
+        }
+      } else if (!alreadyReady) {
+        showActionToast(t("lohn.sending") || "Wird gesendet…");
       }
       const res = await api(
         `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/release`,

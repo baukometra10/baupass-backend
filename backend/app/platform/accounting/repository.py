@@ -399,6 +399,9 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
     doc_type = "lohnabrechnung"
     doc_type_label_de = "Lohnabrechnung"
     title = ""
+    pdf_source = ""
+    pdf_immutable = False
+    preview_mode = "sheet"
     try:
         import json as _json
 
@@ -417,10 +420,23 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
             doc_type = resolve_payroll_doc_type(meta, doc, out)
             title = resolve_document_title(meta, doc, out)
             doc_type_label_de = display_document_label(meta, doc, out, doc_type=doc_type, lang="de")
+            pdf_source = str(meta.get("pdfSource") or "").strip()
+            pdf_immutable = bool(meta.get("pdfImmutable")) or pdf_source in {
+                "lohn_original",
+                "lohn_html2canvas",
+                "lohn_sheet_capture",
+            }
+            sheet_types = {"lohnabrechnung", "gehaltsabrechnung"}
+            preview_mode = "sheet" if doc_type in sheet_types else "pdf"
+            if has_pdf and doc_type not in sheet_types:
+                preview_mode = "pdf"
+            elif pdf_immutable and doc_type not in sheet_types:
+                preview_mode = "pdf"
     except Exception:
         doc_period = ""
         warnings, delivery_locked = [], status in {"released", "rejected"}
         doc_type, doc_type_label_de, title = "lohnabrechnung", "Lohnabrechnung", ""
+        pdf_source, pdf_immutable, preview_mode = "", False, "sheet"
     out.update(
         {
             "statementId": out.get("id"),
@@ -448,6 +464,9 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
             "currency": out.get("currency") or "EUR",
             "filename": out.get("filename") or "",
             "hasPdf": has_pdf,
+            "pdfSource": pdf_source,
+            "pdfImmutable": pdf_immutable,
+            "previewMode": preview_mode,
             "fileSize": int(out.get("file_size") or 0),
             "status": status,
             "matchedBy": matched_by,

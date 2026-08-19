@@ -257,3 +257,75 @@ def test_statements_from_lohn_payload_preserves_doc_type():
     assert len(rows) == 1
     assert rows[0]["docType"] == "lohnsteuerbescheinigung"
     assert rows[0]["documentType"] == "lohnsteuerbescheinigung"
+
+
+def test_resolve_company_worker_by_name_unique():
+    from backend.app.platform.accounting.messages_inbox import resolve_company_worker_by_name
+
+    class _Row(dict):
+        def __getitem__(self, key):
+            return dict.get(self, key)
+
+    class _FakeDb:
+        def execute(self, *_a, **_k):
+            class _R:
+                def fetchall(self_inner):
+                    return [
+                        _Row(
+                            id="w1",
+                            first_name="Max",
+                            last_name="Mustermann",
+                            badge_id="B1",
+                        ),
+                        _Row(
+                            id="w2",
+                            first_name="Erika",
+                            last_name="Muster",
+                            badge_id="B2",
+                        ),
+                    ]
+
+            return _R()
+
+    hit = resolve_company_worker_by_name(_FakeDb(), "cmp-1", "Max Mustermann")
+    assert hit is not None
+    assert hit["id"] == "w1"
+    assert hit["matchedBy"] == "name"
+    assert resolve_company_worker_by_name(_FakeDb(), "cmp-1", "Ambiguous") is None
+
+
+def test_enrich_statement_preview_mode_pdf_for_tax_doc(monkeypatch):
+    from backend.app.platform.accounting import repository as repo
+    import pathlib
+
+    class _P(pathlib.Path):
+        def is_file(self):
+            return True
+
+    monkeypatch.setattr(pathlib, "Path", _P)
+    row = {
+        "id": "s1",
+        "batch_id": "b1",
+        "company_id": "c1",
+        "worker_id": "w1",
+        "status": "pending",
+        "file_path": "/tmp/x.pdf",
+        "file_size": 100,
+        "first_name": "Max",
+        "last_name": "Mustermann",
+        "match_confidence": "exact",
+        "matched_by": "id",
+        "meta_json": json.dumps(
+            {
+                "docType": "lohnsteuerbescheinigung",
+                "title": "Lohnsteuerbescheinigung 2025",
+                "pdfSource": "lohn_original",
+                "pdfImmutable": True,
+            }
+        ),
+    }
+    out = repo.enrich_statement_row(None, row)
+    assert out["previewMode"] == "pdf"
+    assert out["docType"] == "lohnsteuerbescheinigung"
+    assert out["title"] == "Lohnsteuerbescheinigung 2025"
+    assert out["pdfImmutable"] is True
