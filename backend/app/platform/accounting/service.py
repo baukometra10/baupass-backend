@@ -297,19 +297,29 @@ def render_verdienst_certificate_pdf_bytes(doc: dict[str, Any] | None, *, meta: 
     for row in rows:
         if not isinstance(row, dict):
             continue
-        if y < 28 * mm:
+        if y < 55 * mm:
             c.showPage()
             y = height - 20 * mm
         text(col_label, y, str(row.get("label") or "")[:55], size=8)
         c.drawRightString(col_m, y, money(row.get("monthly")))
         c.drawRightString(col_y, y, money(row.get("yearly")))
-        y -= 4.8 * mm
+        y -= 5.2 * mm
 
-    y = max(18 * mm, y - 6 * mm)
-    c.line(left, y + 4 * mm, right, y + 4 * mm)
-    text(left, y, f"mtl. = Bezugsmonat · Jahr = Summe freigegebener Monate {year}", size=7)
-    y -= 4 * mm
-    text(left, y, "Ausdruck fuer den Arbeitnehmer · nicht Bestandteil der Monatsabrechnung", size=7)
+    # Signature + footer anchored near page bottom (fills empty white area).
+    sign_y = 42 * mm
+    c.setStrokeColorRGB(0.15, 0.15, 0.15)
+    c.setLineWidth(0.7)
+    mid = (left + right) / 2
+    c.line(left, sign_y, mid - 6 * mm, sign_y)
+    c.line(mid + 6 * mm, sign_y, right, sign_y)
+    text(left, sign_y - 4.5 * mm, "Ort, Datum", size=7)
+    text(mid + 6 * mm, sign_y - 4.5 * mm, "Unterschrift Arbeitgeber", size=7)
+
+    foot_y = 22 * mm
+    c.setLineWidth(1)
+    c.line(left, foot_y + 5 * mm, right, foot_y + 5 * mm)
+    text(left, foot_y, f"mtl. = Bezugsmonat · Jahr = Summe freigegebener Monate {year}", size=7)
+    text(left, foot_y - 4 * mm, "Ausdruck fuer den Arbeitnehmer · nicht Bestandteil der Monatsabrechnung", size=7)
     c.showPage()
     c.save()
     return buf.getvalue()
