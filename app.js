@@ -19585,7 +19585,7 @@ function buildEnterpriseEmbedUrl(item) {
   const params = [];
   if (item.embed) {
     params.push("embed=1");
-    params.push("v=20260819supportMirror4");
+    params.push("v=20260820betriebFast1");
   } else if (item.version) {
     params.push("v=20260601hubupgrade1");
   }
@@ -19836,17 +19836,16 @@ function scheduleCriticalEmbedWarm() {
   scheduleCriticalEmbedWarm._armed = true;
   const run = () => {
     if (!token || !state.currentUser) return;
-    // Warm heaviest embeds in the background so first open feels instant.
+    // Warm Betrieb first — most-clicked embed; do not wait for long idle.
     warmEnterpriseEmbed("admin-v2");
-    window.setTimeout(() => warmEnterpriseEmbed("ops-center"), 900);
-    window.setTimeout(() => warmEnterpriseEmbed("ops-live-map"), 1400);
-    window.setTimeout(() => warmEnterpriseEmbed("enterprise-hub"), 1800);
-    window.setTimeout(() => warmEnterpriseEmbed("ai-assistant"), 2600);
+    window.setTimeout(() => warmEnterpriseEmbed("ops-live-map"), 1200);
+    window.setTimeout(() => warmEnterpriseEmbed("enterprise-hub"), 2000);
+    window.setTimeout(() => warmEnterpriseEmbed("ai-assistant"), 2800);
   };
   if (typeof requestIdleCallback === "function") {
-    requestIdleCallback(() => run(), { timeout: 3500 });
+    requestIdleCallback(() => run(), { timeout: 900 });
   } else {
-    window.setTimeout(run, 1800);
+    window.setTimeout(run, 500);
   }
 }
 

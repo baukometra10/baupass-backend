@@ -11032,20 +11032,23 @@ async function loadOverview() {
     <div class="card card-skeleton"><span class="muted">${t("overview.activeWorkers")}</span><strong>…</strong></div>
     <div class="card card-skeleton"><span class="muted">${t("overview.geofenceZones")}</span><strong>…</strong></div>`;
   }
-  const overviewP = apiSoft(`/api/v2/admin/overview${q}`, cached || null, 5000);
-  const billingP = withTimeout(loadBillingSummaryPanel(cid), 4000, null);
-  const secondaryP = Promise.all([
-    withTimeout(fetchInboxCountsCached(q), 3500, { counts: {} }),
-    apiSoft(`/api/dashboard/role${q}`, null, 3500),
-    cid
-      ? apiSoft(`/api/ops-os/summary?company_id=${encodeURIComponent(cid)}`, null, 3500)
-      : Promise.resolve(null),
-    apiSoft(`/api/operations/snapshot${q}`, null, 3500),
-    apiSoft(`/api/integrations/cameras${q}`, { cameras: [] }, 3500),
-    cid
-      ? apiSoft(`/api/ops-os/daily-brief?company_id=${encodeURIComponent(cid)}`, null, 4000)
-      : Promise.resolve(null),
+  const overviewP = apiSoft(`/api/v2/admin/overview${q}`, cached || null, 4000);
+  // Billing is non-critical — never gate Lage / recent access on it.
+  void withTimeout(loadBillingSummaryPanel(cid), 4000, null);
+  const coreSecondaryP = Promise.all([
+    withTimeout(fetchInboxCountsCached(q), 2500, { counts: {} }),
+    apiSoft(`/api/operations/snapshot${q}`, null, 2500),
     cid ? loadLegacyFeatures(cid) : Promise.resolve({}),
+  ]);
+  const enrichSecondaryP = Promise.all([
+    apiSoft(`/api/dashboard/role${q}`, null, 3000),
+    cid
+      ? apiSoft(`/api/ops-os/summary?company_id=${encodeURIComponent(cid)}`, null, 3000)
+      : Promise.resolve(null),
+    apiSoft(`/api/integrations/cameras${q}`, { cameras: [] }, 3000),
+    cid
+      ? apiSoft(`/api/ops-os/daily-brief?company_id=${encodeURIComponent(cid)}`, null, 3500)
+      : Promise.resolve(null),
   ]);
   const overview = (await overviewP) || cached || {};
   loadOverview._cache = { key: cacheKey, at: Date.now(), data: overview };
@@ -11058,7 +11061,20 @@ async function loadOverview() {
       <span class="muted">${t("overview.inbox")}</span><strong>…</strong>
       <small class="muted">${t("overview.inboxHint")}</small>
     </button>`;
-  const [inbox, roleDash, opsBrief, opsSnap, cameras, dailyBrief, opsFeatures] = await secondaryP;
+  renderTable($("recentAccess"), overview.recentAccess || [], [
+    { label: t("table.worker"), render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
+    { label: t("workers.colBadge"), render: (r) => r.badge_id || "-" },
+    {
+      label: t("table.direction"),
+      render: (r) => formatAccessDirection(r.direction),
+    },
+    { label: t("table.gate"), render: (r) => r.gate || "-" },
+    { label: t("table.time"), render: (r) => formatAccessTimestamp(r.timestamp) },
+  ]);
+  const [[inbox, opsSnap, opsFeatures], [roleDash, opsBrief, cameras, dailyBrief]] = await Promise.all([
+    coreSecondaryP,
+    enrichSecondaryP,
+  ]);
   const wf = overview.workforce || {};
   const openInbox = inbox?.counts?.open ?? 0;
   const dashWidgets = (roleDash?.widgets || []).filter((w) => w.id !== "on_site");
@@ -11082,7 +11098,6 @@ async function loadOverview() {
     switchToTab("inbox");
     await loadInbox();
   });
-  await billingP;
   const fc = overview.tomorrowForecast || {};
   const repeatedLate = Array.isArray(overview.repeatedLateWorkers) ? overview.repeatedLateWorkers : [];
   const fp = $("forecastPanel");
@@ -11280,13 +11295,13 @@ async function loadOverview() {
       </div>
       ${
         opsSurfaceEnabled("liveMap", opsFeatures) && !isSupportReadOnlySession()
-          ? `<div class="lage-map-embed" id="lageMapEmbed" title="${escapeAttr(t("lage.mapScrollHint") || "Klicken zum Interagieren · Scrollen bewegt die Seite")}">
+          ? `<div class="lage-map-embed" id="lageMapEmbed" data-map-src="/ops-live-map.html${q ? `${q}&embed=1` : `?embed=1`}" title="${escapeAttr(t("lage.mapScrollHint") || "Klicken zum Interagieren · Scrollen bewegt die Seite")}">
         <p class="lage-map-embed-hint">${escapeHtml(t("lage.mapScrollHint") || "Klicken für Karte · Mausrad scrollt die Seite")}</p>
         <iframe
           title="${escapeAttr(t("lage.openMap"))}"
           loading="lazy"
           referrerpolicy="same-origin"
-          src="/ops-live-map.html${q ? `${q}&embed=1` : `?embed=1`}"
+          src="about:blank"
         ></iframe>
       </div>`
           : ""
@@ -11295,7 +11310,36 @@ async function loadOverview() {
 
     const mapEmbed = lage.querySelector("#lageMapEmbed");
     if (mapEmbed) {
+      const iframe = mapEmbed.querySelector("iframe");
+      const mapSrc = mapEmbed.getAttribute("data-map-src") || "";
+      const armMap = () => {
+        if (!iframe || !mapSrc || iframe.getAttribute("data-src-armed") === "1") return;
+        iframe.setAttribute("data-src-armed", "1");
+        iframe.src = mapSrc;
+      };
+      // Defer nested Live-Map iframe until idle / visible — it was competing with overview APIs.
+      if (typeof IntersectionObserver === "function") {
+        const io = new IntersectionObserver(
+          (entries) => {
+            if (entries.some((e) => e.isIntersecting)) {
+              io.disconnect();
+              if (typeof requestIdleCallback === "function") {
+                requestIdleCallback(() => armMap(), { timeout: 2000 });
+              } else {
+                setTimeout(armMap, 400);
+              }
+            }
+          },
+          { rootMargin: "120px" },
+        );
+        io.observe(mapEmbed);
+      } else if (typeof requestIdleCallback === "function") {
+        requestIdleCallback(() => armMap(), { timeout: 2500 });
+      } else {
+        setTimeout(armMap, 800);
+      }
       mapEmbed.addEventListener("click", () => {
+        armMap();
         mapEmbed.classList.add("is-interactive");
       });
       mapEmbed.addEventListener("mouseleave", () => {
@@ -11323,17 +11367,6 @@ async function loadOverview() {
     lage.classList.add("hidden");
     lage.innerHTML = "";
   }
-
-  renderTable($("recentAccess"), overview.recentAccess || [], [
-    { label: t("table.worker"), render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
-    { label: t("workers.colBadge"), render: (r) => r.badge_id || "-" },
-    {
-      label: t("table.direction"),
-      render: (r) => formatAccessDirection(r.direction),
-    },
-    { label: t("table.gate"), render: (r) => r.gate || "-" },
-    { label: t("table.time"), render: (r) => formatAccessTimestamp(r.timestamp) },
-  ]);
 }
 
 async function loadQrImage(link) {
@@ -12274,7 +12307,7 @@ async function bootSession() {
     && isEmbedMode()
     && (window.WorkPassStorage?.hasActiveSupportTabScope?.() || window.WorkPassStorage?.isSupportAssistQuietMode?.())
   ) {
-    token = await waitForEmbedParentToken(4500);
+    token = await waitForEmbedParentToken(1200);
     if (token) {
       WP?.clearAuthUnusable?.();
       if (WP?.persistSessionToken) WP.persistSessionToken(token);
@@ -12308,23 +12341,31 @@ async function bootSession() {
         }
       }
     }
-    await loadCompanies();
     const qsCid = new URLSearchParams(location.search).get("company_id") || "";
     if (qsCid) {
       applyParentCompanyId(qsCid);
     }
+    // Paint shell immediately — do not block first overview on company list / branding.
+    const companiesP = loadCompanies().catch(() => {});
     showDashboard();
-    await Promise.all([
+    applyStartupTab();
+    const params = new URLSearchParams(location.search);
+    const needsEinsatzplan =
+      params.get("einsatzplan") === "1" || params.get("focus") === "deployment";
+    if (!needsEinsatzplan) {
+      refreshActiveTab().catch(notifyTabError);
+    }
+    void Promise.all([
       applyTenantBrandingFromApi().catch(() => {}),
       loadPlatformBanner().catch(() => {}),
     ]);
+    await companiesP;
+    if (qsCid) {
+      applyParentCompanyId(qsCid);
+    }
     await applyStartupTabAfterLoad();
     if (pendingEinsatzplanFocus) {
       tryFocusEinsatzplanFromParent();
-    }
-    const params = new URLSearchParams(location.search);
-    if (params.get("einsatzplan") !== "1" && params.get("focus") !== "deployment") {
-      refreshActiveTab().catch(notifyTabError);
     }
     if (!isSupportReadOnlySession() && !window.WorkPassStorage?.isSupportAssistQuietMode?.()) {
       startAdminRealtime().catch(() => {});
@@ -12362,15 +12403,21 @@ $("loginBtn").addEventListener("click", async () => {
     if (payload.user?.company_id) {
       wpSet(COMPANY_KEY, payload.user.company_id);
     }
-    await loadCompanies();
+    const companiesP = loadCompanies().catch(() => {});
     showDashboard();
-    await applyTenantBrandingFromApi();
-    await applyStartupTabAfterLoad();
-    await loadPlatformBanner();
+    applyStartupTab();
     const params = new URLSearchParams(location.search);
-    if (params.get("einsatzplan") !== "1" && params.get("focus") !== "deployment") {
-      await refreshActiveTab();
+    const needsEinsatzplan =
+      params.get("einsatzplan") === "1" || params.get("focus") === "deployment";
+    if (!needsEinsatzplan) {
+      refreshActiveTab().catch(notifyTabError);
     }
+    void Promise.all([
+      applyTenantBrandingFromApi().catch(() => {}),
+      loadPlatformBanner().catch(() => {}),
+    ]);
+    await companiesP;
+    await applyStartupTabAfterLoad();
     startAdminRealtime().catch(() => {});
     refreshInboxBadgeOnly().catch(() => {});
     wireLohnDrawer();
