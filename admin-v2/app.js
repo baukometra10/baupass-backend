@@ -1,4 +1,4 @@
-import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260820lohnStudio14";
+import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260820accHub4";
 import { ensureLeafletLoaded, mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 import {

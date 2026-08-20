@@ -31,29 +31,6 @@
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       align-content: start;
     }
-    .ops-jump-nav {
-      grid-column: 1 / -1;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.4rem;
-      position: sticky;
-      top: 0;
-      z-index: 20;
-      padding: 0.45rem 0.15rem;
-      background: linear-gradient(180deg, rgba(5, 8, 22, 0.96), rgba(5, 8, 22, 0.88));
-      backdrop-filter: blur(8px);
-    }
-    .ops-jump-nav a {
-      font-size: 0.74rem;
-      font-weight: 700;
-      padding: 0.35rem 0.7rem;
-      border-radius: 999px;
-      border: 1px solid rgba(120, 156, 255, 0.28);
-      color: #dbeafe;
-      text-decoration: none;
-      background: rgba(12, 18, 36, 0.9);
-    }
-    .ops-jump-nav a:hover { border-color: rgba(56, 189, 248, 0.55); color: #fff; }
     .card {
       background: var(--panel); border-radius: 12px; padding: 0.85rem; border: 1px solid var(--border);
       transition: border-color 0.2s, transform 0.15s;
@@ -631,7 +608,7 @@
       </div>
     </div>
     <nav class="ops-nav">
-      <a id="lohnHeaderChip" href="#lohnHub" hidden>WorkPass Lohn</a>
+      <a id="lohnHeaderChip" href="#lohnHub" hidden>Lohn-Zentrale</a>
       <a id="navAi" href="/ai-command-center.html">KI Command Center</a>
       <a id="navHub" href="/enterprise-hub.html">Funktionen &amp; Tarife</a>
       <a id="navAdmin" href="/admin-v2/index.html">Betrieb</a>
@@ -771,8 +748,9 @@
         lohnMessagesJustNow: "gerade eben",
         lohnMessagesMinutesAgo: "vor {n} Min.",
         lohnMessagesHoursAgo: "vor {n} Std.",
-        lohnHubTitle: "WorkPass Lohn",
-        lohnHubSub: "Anfrage → Bestätigung → Übergabe von Mitarbeitern & Abrechnung",
+        lohnHubTitle: "Lohn-Zentrale",
+        lohnHubSub: "Plattform-Hub: Anfragen, Bestätigung und Studio (nicht das Lohn-System)",
+        lohnHubOpen: "Lohn-Zentrale öffnen",
         lohnLiveUpdating: "Live · aktualisiert",
         lohnPeriodRequestsLabel: "Anfragen von WorkPass Lohn",
         lohnPeriodRequestsHint: "Lohn fragt Mitarbeiter + Abrechnung für einen Monat an. Erst nach Bestätigung werden die Daten übergeben.",
@@ -921,8 +899,9 @@
         lohnMessagesJustNow: "just now",
         lohnMessagesMinutesAgo: "{n} min ago",
         lohnMessagesHoursAgo: "{n} h ago",
-        lohnHubTitle: "WorkPass Lohn",
-        lohnHubSub: "Request → confirm → hand off employees & payroll month",
+        lohnHubTitle: "Payroll hub",
+        lohnHubSub: "Platform hub: requests, confirmation & studio (not the Lohn system)",
+        lohnHubOpen: "Open payroll hub",
         lohnLiveUpdating: "Live · refreshed",
         lohnPeriodRequestsLabel: "Requests from WorkPass Lohn",
         lohnPeriodRequestsHint: "Lohn asks for employees + payroll for a month. Data is handed over only after confirmation.",
@@ -1070,8 +1049,9 @@
         lohnMessagesJustNow: "الآن",
         lohnMessagesMinutesAgo: "منذ {n} د",
         lohnMessagesHoursAgo: "منذ {n} س",
-        lohnHubTitle: "WorkPass Lohn",
-        lohnHubSub: "طلب → تأكيد → تسليم الموظفين وكشف الشهر",
+        lohnHubTitle: "مركز الرواتب",
+        lohnHubSub: "مركز المنصة: الطلبات والتأكيد والاستوديو (وليس نظام Lohn)",
+        lohnHubOpen: "فتح مركز الرواتب",
         lohnLiveUpdating: "مباشر · محدّث",
         lohnPeriodRequestsLabel: "طلبات WorkPass Lohn",
         lohnPeriodRequestsHint: "Lohn يطلب الموظفين وكشف الشهر. التسليم فقط بعد التأكيد.",
@@ -1486,7 +1466,7 @@
                 <div class="guardian-actions">
                   <button type="button" id="guardianCheckBtn">${tr("healthCheck")}</button>
                   <button type="button" class="ghost" id="guardianRepairBtn">${tr("repairNow")}</button>
-                  <a class="ghost" href="/admin-v2/accounting.html${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ""}" style="display:inline-flex;align-items:center;text-decoration:none;padding:0.48rem 0.9rem;border-radius:10px;border:1px solid rgba(148,163,184,0.35);color:var(--accent);font-size:0.78rem;font-weight:650">${tr("lohnHubTitle") || "WorkPass Lohn"} →</a>
+                  <a class="ghost" href="/admin-v2/accounting.html${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ""}" style="display:inline-flex;align-items:center;text-decoration:none;padding:0.48rem 0.9rem;border-radius:10px;border:1px solid rgba(148,163,184,0.35);color:var(--accent);font-size:0.78rem;font-weight:650">${tr("lohnHubTitle") || "Lohn-Zentrale"} →</a>
                 </div>
               </div>
               <div class="guardian-body-side">
@@ -1995,10 +1975,11 @@
     function updateLohnHeaderChip(messages) {
       const chip = document.getElementById("lohnHeaderChip");
       if (!chip) return;
+      const hubLabel = tr("lohnHubTitle") || "Lohn-Zentrale";
       if (!canAccessWorkpassLohnUi()) {
         chip.hidden = true;
         chip.style.display = "none";
-        chip.textContent = "WorkPass Lohn";
+        chip.textContent = hubLabel;
         chip.classList.remove("has-mail");
         return;
       }
@@ -2007,10 +1988,10 @@
       const list = Array.isArray(messages) ? messages : [];
       const n = list.length;
       const notify = list.filter((m) => m && m.bannerVisible === true).length;
-      chip.textContent = n ? `WorkPass Lohn (${n})` : "WorkPass Lohn";
+      chip.textContent = n ? `${hubLabel} (${n})` : hubLabel;
       chip.classList.toggle("has-mail", n > 0 || notify > 0);
       chip.href = `/admin-v2/accounting.html${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ""}`;
-      chip.title = notify ? tr("lohnMessagesToastEyebrow") : tr("lohnHubTitle");
+      chip.title = notify ? tr("lohnMessagesToastEyebrow") : hubLabel;
       chip.target = "_self";
       chip.rel = "";
     }
@@ -2036,7 +2017,7 @@
         return `<div class="lohn-hub" id="lohnHub">
           <div class="lohn-hub-head">
             <div>
-              <div class="lohn-hub-title">WorkPass Lohn</div>
+              <div class="lohn-hub-title">${tr("lohnHubTitle") || "Lohn-Zentrale"}</div>
               <div class="lohn-hub-sub">Panel konnte nicht geladen werden — bitte Seite neu laden (Strg+F5).</div>
             </div>
           </div>
@@ -2081,7 +2062,7 @@
               <strong style="display:block;margin-bottom:0.35rem;color:var(--text)">${total ? `${total} offene Punkte` : (tr("lohnMessagesNone") || "Keine offenen Anfragen")}</strong>
               <span class="muted">${payslipCount ? `${payslipCount} Abrechnung(en) zur Prüfung · ` : ""}Buchhaltungs-Workflows laufen in der Lohn-Zentrale (Betrieb).</span>
               <div style="display:flex;flex-wrap:wrap;gap:0.45rem;margin-top:0.75rem">
-                <a class="ghost" href="${hubUrl}" style="display:inline-flex;align-items:center;text-decoration:none;padding:0.48rem 0.9rem;border-radius:10px;border:1px solid rgba(94,234,212,0.45);color:var(--accent);font-size:0.78rem;font-weight:650;background:rgba(94,234,212,0.08)">Lohn-Zentrale öffnen</a>
+                <a class="ghost" href="${hubUrl}" style="display:inline-flex;align-items:center;text-decoration:none;padding:0.48rem 0.9rem;border-radius:10px;border:1px solid rgba(94,234,212,0.45);color:var(--accent);font-size:0.78rem;font-weight:650;background:rgba(94,234,212,0.08)">${tr("lohnHubOpen") || "Lohn-Zentrale öffnen"}</a>
                 <a class="ghost" href="${studioUrl}" style="display:inline-flex;align-items:center;text-decoration:none;padding:0.48rem 0.9rem;border-radius:10px;border:1px solid rgba(148,163,184,0.35);color:var(--text);font-size:0.78rem;font-weight:650">Studio</a>
               </div>
             </div>
@@ -2798,11 +2779,6 @@
         lastLohnSig = sig;
       }
       grid.innerHTML = `
-        <nav class="ops-jump-nav" aria-label="Ops sections">
-          <a href="#guardianCard">${tr("guardianLabel") || "Guard"}</a>
-          <a href="/admin-v2/accounting.html${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ""}">${tr("lohnHubTitle") || "WorkPass Lohn"}</a>
-          <a href="#eventFeedCard">${tr("liveFeed") || "Live-Feed"}</a>
-        </nav>
         ${renderGuardianCard(guardian, guardianHistory)}
         ${renderLohnHubSafe(lohnLink, lohnMessages, dataAlerts, payrollBatches, employeePreview, periodRequests)}
         <div class="card ops-card clickable" data-action="onsite" title="${tr("cardOnSiteHint")}">
