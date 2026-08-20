@@ -20,6 +20,7 @@ def test_normalize_doc_type_tax_aliases():
     assert normalize_doc_type("lohnsteuerbescheinigung") == "lohnsteuerbescheinigung"
     assert normalize_doc_type("tax_certificate") == "lohnsteuerbescheinigung"
     assert normalize_doc_type("Lohnsteuer") == "lohnsteuerbescheinigung"
+    assert normalize_doc_type("lstb") == "lohnsteuerbescheinigung"
     assert normalize_doc_type("verdienstbescheinigung") == "verdienstbescheinigung"
     assert normalize_doc_type("earnings_statement") == "verdienstabrechnung"
     assert normalize_doc_type("payslip") == "lohnabrechnung"
@@ -72,6 +73,46 @@ def test_extract_pdf_base64_nested():
     assert extract_pdf_base64({"document": {"pdfBase64": MINIMAL_PDF}}) == MINIMAL_PDF
     assert extract_pdf_base64({"file": {"contentBase64": MINIMAL_PDF}}) == MINIMAL_PDF
     assert extract_pdf_base64({"pdf": {"dataBase64": MINIMAL_PDF}}) == MINIMAL_PDF
+
+
+def test_real_lstb_pdf_passthrough():
+    """Official Lohnsteuerbescheinigung PDF must stay byte-identical."""
+    from pathlib import Path
+
+    from backend.app.platform.accounting.service import lohn_delivery_to_statement
+    from backend.app.platform.worker_documents import infer_payroll_doc_type_from_title, resolve_payroll_doc_type
+
+    assert infer_payroll_doc_type_from_title("LStB 2025") == "lohnsteuerbescheinigung"
+    assert resolve_payroll_doc_type({"type": "document", "title": "LStB"}) == "lohnsteuerbescheinigung"
+    assert (
+        resolve_payroll_doc_type({"type": "payslip", "title": "Lohnsteuerbescheinigung"})
+        == "lohnsteuerbescheinigung"
+    )
+
+    sample = Path(r"c:\Users\u4363\Desktop\Screenshots\lstb.pdf")
+    if not sample.is_file():
+        pytest.skip("local sample PDF not present")
+    raw = sample.read_bytes()
+    assert raw.startswith(b"%PDF")
+    assert len(raw) > 100_000
+    b64 = base64.b64encode(raw).decode("ascii")
+    stmt = lohn_delivery_to_statement(
+        {
+            "kind": "platform.employee.delivery.v1",
+            "type": "document",
+            "title": "LStB",
+            "company": {"id": "cmp-test"},
+            "employee": {"id": "emp-1", "name": "Max Mustermann"},
+            "period": "2025-12",
+            "pdfBase64": b64,
+            "deliveryId": "del-lstb-real",
+        }
+    )
+    assert stmt is not None
+    assert stmt["docType"] == "lohnsteuerbescheinigung"
+    assert stmt["pdfImmutable"] is True
+    assert stmt["pdfSource"] == "lohn_original"
+    assert base64.b64decode(stmt["pdfBase64"]) == raw
 
 
 def test_real_verdienstbescheinigung_pdf_passthrough():

@@ -2767,7 +2767,7 @@ function statementPrefersPdfPreview(stmt) {
   const sheetTypes = new Set(["lohnabrechnung", "gehaltsabrechnung", ""]);
   if (docType && !sheetTypes.has(docType)) return true;
   const title = String(stmt.title || stmt.docTypeLabel || stmt.filename || "").toLowerCase();
-  if (/vordienst|lohnsteuer|verdienst|jahresabrechnung|steuerbescheinigung|bescheinigung|شهادة|سنوي/.test(title)) {
+  if (/vordienst|lohnsteuer|lstb|verdienst|jahresabrechnung|steuerbescheinigung|bescheinigung|شهادة|سنوي/.test(title)) {
     return true;
   }
   return false;
