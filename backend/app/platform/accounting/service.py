@@ -2650,6 +2650,166 @@ def _lohn_http_get(link: dict[str, Any], *, path: str, company_id: str = "", eve
     return last
 
 
+def collect_lohn_delivery_ids(*sources: object) -> list[str]:
+    """Unique deliveryIds from statements / webhook / delivery payloads."""
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def _add(raw: object) -> None:
+        did = str(raw or "").strip()
+        if not did or did in seen:
+            return
+        seen.add(did)
+        out.append(did)
+
+    for src in sources:
+        if isinstance(src, str):
+            _add(src)
+            continue
+        if isinstance(src, (list, tuple, set)):
+            for item in src:
+                if isinstance(item, dict):
+                    _add(item.get("deliveryId") or item.get("delivery_id") or item.get("externalRef"))
+                else:
+                    _add(item)
+            continue
+        if not isinstance(src, dict):
+            continue
+        _add(src.get("deliveryId") or src.get("delivery_id"))
+        delivery = src.get("delivery")
+        if isinstance(delivery, dict):
+            _add(delivery.get("deliveryId") or delivery.get("delivery_id") or delivery.get("jobId"))
+        for key in ("deliveries", "statements", "items", "payslips"):
+            block = src.get(key)
+            if isinstance(block, list):
+                for item in block:
+                    if isinstance(item, dict):
+                        _add(
+                            item.get("deliveryId")
+                            or item.get("delivery_id")
+                            or item.get("externalRef")
+                            or item.get("jobId")
+                        )
+    return out
+
+
+def confirm_lohn_deliveries_received(
+    db=None,
+    *,
+    company_id: str,
+    delivery_ids: list[str] | tuple[str, ...] | None = None,
+    via: str = "platform_received",
+    link: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Tell WorkPass Lohn the platform stored the document(s).
+
+    Lohn keeps deliveries pending until POST /v1/delivery/:id/received|/ack
+    (receipt: empfangen → geöffnet → gesehen). /ack implies all stages.
+    """
+    from urllib.parse import quote as _q
+
+    from .platform_link import _post_lohn_json, get_platform_link
+
+    company_id = str(company_id or "").strip()
+    ids = [str(x or "").strip() for x in (delivery_ids or []) if str(x or "").strip()]
+    # de-dupe, keep order
+    seen: set[str] = set()
+    unique_ids: list[str] = []
+    for did in ids:
+        if did in seen:
+            continue
+        seen.add(did)
+        unique_ids.append(did)
+
+    if not company_id:
+        return {"ok": False, "error": "company_id_required", "acked": [], "ackErrors": []}
+    if not unique_ids:
+        return {"ok": True, "skipped": "no_delivery_ids", "acked": [], "ackErrors": [], "companyId": company_id}
+
+    if link is None:
+        link = get_platform_link(db)
+    if not isinstance(link, dict):
+        link = {}
+    if not link.get("enabled") or not str(link.get("base_url") or "").strip():
+        return {
+            "ok": False,
+            "error": "platform_link_disabled",
+            "acked": [],
+            "ackErrors": [{"error": "platform_link_disabled"}],
+            "companyId": company_id,
+        }
+
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    acked: list[str] = []
+    ack_errors: list[dict[str, Any]] = []
+    details: list[dict[str, Any]] = []
+
+    for did in unique_ids:
+        if db is not None:
+            try:
+                db.commit()
+            except Exception:
+                pass
+        encoded = _q(did, safe="")
+        body = {
+            "companyId": company_id,
+            "deliveryId": did,
+            "via": via,
+            "at": now,
+            "accepted": True,
+            "received": True,
+            "stored": True,
+            "opened": True,
+            "seen": True,
+            "stage": "seen",
+            "actor": "suppix-platform",
+        }
+        # Prefer full confirm (/ack = seen). Fall back to /received if ack route missing.
+        ack = _post_lohn_json(
+            link,
+            path=f"/v1/delivery/{encoded}/ack",
+            body=body,
+            event="delivery.ack",
+            timeout=15,
+        )
+        if not ack.get("ok") and int(ack.get("status") or 0) == 404:
+            ack = _post_lohn_json(
+                link,
+                path=f"/v1/delivery/{encoded}/received",
+                body={**body, "stage": "received", "seen": False, "opened": False},
+                event="delivery.received",
+                timeout=15,
+            )
+        entry = {"deliveryId": did, "ack": ack}
+        details.append(entry)
+        if ack.get("ok"):
+            acked.append(did)
+        else:
+            ack_errors.append(
+                {
+                    "deliveryId": did,
+                    "error": ack.get("error") or ack.get("status") or "ack_failed",
+                    "status": ack.get("status"),
+                }
+            )
+
+    return {
+        "ok": len(ack_errors) == 0,
+        "companyId": company_id,
+        "acked": acked,
+        "ackErrors": ack_errors,
+        "ackedCount": len(acked),
+        "details": details,
+        "via": via,
+        "message": (
+            f"{len(acked)} Lieferung(en) an WorkPass Lohn bestätigt."
+            if acked
+            else "Keine Lieferungen bestätigt."
+        ),
+    }
+
+
 def pull_payslips_from_lohn(
     db,
     *,
@@ -2790,22 +2950,15 @@ def pull_payslips_from_lohn(
         batches.append(ingest)
         if not ingest.get("ok"):
             continue
-        for stmt in stmts:
-            did = str(stmt.get("deliveryId") or "").strip()
-            if not did:
-                continue
-            _db_commit(db)
-            ack = _post_lohn_json(
-                link,
-                path=f"/v1/delivery/{did}/ack",
-                body={"via": "suppix_pull", "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())},
-                event="delivery.ack",
-                timeout=15,
-            )
-            if ack.get("ok"):
-                acked.append(did)
-            else:
-                ack_errors.append({"deliveryId": did, "error": ack.get("error") or ack.get("status")})
+        confirm = confirm_lohn_deliveries_received(
+            db,
+            company_id=company_id,
+            delivery_ids=collect_lohn_delivery_ids(stmts),
+            via="suppix_pull",
+            link=link,
+        )
+        acked.extend(list(confirm.get("acked") or []))
+        ack_errors.extend(list(confirm.get("ackErrors") or []))
 
     created = sum(int(b.get("createdCount") or 0) for b in batches)
     return {

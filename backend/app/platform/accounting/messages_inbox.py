@@ -1406,7 +1406,11 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
             resolve_payroll_doc_type,
         )
 
-        from .service import statements_from_lohn_payload
+        from .service import (
+            collect_lohn_delivery_ids,
+            confirm_lohn_deliveries_received,
+            statements_from_lohn_payload,
+        )
 
         statements = statements_from_lohn_payload(data)
         if not company_id and statements:
@@ -1436,6 +1440,19 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
         created_n = int(ingest_result.get("createdCount") or 0) if isinstance(ingest_result, dict) else 0
         batch_id = str(ingest_result.get("batchId") or "") if isinstance(ingest_result, dict) else ""
         period_label = period or (ingest_result.get("period") if isinstance(ingest_result, dict) else "") or ""
+        ingest_ok = bool(isinstance(ingest_result, dict) and ingest_result.get("ok"))
+        delivery_ids = collect_lohn_delivery_ids(data, statements)
+        confirm: dict[str, Any] = {"skipped": "ingest_not_ok"}
+        if company_id and ingest_ok and delivery_ids:
+            try:
+                confirm = confirm_lohn_deliveries_received(
+                    db,
+                    company_id=company_id,
+                    delivery_ids=delivery_ids,
+                    via=f"webhook:{event or 'document.released'}",
+                )
+            except Exception as exc:
+                confirm = {"ok": False, "error": str(exc)[:200], "acked": [], "ackErrors": []}
         first = (statements[0] if isinstance(statements, list) and statements else {}) or {}
         first_doc_type = resolve_payroll_doc_type(
             first,
@@ -1480,17 +1497,33 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
             ],
             default_company=company_id,
         ) if company_id else {"ok": True, "createdCount": 0, "updatedCount": 0, "ids": []}
+        # Lohn strictAck / receipt: accepted+stored prove platform stored the bytes.
+        accepted = ingest_ok
         return {
             "ok": True,
-            "accepted": True,
+            "accepted": accepted,
+            "received": accepted,
+            "stored": accepted,
+            "deliveryAccepted": accepted,
+            "queued": accepted,
+            "seen": bool(confirm.get("acked")),
             "event": event,
             "companyId": company_id or None,
             "period": period_label or None,
             "docType": first_doc_type,
+            "deliveryId": delivery_ids[0] if delivery_ids else None,
+            "deliveryIds": delivery_ids,
+            "idempotencyKey": str(data.get("idempotencyKey") or (delivery_ids[0] if delivery_ids else "") or ""),
             "ingest": ingest_result,
+            "confirm": confirm,
+            "acked": list(confirm.get("acked") or []),
             "webhookStore": store,
-            "status": "pending_approval",
-            "message": f"{doc_label} ingested as pending_approval — human approve to show worker",
+            "status": "pending_approval" if accepted else "ingest_failed",
+            "message": (
+                f"{doc_label} übernommen und an WorkPass Lohn bestätigt"
+                if accepted
+                else f"{doc_label} webhook received but ingest failed"
+            ),
             "note": "Never auto-approve payroll documents to employees",
             "tenantIsolation": "companyId::employeeId::period",
         }

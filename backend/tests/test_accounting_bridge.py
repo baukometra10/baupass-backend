@@ -1427,7 +1427,7 @@ def test_webhook_payslip_released_inbox_pending_approval(tmp_path, monkeypatch):
     assert out["ok"] is True
     assert out.get("accepted") is True
     assert out["status"] == "pending_approval"
-    assert out.get("note") == "Never auto-approve payslips to employees"
+    assert out.get("note") == "Never auto-approve payroll documents to employees"
     ingest = out.get("ingest") or {}
     assert ingest.get("ok") is True
     assert ingest.get("status") == "pending_approval"
@@ -1439,6 +1439,7 @@ def test_webhook_payslip_released_inbox_pending_approval(tmp_path, monkeypatch):
 def test_webhook_payslip_released_from_lohn_delivery(tmp_path, monkeypatch):
     """Lohn delivery without PDF bytes still ingests; platform does not invent a stub PDF."""
     from backend.app.platform.accounting import messages_inbox
+    from backend.app.platform.accounting import platform_link
 
     db = _db()
     repository.upsert_integration(db, company_id="c1", rotate_key=True)
@@ -1446,6 +1447,22 @@ def test_webhook_payslip_released_from_lohn_delivery(tmp_path, monkeypatch):
         service,
         "_storage_dir",
         lambda company_id, period: Path(tmp_path) / company_id / period,
+    )
+    posts: list[dict] = []
+
+    def _fake_post(link, *, path, body, event, timeout=20):
+        posts.append({"path": path, "body": body, "event": event})
+        return {"ok": True, "status": 200, "json": {"ok": True, "confirmed": True}}
+
+    monkeypatch.setattr(platform_link, "_post_lohn_json", _fake_post)
+    monkeypatch.setattr(
+        platform_link,
+        "get_platform_link",
+        lambda db=None: {
+            "enabled": 1,
+            "base_url": "https://lohn.test",
+            "master_api_key": "k",
+        },
     )
     out = messages_inbox.handle_inbound_lohn_webhook(
         db,
@@ -1468,15 +1485,51 @@ def test_webhook_payslip_released_from_lohn_delivery(tmp_path, monkeypatch):
     )
     assert out["ok"] is True
     assert out.get("accepted") is True
+    assert out.get("received") is True
+    assert out.get("stored") is True
+    assert out.get("deliveryAccepted") is True
     ingest = out.get("ingest") or {}
     assert ingest.get("ok") is True
     assert ingest.get("createdCount") == 1
+    assert "pay:job-1" in (out.get("acked") or [])
+    assert any("/v1/delivery/" in str(p.get("path") or "") and str(p.get("path") or "").endswith("/ack") for p in posts)
+    # Colon in deliveryId must be URL-encoded
+    assert any("pay%3Ajob-1" in str(p.get("path") or "") for p in posts)
     row = db.execute(
         "SELECT worker_id, file_path, status FROM payroll_statements LIMIT 1"
     ).fetchone()
     assert row is not None
     assert row["worker_id"] in ("w1", "") or row["status"] in ("pending", "unmatched")
     assert row["file_path"] == ""
+
+
+def test_confirm_lohn_deliveries_received_posts_ack(monkeypatch):
+    from backend.app.platform.accounting import platform_link
+
+    posts: list[dict] = []
+
+    def _fake_post(link, *, path, body, event, timeout=20):
+        posts.append({"path": path, "body": body, "event": event})
+        return {"ok": True, "status": 200}
+
+    monkeypatch.setattr(platform_link, "_post_lohn_json", _fake_post)
+    monkeypatch.setattr(
+        platform_link,
+        "get_platform_link",
+        lambda db=None: {"enabled": 1, "base_url": "https://lohn.test", "master_api_key": "k"},
+    )
+    out = service.confirm_lohn_deliveries_received(
+        None,
+        company_id="c1",
+        delivery_ids=["lstb:c1:w1:2025", "vb:c1:w1:2026"],
+        via="unit_test",
+    )
+    assert out["ok"] is True
+    assert out["ackedCount"] == 2
+    assert len(posts) == 2
+    assert posts[0]["body"]["received"] is True
+    assert posts[0]["body"]["companyId"] == "c1"
+    assert "lstb%3Ac1%3Aw1%3A2025" in posts[0]["path"]
 
 
 def test_session_handoff_url_uses_lohn_html():

@@ -590,6 +590,16 @@ def register_accounting_blueprint(flask_app) -> None:
             external_ref=str(data.get("externalRef") or ""),
             notes=str(data.get("notes") or ""),
         )
+        if result.get("ok"):
+            from .service import collect_lohn_delivery_ids, confirm_lohn_deliveries_received
+
+            confirm = confirm_lohn_deliveries_received(
+                get_db(),
+                company_id=integ["company_id"],
+                delivery_ids=collect_lohn_delivery_ids(data, statements),
+                via="statements_push",
+            )
+            result = {**result, "confirm": confirm, "acked": list(confirm.get("acked") or [])}
         return jsonify(result), (200 if result.get("ok") else 400)
 
     @accounting_bp.post("/v2/accounting/employee-data-alerts")
