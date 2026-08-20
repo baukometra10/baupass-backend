@@ -24167,11 +24167,15 @@ function updateTopbarActionsState(loggedIn) {
       const cid = String(getEffectiveUiCompanyId() || wpGet?.(WP?.KEYS?.ADMIN_COMPANY || "workpass-admin-company") || "").trim();
       const company = (state.companies || []).find((c) => String(c?.id || "") === cid);
       if (company) {
-        lohnEnabled = isCompanyWorkpassLohnEnabled(company);
-      } else if (role === "company-admin" && cid) {
-        // Company list may not be loaded — show and let launch API decide.
-        lohnEnabled = true;
-      } else if (role === "superadmin" && cid) {
+        const raw = company?.workpassLohnEnabled ?? company?.workpass_lohn_enabled;
+        // Missing field must NOT mean disabled (companies list often omits the column).
+        if (raw === undefined || raw === null || raw === "") {
+          lohnEnabled = true;
+        } else {
+          lohnEnabled = isCompanyWorkpassLohnEnabled(company);
+        }
+      } else if (cid || role === "superadmin" || role === "company-admin") {
+        // List not loaded / no preview company — keep button visible; launch API decides.
         lohnEnabled = true;
       }
     }

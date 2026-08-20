@@ -3924,6 +3924,12 @@ const TAB_TITLE_KEYS = {
 
 const COMMAND_NAV = [
   { tab: "overview", titleKey: "tab.overview", groupKey: "nav.group.start" },
+  {
+    openLohn: true,
+    titleKey: "lohn.opsLink",
+    groupKey: "nav.group.ops",
+    searchTerms: "lohn buchhaltung accounting workpass payroll abrechnung firma.de sso verdienst lstb",
+  },
   { tab: "analytics", titleKey: "tab.analytics", groupKey: "nav.group.start" },
   { tab: "inbox", titleKey: "tab.inbox", groupKey: "nav.group.start" },
   { tab: "audit", titleKey: "tab.audit", groupKey: "nav.group.start" },
@@ -3939,12 +3945,6 @@ const COMMAND_NAV = [
   { tab: "access", titleKey: "tab.access", groupKey: "nav.group.people" },
   { tab: "mobile", titleKey: "tab.mobile", groupKey: "nav.group.people" },
   { tab: "operations", titleKey: "tab.operations", groupKey: "nav.group.ops" },
-  {
-    openLohn: true,
-    titleKey: "lohn.opsLink",
-    groupKey: "nav.group.ops",
-    searchTerms: "lohn buchhaltung accounting workpass payroll abrechnung firma.de sso",
-  },
   { tab: "billing", titleKey: "tab.billing", groupKey: "nav.group.ops", searchTerms: "rechnung invoice billing stripe zahlung abo" },
   {
     href: "/admin-v2/chat.html",
@@ -4158,14 +4158,8 @@ function openCommandPalette() {
     input.value = "";
     setTimeout(() => input.focus(), 0);
   }
-  // Sticky cache first so WorkPass Lohn does not vanish while settings poll runs.
+  // Sticky role visibility — do not wait on company-settings (that hid WorkPass Lohn).
   renderCommandPaletteList("");
-  syncLohnOpenButton({ force: true })
-    .then(() => {
-      if ($("commandPalette")?.classList.contains("hidden")) return;
-      renderCommandPaletteList(($("commandPaletteInput")?.value || "").trim());
-    })
-    .catch(() => {});
 }
 
 function closeCommandPalette() {
@@ -4217,6 +4211,9 @@ function renderCommandPaletteList(query) {
       const title = t(item.titleKey);
       const group = t(item.groupKey || "");
       const active = i === commandPaletteIndex ? " command-item-active" : "";
+      if (item.openLohn) {
+        return `<li><button type="button" class="command-item${active}" data-cmd-idx="${i}" data-cmd-lohn="1"><span>${title}</span><span class="muted small">${group}</span></button></li>`;
+      }
       if (item.legacyView) {
         return `<li><button type="button" class="command-item${active}" data-cmd-idx="${i}"><span>${title}</span><span class="muted small">${group}</span></button></li>`;
       }
@@ -9729,6 +9726,32 @@ async function maybePromptSatisfactionSurvey() {
   }
 }
 
+function paintOpsStripLohnOnly() {
+  const strip = $("opsCommandStrip");
+  if (!strip) return;
+  if (!canShowLohnNavEntry()) {
+    // Keep other strip content if present; only ensure Lohn is not forced on.
+    return;
+  }
+  strip.classList.remove("hidden");
+  let btn = strip.querySelector("#opsStripLohnLink");
+  if (!btn) {
+    btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ops-strip-lohn-btn";
+    btn.id = "opsStripLohnLink";
+    btn.innerHTML = `${t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span>`;
+    btn.addEventListener("click", () => {
+      if (!canShowLohnNavEntry()) return;
+      openLohnDrawer().catch(() => {});
+    });
+    strip.prepend(btn);
+  } else {
+    btn.classList.remove("hidden");
+    btn.hidden = false;
+  }
+}
+
 async function loadOverview() {
   renderOverviewQuickBar();
   $("overviewQuickBar")?.classList.remove("hidden");
@@ -9736,6 +9759,7 @@ async function loadOverview() {
   const q = companyQuery();
   if (shouldSkipSupportBackgroundLoads()) {
     $("statCards").innerHTML = `<p class="muted">${escapeHtml(t("common.loading") || "Live-Ansicht…")}</p>`;
+    paintOpsStripLohnOnly();
     return;
   }
   if (getUser().role === "superadmin" && !q) {
@@ -9745,6 +9769,8 @@ async function loadOverview() {
       bp.classList.add("hidden");
       bp.innerHTML = "";
     }
+    // Keep WorkPass Lohn visible even before a preview company is chosen.
+    paintOpsStripLohnOnly();
     return;
   }
   const cid = activeCompanyId() || q.replace("?company_id=", "");
@@ -9920,7 +9946,12 @@ async function loadOverview() {
       paintLohnBadge($("opsStripLohnBadge"), 0);
     }
   } else if (strip) {
-    strip.classList.add("hidden");
+    // No company context — still keep WorkPass Lohn reachable for owners.
+    if (canShowLohnNavEntry()) {
+      paintOpsStripLohnOnly();
+    } else {
+      strip.classList.add("hidden");
+    }
   }
 
   const lage = $("lagePanel");
