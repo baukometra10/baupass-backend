@@ -967,7 +967,7 @@ function applyLohnNavVisibility(_enabled = null) {
   // Visibility is role-stable. Per-company opt-in is enforced on launch/API, not by hiding chrome.
   const showNav = canShowLohnNavEntry();
   lohnOpenEnabled = showNav;
-  document.querySelectorAll("#openLohnSystemBtn, .nav-item-lohn, #opsStripLohnLink, .ops-strip-lohn-btn, #topbarLohnBtn").forEach((el) => {
+  document.querySelectorAll("#openLohnSystemBtn, .nav-item-lohn, #opsStripLohnLink, .ops-strip-lohn-btn").forEach((el) => {
     el.classList.toggle("hidden", !showNav);
     if ("hidden" in el) el.hidden = !showNav;
   });
@@ -1063,7 +1063,7 @@ function applyRoleNavigation() {
     }
     // Sidebar visibility for enabled companies is owned by syncLohnOpenButton().
   });
-  document.querySelectorAll("#opsStripLohnLink, .ops-strip-lohn-btn, #topbarLohnBtn").forEach((el) => {
+  document.querySelectorAll("#opsStripLohnLink, .ops-strip-lohn-btn").forEach((el) => {
     const show = canShowLohnNavEntry();
     el.classList.toggle("hidden", !show);
     if ("hidden" in el) el.hidden = !show;
@@ -3772,9 +3772,6 @@ function wireLohnDrawer() {
   }
   $("openLohnSystemBtn")?.addEventListener("click", () => {
     openLohnSystem().catch(() => {});
-  });
-  $("topbarLohnBtn")?.addEventListener("click", () => {
-    openWorkpassLohnStudioFromNav().catch(() => {});
   });
   applyLohnNavVisibility(true);
   $("lohnDrawerBody")?.addEventListener("click", (ev) => {

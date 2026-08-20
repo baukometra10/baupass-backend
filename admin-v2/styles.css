@@ -3657,20 +3657,6 @@ body.theme-white .platform-section-kicker {
   letter-spacing: 0.02em;
 }
 
-.topbar-lohn-btn {
-  white-space: nowrap;
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 0.4rem 0.75rem;
-  border: 1px solid color-mix(in srgb, var(--accent, #38bdf8) 45%, transparent);
-  color: var(--accent, #38bdf8);
-  border-radius: 8px;
-}
-
-.topbar-lohn-btn:hover {
-  background: color-mix(in srgb, var(--accent, #38bdf8) 14%, transparent);
-}
-
 @media (max-width: 1280px) {
   .sidebar-logo {
     width: 48px;
@@ -5492,7 +5478,6 @@ body.embed-mode.admin-v2-embed .topbar-compact .topbar-actions {
 }
 
 body.embed-mode.admin-v2-embed .topbar-compact .cmd-kbd-btn,
-body.embed-mode.admin-v2-embed .topbar-compact .topbar-lohn-btn,
 body.embed-mode.admin-v2-embed .topbar-compact #refreshBtn {
   padding: 0.4rem 0.65rem;
   font-size: 0.82rem;
