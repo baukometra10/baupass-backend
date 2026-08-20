@@ -929,22 +929,31 @@ function isLohnEnabledForActiveCompany() {
   if (!canAccessWorkpassLohnUi()) return false;
   const cid = String(activeCompanyId() || "").trim();
   if (!cid) return false;
-  if (lohnOpenEnabled && lohnEnabledByCompany[cid] !== false) return true;
   return lohnEnabledByCompany[cid] === true;
 }
 
+/** Ops strip + Schnellnavigation: role-stable. Never flicker with settings polls. */
+function canShowLohnNavEntry() {
+  // Role only — company opt-in is enforced on launch/drawer APIs.
+  // Requiring activeCompanyId here caused the button to vanish whenever the
+  // company id briefly cleared during parent/token sync or overview reloads.
+  return canAccessWorkpassLohnUi();
+}
+
 function applyLohnNavVisibility(enabled) {
-  const show = Boolean(enabled) && canAccessWorkpassLohnUi();
-  lohnOpenEnabled = show;
+  // Sidebar "Buchhaltung öffnen" follows per-company opt-in.
+  const showSidebar = Boolean(enabled) && canAccessWorkpassLohnUi();
+  lohnOpenEnabled = showSidebar;
   const btn = $("openLohnSystemBtn");
   if (btn) {
-    btn.hidden = !show;
-    btn.classList.toggle("hidden", !show);
+    btn.hidden = !showSidebar;
+    btn.classList.toggle("hidden", !showSidebar);
   }
-  document.querySelectorAll("#opsStripLohnLink, .ops-strip-lohn-btn, .nav-item-lohn").forEach((el) => {
-    if (el === btn) return;
-    el.classList.toggle("hidden", !show);
-    if ("hidden" in el) el.hidden = !show;
+  // Ops strip / palette entry stay role-stable — do not hide them from settings polls.
+  const showNav = canShowLohnNavEntry();
+  document.querySelectorAll("#opsStripLohnLink, .ops-strip-lohn-btn").forEach((el) => {
+    el.classList.toggle("hidden", !showNav);
+    if ("hidden" in el) el.hidden = !showNav;
   });
 }
 
@@ -1036,18 +1045,12 @@ function applyRoleNavigation() {
       el.classList.add("hidden");
       if ("hidden" in el) el.hidden = true;
     }
-    // Visibility for enabled companies is owned by syncLohnOpenButton() — do not
-    // hide here based on finance tabs (that caused the Buchhaltung button flicker).
+    // Sidebar visibility for enabled companies is owned by syncLohnOpenButton().
   });
   document.querySelectorAll("#opsStripLohnLink, .ops-strip-lohn-btn").forEach((el) => {
-    if (!canAccessWorkpassLohnUi()) {
-      el.classList.add("hidden");
-      if ("hidden" in el) el.hidden = true;
-      return;
-    }
-    // Restore sticky company opt-in — role alone must not briefly hide an enabled company.
-    el.classList.toggle("hidden", !isLohnEnabledForActiveCompany());
-    if ("hidden" in el) el.hidden = !isLohnEnabledForActiveCompany();
+    const show = canShowLohnNavEntry();
+    el.classList.toggle("hidden", !show);
+    if ("hidden" in el) el.hidden = !show;
   });
   if (canAccessWorkpassLohnUi()) {
     applyLohnNavVisibility(isLohnEnabledForActiveCompany());
@@ -1516,17 +1519,31 @@ function updateLohnNavBadge(count) {
 async function syncLohnOpenButton({ force = false } = {}) {
   const cid = String(activeCompanyId() || "").trim();
   const seq = ++lohnOpenSyncSeq;
-  if (!cid || !canAccessWorkpassLohnUi()) {
+  if (!canAccessWorkpassLohnUi()) {
     lohnOpenEnabled = false;
     applyLohnNavVisibility(false);
     return;
   }
-
-  // Keep last confirmed state visible while a poll is in flight (stops flicker).
-  const cached = lohnEnabledByCompany[cid];
-  if (cached === true) {
-    applyLohnNavVisibility(true);
+  // Company id can blip empty during parent/token sync — never tear down nav for that.
+  if (!cid) {
+    return;
   }
+
+  const cached = lohnEnabledByCompany[cid];
+  // Sidebar only: show immediately when already confirmed.
+  if (cached === true) {
+    lohnOpenEnabled = true;
+    const btn = $("openLohnSystemBtn");
+    if (btn) {
+      btn.hidden = false;
+      btn.classList.remove("hidden");
+    }
+  }
+  // Keep ops strip visible for any selected company (role-stable).
+  document.querySelectorAll("#opsStripLohnLink, .ops-strip-lohn-btn").forEach((el) => {
+    el.classList.remove("hidden");
+    if ("hidden" in el) el.hidden = false;
+  });
 
   const lastAt = Number(lohnOpenSyncAtByCompany[cid] || 0);
   if (!force && cached === true && Date.now() - lastAt < 60000) {
@@ -1541,25 +1558,44 @@ async function syncLohnOpenButton({ force = false } = {}) {
     );
     if (seq !== lohnOpenSyncSeq || activeCompanyId() !== cid) return;
 
-    // Soft fail / timeout / malformed — never flip a confirmed "on" to off.
     if (!settings || typeof settings !== "object" || !("workpassLohnEnabled" in settings)) {
-      if (cached != null) applyLohnNavVisibility(!!cached);
+      // Soft fail: never demote a confirmed enabled company.
+      if (cached === true) {
+        lohnOpenEnabled = true;
+        const btn = $("openLohnSystemBtn");
+        if (btn) {
+          btn.hidden = false;
+          btn.classList.remove("hidden");
+        }
+      }
       return;
     }
 
     const enabled = !!settings.workpassLohnEnabled;
+    // Latch: once true, ignore a lone false from a flaky read (keeps UI stable).
+    if (cached === true && !enabled) {
+      lohnOpenSyncAtByCompany[cid] = Date.now();
+      return;
+    }
     lohnEnabledByCompany[cid] = enabled;
     lohnOpenSyncAtByCompany[cid] = Date.now();
     writeLohnEnabledCache(lohnEnabledByCompany);
-    applyLohnNavVisibility(enabled);
+    lohnOpenEnabled = enabled;
+    const btn = $("openLohnSystemBtn");
+    if (btn) {
+      btn.hidden = !enabled;
+      btn.classList.toggle("hidden", !enabled);
+    }
   } catch {
     if (seq !== lohnOpenSyncSeq || activeCompanyId() !== cid) return;
-    // Keep previous visibility; only hide when we never confirmed this company.
-    if (cached != null) {
-      applyLohnNavVisibility(!!cached);
-      return;
+    if (cached === true) {
+      lohnOpenEnabled = true;
+      const btn = $("openLohnSystemBtn");
+      if (btn) {
+        btn.hidden = false;
+        btn.classList.remove("hidden");
+      }
     }
-    applyLohnNavVisibility(false);
   }
 }
 
@@ -4148,7 +4184,7 @@ function renderCommandPaletteList(query) {
     if (isEmbedMode() && item.tab === "enterprise" && item.titleKey === "tab.enterprise") {
       return false;
     }
-    if (item.openLohn && !isLohnEnabledForActiveCompany()) {
+    if (item.openLohn && !canShowLohnNavEntry()) {
       return false;
     }
     if (item.tab === "analytics" && !canAccessAnalyticsTab()) {
@@ -9856,7 +9892,7 @@ async function loadOverview() {
       <span class="ops-strip-kpi"><strong>${twin.workersOnSite ?? wf.onSite ?? 0}</strong> ${t("overview.onSiteKpi")}</span>
       ${opsSurfaceEnabled("security", opsFeatures) ? `<span class="ops-strip-kpi"><strong>${(sec.openAlerts || []).length}</strong> ${t("inbox.filterSecurity")}</span>` : ""}
       <span class="ops-strip-kpi">${emg.active ? t("overview.emergency") : t("overview.calm")}</span>
-      ${canAccessWorkpassLohnUi() ? `<button type="button" class="ops-strip-lohn-btn${isLohnEnabledForActiveCompany() ? "" : " hidden"}" id="opsStripLohnLink" ${isLohnEnabledForActiveCompany() ? "" : "hidden"}>${t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span></button>` : ""}
+      ${canShowLohnNavEntry() ? `<button type="button" class="ops-strip-lohn-btn" id="opsStripLohnLink">${t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span></button>` : ""}
       ${canCmd ? `<a href="/ops-command-center.html${qs}" target="_blank" rel="noopener">${t("ops.commandCenter")}</a>` : ""}
       ${canMap ? `<a href="/ops-live-map.html${qs}" target="_blank" rel="noopener">${t("ops.liveMap")}</a>` : ""}
       ${canAi ? `<a href="/ai-command-center.html${qs}" target="_blank" rel="noopener">${t("ops.aiCenter")}</a>` : ""}
@@ -9868,12 +9904,11 @@ async function loadOverview() {
       await loadOperations();
     });
     strip.querySelector("#opsStripLohnLink")?.addEventListener("click", () => {
-      if (!canAccessWorkpassLohnUi() || !isLohnEnabledForActiveCompany()) return;
+      if (!canShowLohnNavEntry()) return;
       openLohnDrawer().catch(() => {});
     });
     if (canAccessWorkpassLohnUi()) {
-      applyLohnNavVisibility(isLohnEnabledForActiveCompany());
-      void syncLohnOpenButton({ force: true });
+      void syncLohnOpenButton({ force: false });
       refreshLohnBadgeOnly()
         .then(() => {
           const n = Number($("lohnOpsBadge")?.textContent || 0);
