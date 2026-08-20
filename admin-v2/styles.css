@@ -4533,8 +4533,8 @@ body.theme-black .payslip-list-expand-rail {
   height: 100%;
   border: 0;
   background: #fff;
-  pointer-events: none;
-  overflow: hidden;
+  pointer-events: auto;
+  overflow: auto;
 }
 .payslip-studio.is-sheet-focus .payslip-studio-list,
 .payslip-studio.is-sheet-focus .payslip-studio-side,
