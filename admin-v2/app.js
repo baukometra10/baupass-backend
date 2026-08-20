@@ -748,10 +748,10 @@ function handleHubNavigateFromEmbed(data) {
     return true;
   }
   if (view === "ops-center") {
-    if (postShellNavigate({ view: "ops-center", companyId: data?.companyId || activeCompanyId() })) {
-      return true;
-    }
-    navigateToOpsEmbed("/ops-command-center.html");
+    const cid = data?.companyId || activeCompanyId() || "";
+    const u = new URL("/ops-command-center.html", window.location.origin);
+    if (cid) u.searchParams.set("company_id", cid);
+    window.location.assign(u.pathname + u.search);
     return true;
   }
   if (view === "ai-assistant") {
@@ -797,7 +797,17 @@ function handleHubNavigateFromEmbed(data) {
 }
 
 function navigateToOpsEmbed(page) {
-  pendingOpsEmbedPage = String(page || "").trim();
+  const target = String(page || "").trim();
+  // Ops-Zentrale is a standalone page (own chrome/scroll) — do not trap it in the ops iframe.
+  if (/ops-command-center\.html/i.test(target)) {
+    const cid = activeCompanyId() || getUser()?.company_id || "";
+    const u = new URL(target, window.location.origin);
+    if (cid && !u.searchParams.get("company_id")) u.searchParams.set("company_id", cid);
+    u.searchParams.delete("embed");
+    window.location.assign(u.pathname + u.search + u.hash);
+    return;
+  }
+  pendingOpsEmbedPage = target;
   switchToTab("operations");
   refreshActiveTab().catch(notifyTabError);
 }
@@ -7447,6 +7457,10 @@ function initOpsEmbedTabs(panel, companyId) {
     btn.addEventListener("click", () => {
       const page = btn.getAttribute("data-ops-page");
       if (!page || btn.disabled) return;
+      if (/ops-command-center\.html/i.test(page)) {
+        navigateToOpsEmbed(page);
+        return;
+      }
       panel.querySelectorAll(".ops-embed-tab").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       frame.title = btn.textContent || "";
@@ -8268,19 +8282,16 @@ function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, fe
   const canPhysicalOs = opsSurfaceEnabled("physicalOs", features);
   const defaultOpsPage = canLiveMap
     ? "/ops-live-map.html"
-    : canCmdCenter
-      ? "/ops-command-center.html"
-      : canAi
-        ? "/ai-command-center.html"
-        : "/enterprise-hub.html";
+    : canAi
+      ? "/ai-command-center.html"
+      : "/enterprise-hub.html";
   const mapSrc = mapEager && canLiveMap && !isSupportReadOnlySession() && !window.WorkPassStorage?.isSupportAssistQuietMode?.()
     ? `/ops-live-map.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}`
-    : mapEager && canCmdCenter && !isSupportReadOnlySession() && !window.WorkPassStorage?.isSupportAssistQuietMode?.()
-      ? `/ops-command-center.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}`
-      : "about:blank";
+    : "about:blank";
   panel.dataset.opsCid = String(cid || "");
   const upgradeHint = (need) =>
     `<span class="muted small"> · ${escapeHtml(t("platform.upgradeRequired", { plan: need }) || `Upgrade: ${need}`)}</span>`;
+  const opsStandaloneHref = `/ops-command-center.html${q || (cid ? `?company_id=${encodeURIComponent(cid)}` : "")}`;
   panel.innerHTML = `
       <div class="panel-block ops-panel">
         <div class="ops-panel-head">
@@ -8298,12 +8309,12 @@ function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, fe
       </div>
       <div class="link-row ops-embed-tabs" role="tablist">
         <button type="button" class="btn-link ops-embed-tab ${defaultOpsPage.includes("live-map") ? "active" : ""}" data-ops-page="/ops-live-map.html" ${canLiveMap ? "" : "disabled"}>${t("ops.liveMap")}${canLiveMap ? "" : " 🔒"}</button>
-        <button type="button" class="btn-link ops-embed-tab ${defaultOpsPage.includes("ops-command") ? "active" : ""}" data-ops-page="/ops-command-center.html" ${canCmdCenter ? "" : "disabled"}>${t("ops.commandCenter")}${canCmdCenter ? "" : " 🔒"}</button>
+        <a class="btn-link ops-embed-tab" href="${opsStandaloneHref}" ${canCmdCenter ? "" : `aria-disabled="true" tabindex="-1" style="opacity:0.45;pointer-events:none"`}>${t("ops.commandCenter")}${canCmdCenter ? "" : " 🔒"}</a>
         <button type="button" class="btn-link ops-embed-tab ${defaultOpsPage.includes("ai-command") ? "active" : ""}" data-ops-page="/ai-command-center.html" ${canAi ? "" : "disabled"}>${t("ops.aiCenter")}${canAi ? "" : " 🔒"}</button>
         <button type="button" class="btn-link ops-embed-tab" data-ops-page="/enterprise-hub.html">${t("common.enterpriseHub")}</button>
         <a href="${defaultOpsPage}${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}" target="_blank" rel="noopener" class="muted small">${t("ops.openNewTab")}</a>
       </div>
-      <iframe id="opsEmbedFrame" src="${mapSrc}" title="${t("ops.liveMap")}" class="ops-map-frame${defaultOpsPage.includes("ops-command") || defaultOpsPage.includes("ai-command") || defaultOpsPage.includes("enterprise-hub") ? " is-ops-tall" : ""}" loading="lazy"></iframe>
+      <iframe id="opsEmbedFrame" src="${mapSrc}" title="${t("ops.liveMap")}" class="ops-map-frame${defaultOpsPage.includes("ai-command") || defaultOpsPage.includes("enterprise-hub") ? " is-ops-tall" : ""}" loading="lazy"></iframe>
       <div class="panel-block">
         <h3>${t("contracts.title")}</h3>
         <p class="muted small">${t("contracts.desc")}</p>
@@ -8369,6 +8380,10 @@ function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, fe
   if (pendingOpsEmbedPage) {
     const page = pendingOpsEmbedPage;
     pendingOpsEmbedPage = null;
+    if (/ops-command-center\.html/i.test(page)) {
+      navigateToOpsEmbed(page);
+      return;
+    }
     const embedBtn = panel.querySelector(`.ops-embed-tab[data-ops-page="${page}"]`);
     embedBtn?.click();
   }

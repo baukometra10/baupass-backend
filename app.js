@@ -10155,7 +10155,7 @@ const ADMIN_V2_EMBED_ITEM = {
 const ENTERPRISE_NAV_ITEMS = [
   { id: "enterprise-hub", view: "enterprise-hub", path: "/enterprise-hub.html", labelKey: "navEnterpriseHub", minPlan: "starter", queryCompany: true, version: true, embed: true },
   { id: "ai-assistant", view: "ai-assistant", path: "/ai-command-center.html", labelKey: "navAiCopilot", minPlan: "enterprise", queryCompany: true, version: true, embed: true },
-  { id: "ops-center", view: "ops-center", path: "/ops-command-center.html", labelKey: "navOpsCenter", minPlan: "enterprise", queryCompany: true, embed: true },
+  { id: "ops-center", view: "ops-center", path: "/ops-command-center.html", labelKey: "navOpsCenter", minPlan: "enterprise", queryCompany: true, embed: false },
   { id: "ops-live-map", view: "ops-live-map", path: "/ops-live-map.html", labelKey: "navLiveMap", minPlan: "professional", queryCompany: true, embed: true },
 ];
 
@@ -20382,6 +20382,21 @@ function setView(viewName) {
   if (viewName === "deployment-plan" && preferBetriebDeployment()) {
     requestEinsatzplanEditor();
     return;
+  }
+  // Ops-Zentrale runs as its own full page (own header/scroll) — not inside shell iframe.
+  if (viewName === "ops-center") {
+    const item = ENTERPRISE_NAV_ITEMS.find((entry) => entry.id === "ops-center");
+    if (item?.path) {
+      const url = buildEnterpriseEmbedUrl({ ...item, embed: false });
+      try {
+        const u = new URL(url, window.location.origin);
+        u.searchParams.delete("embed");
+        window.location.assign(`${u.pathname}${u.search}${u.hash}`);
+      } catch {
+        window.location.assign(item.path);
+      }
+      return;
+    }
   }
   const role = getEffectiveUiRole();
   const allowedViews = getAllowedViewsForRole(role);

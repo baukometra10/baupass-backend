@@ -918,14 +918,12 @@
         return;
       }
       if (v === "ops-center") {
-        if (hubPostNavigate({ view: "ops-center", companyId })) {
-          return;
-        }
         const u = new URL("/ops-command-center.html", location.origin);
         Object.keys(params).forEach((key) => {
           const val = params[key];
           if (val != null && String(val).trim() !== "") u.searchParams.set(key, String(val).trim());
         });
+        u.searchParams.delete("embed");
         window.location.href = u.pathname + u.search;
         return;
       }

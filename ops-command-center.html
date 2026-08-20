@@ -10,8 +10,8 @@
   <link rel="icon" type="image/svg+xml" sizes="192x192" href="/branding/suppix-ai-mark.svg" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/design-tokens.css" />
-  <link rel="stylesheet" href="/embed-shell.css?v=20260820opsScroll1" />
-  <link rel="stylesheet" href="/ops-shell.css?v=20260820opsScroll1" />
+  <link rel="stylesheet" href="/embed-shell.css?v=20260820opsStandalone2" />
+  <link rel="stylesheet" href="/ops-shell.css?v=20260820opsStandalone2" />
   <style>
     html { scroll-behavior: smooth; }
     /* Standalone: page itself scrolls (no trapped nested viewport) */
@@ -138,9 +138,9 @@
     .guardian-shell { position: relative; z-index: 1; }
     .guardian-head {
       display: grid;
-      grid-template-columns: auto 1fr auto;
-      gap: 1rem;
-      align-items: start;
+      grid-template-columns: auto minmax(0, 1fr) 9.75rem;
+      gap: 1rem 1.15rem;
+      align-items: center;
       padding: 0.85rem 1.15rem 0.75rem;
       border-bottom: 1px solid rgba(148, 163, 184, 0.16);
       background: linear-gradient(90deg, rgba(75, 227, 209, 0.14), rgba(75, 227, 209, 0.02));
@@ -153,7 +153,22 @@
     }
     @media (max-width: 720px) {
       .guardian-head { grid-template-columns: auto 1fr; }
-      .guardian-meta { grid-column: 1 / -1; justify-self: start; text-align: start; }
+      .guardian-meta {
+        grid-column: 1 / -1;
+        justify-self: center;
+        align-items: center;
+        text-align: center;
+      }
+    }
+    .guardian-head-copy { min-width: 0; }
+    .guardian-status-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+      padding: 0.55rem 1.15rem 0.7rem;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+      background: rgba(0, 0, 0, 0.18);
     }
     .guardian-mark {
       width: 3.6rem; height: 3.6rem; border-radius: 16px;
@@ -193,8 +208,9 @@
       margin-top: 0.2rem; color: var(--muted); font-size: 0.78rem; line-height: 1.35; max-width: 36rem;
     }
     .guardian-status-row {
-      display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.4rem;
+      display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0;
     }
+    .guardian-status-bar .guardian-status-row { margin-top: 0; }
     .guardian-status {
       font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
       padding: 0.28rem 0.65rem; border-radius: 999px;
@@ -215,20 +231,28 @@
     .guardian-card.degraded .guardian-live { color: #fbbf24; border-color: rgba(251, 191, 36, 0.4); background: rgba(251, 191, 36, 0.08); }
     .guardian-card.down .guardian-live { color: #f87171; border-color: rgba(248, 113, 113, 0.4); background: rgba(248, 113, 113, 0.08); }
     .guardian-meta {
-      display: flex; flex-direction: column; align-items: flex-end; gap: 0.45rem;
-      text-align: end; font-size: 0.72rem; color: var(--muted); line-height: 1.45;
-      min-width: 8.5rem;
+      display: flex; flex-direction: column; align-items: center; gap: 0.35rem;
+      text-align: center; font-size: 0.72rem; color: var(--muted); line-height: 1.45;
+      width: 9.75rem;
+      max-width: 9.75rem;
+      min-width: 9.75rem;
+      flex: 0 0 9.75rem;
+      justify-self: end;
+      isolation: isolate;
+      z-index: 2;
     }
-    .guardian-meta strong { display: block; color: #e8f2ff; font-size: 0.82rem; font-weight: 650; }
+    .guardian-meta strong { display: block; color: #e8f2ff; font-size: 0.78rem; font-weight: 650; }
     .guardian-radar {
-      width: 7.25rem;
+      width: 8rem;
       flex: 0 0 auto;
+      margin: 0 auto;
     }
     .guardian-radar-screen {
       position: relative;
-      width: 7.25rem; height: 7.25rem;
+      width: 8rem; height: 8rem;
       border-radius: 50%;
       overflow: hidden;
+      flex-shrink: 0;
       border: 1px solid rgba(75, 227, 209, 0.45);
       background:
         radial-gradient(circle at center, rgba(75, 227, 209, 0.16) 0 2px, transparent 3px),
@@ -611,6 +635,7 @@
       <a id="navAi" href="/ai-command-center.html">KI Command Center</a>
       <a id="navHub" href="/enterprise-hub.html">Funktionen &amp; Tarife</a>
       <a id="navAdmin" href="/admin-v2/index.html">Betrieb</a>
+      <a id="navShell" href="/index.html">SUPPIX</a>
       <a id="navForeman" href="/foreman.html">Vorarbeiter</a>
       <a href="/ops-live-map.html" id="mapLink">Live Karte</a>
       <select id="opsLangSelect" aria-label="Sprache" style="font-size:0.78rem;padding:0.25rem 0.35rem;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--text);">
@@ -1336,18 +1361,20 @@
           <div class="guardian-shell">
             <div class="guardian-head">
               <div class="guardian-mark" style="color:var(--accent)">${guardianShieldSvg()}<span class="guardian-mark-dot"></span></div>
-              <div>
+              <div class="guardian-head-copy">
                 <div class="guardian-title">${tr("guardianLabel")}</div>
                 <div class="guardian-sub">${tr("guardianSub")}</div>
-                <div class="guardian-status-row">
-                  <span class="guardian-status">${tr("guardianUnavailable")}</span>
-                  <span class="guardian-live">${tr("guardianOnWatch")}</span>
-                  <span class="guardian-live">${tr("guardianHealStrong")}</span>
-                </div>
               </div>
               <div class="guardian-meta">
                 ${guardianRadarHtml({ scanning: true })}
                 <div><strong>${tr("guardianLive")}</strong>${tr("guardianUnavailableHint")}</div>
+              </div>
+            </div>
+            <div class="guardian-status-bar" aria-label="${tr("guardianLabel")}">
+              <div class="guardian-status-row">
+                <span class="guardian-status">${tr("guardianUnavailable")}</span>
+                <span class="guardian-live">${tr("guardianOnWatch")}</span>
+                <span class="guardian-live">${tr("guardianHealStrong")}</span>
               </div>
             </div>
             <div class="guardian-body">
@@ -1430,15 +1457,9 @@
           <div class="guardian-shell">
             <div class="guardian-head">
               <div class="guardian-mark" style="color:${markColor}">${guardianShieldSvg()}<span class="guardian-mark-dot"></span></div>
-              <div>
+              <div class="guardian-head-copy">
                 <div class="guardian-title">${tr("guardianLabel")}</div>
                 <div class="guardian-sub">${tr("guardianSub")}</div>
-                <div class="guardian-status-row">
-                  <span class="guardian-status">${statusLabel}</span>
-                  <span class="guardian-live">${tr("guardianOnWatch")}</span>
-                  <span class="guardian-live">${tr("guardianHealStrong")}</span>
-                  <span class="guardian-live">${healBadge}</span>
-                </div>
               </div>
               <div class="guardian-meta">
                 ${guardianRadarHtml({ failed, fixed: appliedList, scanning: status !== "ok" })}
@@ -1446,6 +1467,14 @@
                   <strong>${tr("guardianLive")}</strong>
                   ${host ? `${host}<br>` : ""}${checked ? `${checked} UTC` : "—"}
                 </div>
+              </div>
+            </div>
+            <div class="guardian-status-bar" aria-label="${tr("guardianLabel")}">
+              <div class="guardian-status-row">
+                <span class="guardian-status">${statusLabel}</span>
+                <span class="guardian-live">${tr("guardianOnWatch")}</span>
+                <span class="guardian-live">${tr("guardianHealStrong")}</span>
+                <span class="guardian-live">${healBadge}</span>
               </div>
             </div>
             <div class="guardian-body">
