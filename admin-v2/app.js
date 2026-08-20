@@ -11330,17 +11330,17 @@ async function showWorkerJoin(workerId, workerName) {
   $("joinModal").classList.remove("hidden");
 }
 
-$("joinCloseBtn").addEventListener("click", closeJoinModal);
-$("joinModal").addEventListener("click", (e) => {
+$("joinCloseBtn")?.addEventListener("click", closeJoinModal);
+$("joinModal")?.addEventListener("click", (e) => {
   if (e.target === $("joinModal")) closeJoinModal();
 });
-$("joinCopyBtn").addEventListener("click", async () => {
-  const link = $("joinLinkInput").value;
+$("joinCopyBtn")?.addEventListener("click", async () => {
+  const link = $("joinLinkInput")?.value;
   try {
     await navigator.clipboard.writeText(link);
     alert(t("common.copyDone"));
   } catch {
-    $("joinLinkInput").select();
+    $("joinLinkInput")?.select();
     document.execCommand("copy");
     alert(t("common.copyDone"));
   }
@@ -12303,14 +12303,14 @@ async function bootSession() {
   }
 }
 
-$("loginBtn").addEventListener("click", async () => {
-  $("loginError").classList.add("hidden");
+$("loginBtn")?.addEventListener("click", async () => {
+  $("loginError")?.classList.add("hidden");
   try {
     const payload = await api("/api/login", {
       method: "POST",
       body: JSON.stringify({
-        username: $("username").value.trim(),
-        password: $("password").value,
+        username: $("username")?.value?.trim(),
+        password: $("password")?.value,
         loginScope: "auto",
       }),
     });
@@ -12347,12 +12347,14 @@ $("loginBtn").addEventListener("click", async () => {
     }
     maybePromptSatisfactionSurvey().catch(() => {});
   } catch (e) {
-    $("loginError").textContent = e.message || t("login.fail");
-    $("loginError").classList.remove("hidden");
+    if ($("loginError")) {
+      $("loginError").textContent = e.message || t("login.fail");
+      $("loginError").classList.remove("hidden");
+    }
   }
 });
 
-$("logoutBtn").addEventListener("click", async () => {
+$("logoutBtn")?.addEventListener("click", async () => {
   try {
     await api("/api/v2/auth/revoke", { method: "POST" });
   } catch {
@@ -12363,7 +12365,7 @@ $("logoutBtn").addEventListener("click", async () => {
   showLogin();
 });
 
-$("refreshBtn").addEventListener("click", () => refreshActiveTab().catch(notifyTabError));
+$("refreshBtn")?.addEventListener("click", () => refreshActiveTab().catch(notifyTabError));
 
 bindTabNavigation();
 
@@ -12491,7 +12493,6 @@ $("satisfactionSurveyForm")?.addEventListener("submit", async (ev) => {
 async function bootAccountingHubStudioHost() {
   document.documentElement.classList.add("accounting-hub-host");
   document.body.classList.add("theme-black", "accounting-hub-host");
-  // Session is adopted by accounting-app.js; ensure company from query is applied.
   try {
     const qsCid = new URLSearchParams(location.search).get("company_id") || "";
     if (qsCid) {
@@ -12503,16 +12504,15 @@ async function bootAccountingHubStudioHost() {
   }
   let token = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || "").trim();
   if (!token) {
-    // brief wait for storage/parent sync from accounting-app
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 250));
     token = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || "").trim();
-  }
-  if (!token) {
-    console.warn("[accounting-host] no token yet — studio opens after hub login");
   }
   wireLohnDrawer();
   window.BaupassPayslipStudio = {
-    open: (opts = {}) => openPayslipReviewStudio({ forceLocal: true, ...opts }),
+    open: async (opts = {}) => {
+      if (!window.__workpassLohnUiWired) wireLohnDrawer();
+      return openPayslipReviewStudio({ forceLocal: true, ...opts });
+    },
     close: () => closePayslipReviewStudio(),
   };
   window.dispatchEvent(new CustomEvent("baupass-payslip-studio-ready"));
@@ -12526,6 +12526,15 @@ function isAccountingHubHost() {
 }
 
 if (isAccountingHubHost()) {
+  // Register immediately so accounting-app can open studio without racing a failed boot.
+  window.BaupassPayslipStudio = {
+    open: async (opts = {}) => {
+      if (!window.__workpassLohnUiWired) wireLohnDrawer();
+      return openPayslipReviewStudio({ forceLocal: true, ...opts });
+    },
+    close: () => closePayslipReviewStudio(),
+  };
+  window.dispatchEvent(new CustomEvent("baupass-payslip-studio-ready"));
   bootAccountingHubStudioHost().catch((err) => {
     console.warn("[accounting-host]", err);
   });

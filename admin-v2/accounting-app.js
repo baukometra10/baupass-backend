@@ -728,7 +728,11 @@ function waitForStudio(maxMs = 12000) {
 
 async function openStudioInPage(extra = {}) {
   setStatus(tr("studioWait"));
-  const studio = await waitForStudio();
+  let studio = await waitForStudio(4000);
+  if (!studio?.open) {
+    // app.js may still be parsing — one more short wait
+    studio = await waitForStudio(8000);
+  }
   if (!studio?.open) {
     setStatus(tr("studioFail"), "error");
     return;
