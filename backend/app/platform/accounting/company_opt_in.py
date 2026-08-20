@@ -42,13 +42,25 @@ def is_workpass_lohn_enabled(db, company_id: str) -> bool:
             (company_id,),
         ).fetchone()
     except Exception:
-        return False
+        # Transient DB errors must not look like "disabled" — caller/UI treats False as opt-out.
+        # Retry once without deleted_at filter in case of dialect quirks.
+        try:
+            row = db.execute(
+                "SELECT workpass_lohn_enabled FROM companies WHERE id = ?",
+                (company_id,),
+            ).fetchone()
+        except Exception:
+            return False
     if not row:
         return False
     try:
-        return int(row["workpass_lohn_enabled"] or 0) == 1
-    except (KeyError, TypeError, ValueError):
-        return False
+        val = row["workpass_lohn_enabled"] if hasattr(row, "keys") else row[0]
+        return int(val or 0) == 1
+    except (KeyError, TypeError, ValueError, IndexError):
+        try:
+            return int(row[0] or 0) == 1
+        except Exception:
+            return False
 
 
 def set_workpass_lohn_enabled(
