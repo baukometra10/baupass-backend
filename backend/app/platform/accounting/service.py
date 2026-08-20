@@ -3516,9 +3516,27 @@ def release_statement(
         meta_now = json.loads(stmt.get("meta_json") or "{}")
     except Exception:
         meta_now = {}
-    # Exact Lohn PDF must be forwarded unchanged — never remake tax/earnings docs.
-    if is_exact_lohn_pdf_source((meta_now or {}).get("pdfSource")) or bool((meta_now or {}).get("pdfImmutable")):
-        built = ensure_statement_delivery_pdf(db, stmt, batch, force=False)
+    doc_type_now = _statement_doc_type(stmt)
+    certificate_doc = doc_type_now not in {"lohnabrechnung", "gehaltsabrechnung", ""}
+    # Official tax forms (Verdienstbescheinigung etc.) and any Lohn original
+    # must stay byte-identical — never Datev remake.
+    if (
+        certificate_doc
+        or is_exact_lohn_pdf_source((meta_now or {}).get("pdfSource"))
+        or bool((meta_now or {}).get("pdfImmutable"))
+    ):
+        path = str(stmt.get("file_path") or "").strip()
+        if not path or not Path(path).is_file() or Path(path).stat().st_size < 20:
+            repaired = repair_statement_original_pdf_from_lohn(db, stmt)
+            if not repaired.get("ok"):
+                return {
+                    "ok": False,
+                    "error": "missing_original_pdf",
+                    "hint": repaired.get("error") or "pdfBase64 from WorkPass Lohn required",
+                    "docType": doc_type_now,
+                }
+            stmt = repo.get_statement(db, statement_id) or stmt
+        built = {"ok": True, "skipped": "original_passthrough"}
     else:
         force_pdf = not is_high_fidelity_pdf_source((meta_now or {}).get("pdfSource"))
         built = ensure_statement_delivery_pdf(db, stmt, batch, force=force_pdf)
