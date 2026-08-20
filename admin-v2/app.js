@@ -1,4 +1,4 @@
-import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260820lohnStudio6";
+import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260820lohnStudio7";
 import { ensureLeafletLoaded, mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -1693,6 +1693,7 @@ const payslipStudioState = {
   openFilter: "all",
   docTypeFilter: "all",
   filtersExpanded: false,
+  listCollapsed: false,
   archivePeriod: "",
   rematchedKeys: Object.create(null),
   previewZoom: 1,
@@ -1967,6 +1968,61 @@ function syncPayslipFiltersChrome() {
     toggle.textContent = active ? `${base} ·` : base;
     toggle.classList.toggle("has-active-filters", Boolean(active));
   }
+}
+
+const PAYSLIP_LIST_COLLAPSE_KEY = "workpass-payslip-list-collapsed";
+
+function readPayslipListCollapsed() {
+  try {
+    return sessionStorage.getItem(PAYSLIP_LIST_COLLAPSE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writePayslipListCollapsed(collapsed) {
+  try {
+    sessionStorage.setItem(PAYSLIP_LIST_COLLAPSE_KEY, collapsed ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
+function syncPayslipListCollapseChrome() {
+  const collapsed = Boolean(payslipStudioState.listCollapsed);
+  const studio = $("payslipReviewStudio");
+  const layout = $("payslipStudioLayout");
+  const rail = $("payslipListExpandRail");
+  const headBtn = $("payslipListCollapseBtn");
+  const paneBtn = $("payslipListCollapseBtnPane");
+  studio?.classList.toggle("is-list-collapsed", collapsed);
+  layout?.classList.toggle("is-list-collapsed", collapsed);
+  rail?.classList.toggle("hidden", !collapsed);
+  rail?.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  if (headBtn) {
+    headBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    headBtn.textContent = collapsed
+      ? (t("lohn.listExpand") || "Liste")
+      : (t("lohn.listCollapse") || "Liste");
+    headBtn.classList.toggle("is-active", collapsed);
+  }
+  if (paneBtn) {
+    paneBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    paneBtn.title = collapsed
+      ? (t("lohn.listExpand") || "Liste öffnen")
+      : (t("lohn.listCollapse") || "Liste einklappen");
+  }
+  schedulePayslipPreviewFit();
+}
+
+function setPayslipListCollapsed(next) {
+  payslipStudioState.listCollapsed = Boolean(next);
+  writePayslipListCollapsed(payslipStudioState.listCollapsed);
+  syncPayslipListCollapseChrome();
+}
+
+function togglePayslipListCollapsed() {
+  setPayslipListCollapsed(!payslipStudioState.listCollapsed);
 }
 
 function normalizePayslipDocKind(stmt) {
@@ -3710,6 +3766,8 @@ async function openPayslipReviewStudio(opts = {}) {
   el.classList.remove("hidden");
   el.setAttribute("aria-hidden", "false");
   document.body.classList.add("payslip-studio-open");
+  payslipStudioState.listCollapsed = readPayslipListCollapsed();
+  syncPayslipListCollapseChrome();
   warmPayslipCaptureLibs();
   schedulePayslipPreviewFit();
   const listHost = $("payslipStudioList");
@@ -3820,6 +3878,11 @@ async function handlePayslipStudioKeydown(ev) {
   if (key === "-" || key === "_") {
     ev.preventDefault();
     setPayslipPreviewZoom((Number(payslipStudioState.previewZoom) || 1) - 0.15);
+    return;
+  }
+  if (key === "[" || key === "]" || lower === "l") {
+    ev.preventDefault();
+    togglePayslipListCollapsed();
     return;
   }
   if (key === "Enter" || lower === "s") {
@@ -4503,9 +4566,15 @@ function wireLohnDrawer() {
     payslipStudioState.filtersExpanded = !payslipStudioState.filtersExpanded;
     syncPayslipFiltersChrome();
   });
+  const toggleList = () => togglePayslipListCollapsed();
+  $("payslipListCollapseBtn")?.addEventListener("click", toggleList);
+  $("payslipListCollapseBtnPane")?.addEventListener("click", toggleList);
+  $("payslipListExpandRail")?.addEventListener("click", () => setPayslipListCollapsed(false));
   $("payslipAutoAdvance")?.addEventListener("change", (ev) => {
     payslipStudioState.autoAdvanceAfterSend = Boolean(ev.target?.checked);
   });
+  payslipStudioState.listCollapsed = readPayslipListCollapsed();
+  syncPayslipListCollapseChrome();
   $("payslipInboxTabs")?.addEventListener("pointerdown", (ev) => {
     const btn = ev.target?.closest?.("[data-payslip-inbox]");
     if (!btn) return;

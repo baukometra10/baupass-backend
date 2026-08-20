@@ -34,7 +34,7 @@
   <link rel="shortcut icon" href="/branding/suppix-icon-192.png" id="adminAppFavicon" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
-  <link rel="stylesheet" href="styles.css?v=20260820lohnStudio6" />
+  <link rel="stylesheet" href="styles.css?v=20260820lohnStudio7" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" media="print" onload="this.media='all'" />
   <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" /></noscript>
   <!-- Leaflet JS loaded on demand in Tools/Geofencing — not on every Betrieb boot -->
@@ -585,6 +585,7 @@
         </div>
         <div class="payslip-studio-head-actions">
           <div class="payslip-studio-head-secondary">
+            <button type="button" id="payslipListCollapseBtn" class="ghost payslip-list-collapse-btn" aria-controls="payslipStudioListPane" aria-expanded="true" data-i18n="lohn.listCollapse" title="Liste ein-/ausklappen">Liste</button>
             <button type="button" id="payslipStudioPullBtn" class="ghost" data-i18n="lohn.pullPayslipsShort">Von Lohn holen</button>
             <button type="button" id="payslipStudioAuditBtn" class="ghost" data-i18n="lohn.auditToggle">Protokoll</button>
           </div>
@@ -592,11 +593,14 @@
           <button type="button" id="payslipStudioClose" class="ghost" data-i18n="common.close">Schließen</button>
         </div>
       </header>
-      <div class="payslip-studio-layout">
+      <div class="payslip-studio-layout" id="payslipStudioLayout">
         <aside class="payslip-studio-list" id="payslipStudioListPane">
-          <div class="payslip-inbox-tabs" id="payslipInboxTabs">
-            <button type="button" class="is-active" data-payslip-inbox="open" data-i18n="lohn.inboxOpen">Offen</button>
-            <button type="button" data-payslip-inbox="archive" data-i18n="lohn.inboxArchive">Archiv</button>
+          <div class="payslip-list-pane-head">
+            <div class="payslip-inbox-tabs" id="payslipInboxTabs">
+              <button type="button" class="is-active" data-payslip-inbox="open" data-i18n="lohn.inboxOpen">Offen</button>
+              <button type="button" data-payslip-inbox="archive" data-i18n="lohn.inboxArchive">Archiv</button>
+            </div>
+            <button type="button" id="payslipListCollapseBtnPane" class="ghost payslip-list-collapse-btn" aria-label="Liste einklappen" title="Liste einklappen">‹</button>
           </div>
           <div class="payslip-list-search-row">
             <input type="search" id="payslipArchiveSearch" class="payslip-archive-search" data-payslip-archive-q autocomplete="off" />
@@ -611,6 +615,10 @@
           </div>
           <div id="payslipStudioList" class="payslip-list-scroll"></div>
         </aside>
+        <button type="button" id="payslipListExpandRail" class="payslip-list-expand-rail hidden" aria-controls="payslipStudioListPane" aria-expanded="false" title="Liste öffnen">
+          <span aria-hidden="true">›</span>
+          <span class="payslip-list-expand-label" data-i18n="lohn.listExpand">Liste</span>
+        </button>
         <section class="payslip-studio-main" id="payslipStudioMain">
           <div class="payslip-studio-empty" id="payslipStudioEmpty" data-i18n="lohn.payslipPickOne">Bitte eine Abrechnung links wählen.</div>
           <div class="payslip-studio-work hidden" id="payslipStudioWork">
@@ -644,7 +652,7 @@
   <script src="/embed-helpers.js?v=20260819embed18"></script>
   <script src="/control-pass-theme.js?v=20260705a"></script>
   <script src="/sector-copy.js?v=20260818opsSector3"></script>
-  <script src="app.js?v=20260820lohnStudio6" type="module"></script>
+  <script src="app.js?v=20260820lohnStudio7" type="module"></script>
   <script>
     // Realtime/chat/voice CDNs must not block Geofencing / Tools first paint.
     (function deferAdminRealtime() {

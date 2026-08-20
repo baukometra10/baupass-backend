@@ -4211,6 +4211,65 @@ body.payslip-studio-open {
   flex: 1;
   background: #eef2f6;
   isolation: isolate;
+  position: relative;
+}
+.payslip-studio-layout.is-list-collapsed {
+  grid-template-columns: 2.4rem minmax(0, 1fr);
+}
+.payslip-studio-layout.is-list-collapsed .payslip-studio-list {
+  display: none;
+}
+.payslip-list-pane-head {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+  padding-right: 0.35rem;
+}
+.payslip-list-pane-head .payslip-inbox-tabs {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.payslip-list-collapse-btn {
+  flex: 0 0 auto;
+  min-width: 2rem;
+  padding: 0.35rem 0.45rem;
+}
+.payslip-list-expand-rail {
+  display: none;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  margin: 0.45rem 0.2rem;
+  padding: 0.55rem 0.2rem;
+  border: 1px solid #d8dee6;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  z-index: 4;
+}
+.payslip-studio-layout.is-list-collapsed .payslip-list-expand-rail {
+  display: inline-flex;
+}
+.payslip-list-expand-rail.hidden {
+  display: none !important;
+}
+.payslip-list-expand-label {
+  letter-spacing: 0.04em;
+}
+body.theme-black .payslip-list-expand-rail {
+  background: #0d1628;
+  border-color: rgba(120, 156, 255, 0.18);
+  color: #e2e8f0;
+}
+#payslipListCollapseBtn.is-active {
+  border-color: color-mix(in srgb, var(--accent, #38bdf8) 50%, transparent);
+  color: var(--accent, #0284c7);
 }
 .payslip-studio-list {
   display: flex;
@@ -4677,6 +4736,9 @@ body.theme-black .payslip-studio-side button:not(.primary) {
 @media (max-width: 1200px) {
   .payslip-studio-layout {
     grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+  }
+  .payslip-studio-layout.is-list-collapsed {
+    grid-template-columns: 2.4rem minmax(0, 1fr);
   }
   .payslip-studio-work {
     grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
