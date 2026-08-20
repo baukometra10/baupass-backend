@@ -10,12 +10,13 @@
   <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="icon" type="image/svg+xml" sizes="192x192" href="/branding/suppix-ai-mark.svg" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
-  <link rel="stylesheet" href="/admin-v2/accounting.css?v=20260820accHub1" />
+  <link rel="stylesheet" href="/admin-v2/styles.css?v=20260820accHub2" />
+  <link rel="stylesheet" href="/admin-v2/accounting.css?v=20260820accHub2" />
 </head>
-<body>
+<body data-page="accounting" class="theme-black">
   <div id="accBoot" class="acc-boot">
     <div class="spinner" aria-hidden="true"></div>
-    <div id="accBootMsg">Lade Lohn-Zentrale…</div>
+    <div id="accBootMsg" data-acc-i18n="boot">Lade Lohn-Zentrale…</div>
   </div>
 
   <div id="accApp" class="acc-shell hidden">
@@ -23,69 +24,193 @@
       <div class="acc-brand">
         <div class="acc-mark" aria-hidden="true">Ł</div>
         <div>
-          <h1 id="accTitle">Lohn-Zentrale</h1>
-          <p id="accSub">Alle Anfragen der Buchhaltung — prüfen, bestätigen, Freigabe im Studio.</p>
+          <h1 id="accTitle" data-acc-i18n="title">Lohn-Zentrale</h1>
+          <p id="accSub" data-acc-i18n="sub">Buchhaltung, Anfragen und Lohnabrechnungen — alles an einem Ort.</p>
         </div>
       </div>
       <div class="acc-actions">
-        <a class="btn ghost" id="accBackBetrieb" href="/admin-v2/index.html">← Betrieb</a>
-        <button type="button" class="ghost" id="accRefreshBtn">Aktualisieren</button>
-        <button type="button" class="primary" id="accOpenExternalBtn">Buchhaltung öffnen</button>
+        <label class="acc-lang">
+          <span data-acc-i18n="lang">Sprache</span>
+          <select id="accLangSelect" aria-label="Language">
+            <option value="de">DE</option>
+            <option value="en">EN</option>
+            <option value="ar">AR</option>
+            <option value="tr">TR</option>
+            <option value="fr">FR</option>
+            <option value="es">ES</option>
+            <option value="it">IT</option>
+            <option value="pl">PL</option>
+          </select>
+        </label>
+        <a class="btn ghost" id="accBackBetrieb" href="/admin-v2/index.html" data-acc-i18n="backBetrieb">← Betrieb</a>
+        <button type="button" class="ghost" id="accRefreshBtn" data-acc-i18n="refresh">Aktualisieren</button>
+        <button type="button" class="primary" id="accOpenExternalBtn" data-acc-i18n="openExternal">Buchhaltung öffnen</button>
       </div>
     </header>
 
-    <nav class="acc-jump" aria-label="Abschnitte">
-      <a href="#accProcess" id="jumpProcess">Zu bearbeiten <span class="badge is-zero" id="badgeProcess">0</span></a>
-      <a href="#accConfirm" id="jumpConfirm">Bestätigung <span class="badge is-zero" id="badgeConfirm">0</span></a>
-      <a href="#accStudio" id="jumpStudio">Studio <span class="badge is-zero" id="badgeStudio">0</span></a>
-    </nav>
     <div id="accStatus" class="acc-status" role="status" aria-live="polite"></div>
 
-    <section class="acc-section" id="accProcess">
-      <div class="acc-section-head">
+    <div id="accMailboxHome" class="acc-mailbox-grid" role="navigation" aria-label="Accounting mailboxes">
+      <button type="button" class="acc-mailbox" data-acc-box="process" id="boxProcess">
+        <span class="acc-mailbox-icon" aria-hidden="true">📥</span>
+        <span class="acc-mailbox-title" data-acc-i18n="boxProcessTitle">Zu bearbeiten</span>
+        <span class="acc-mailbox-desc" data-acc-i18n="boxProcessDesc">Anfragen und fehlende Daten aus der Buchhaltung</span>
+        <span class="acc-mailbox-count" id="badgeProcess">0</span>
+        <span class="acc-mailbox-meta" id="metaProcess" data-acc-i18n="boxProcessMeta">Nachrichten · Stammdaten · Hinweise</span>
+      </button>
+      <button type="button" class="acc-mailbox is-confirm" data-acc-box="confirm" id="boxConfirm">
+        <span class="acc-mailbox-icon" aria-hidden="true">✅</span>
+        <span class="acc-mailbox-title" data-acc-i18n="boxConfirmTitle">Bestätigung</span>
+        <span class="acc-mailbox-desc" data-acc-i18n="boxConfirmDesc">Perioden-Übergaben freigeben oder ablehnen</span>
+        <span class="acc-mailbox-count" id="badgeConfirm">0</span>
+        <span class="acc-mailbox-meta" id="metaConfirm" data-acc-i18n="boxConfirmMeta">Freigaben von der Plattform</span>
+      </button>
+      <button type="button" class="acc-mailbox is-studio" data-acc-box="studio" id="boxStudio">
+        <span class="acc-mailbox-icon" aria-hidden="true">📄</span>
+        <span class="acc-mailbox-title" data-acc-i18n="boxStudioTitle">Studio</span>
+        <span class="acc-mailbox-desc" data-acc-i18n="boxStudioDesc">Lohnabrechnungen prüfen und an die App senden</span>
+        <span class="acc-mailbox-count" id="badgeStudio">0</span>
+        <span class="acc-mailbox-meta" id="metaStudio" data-acc-i18n="boxStudioMeta">PDF-Freigabe · Archiv</span>
+      </button>
+    </div>
+
+    <section class="acc-panel hidden" id="accProcess" data-acc-panel="process">
+      <div class="acc-panel-head">
+        <button type="button" class="ghost acc-back-boxes" data-acc-back data-acc-i18n="backBoxes">← Postfächer</button>
         <div>
-          <h2>Zu bearbeiten</h2>
-          <p>Anfragen und Hinweise aus dem Buchhaltungssystem, die eine Bearbeitung in der Plattform brauchen.</p>
+          <h2 data-acc-i18n="boxProcessTitle">Zu bearbeiten</h2>
+          <p data-acc-i18n="boxProcessDesc">Anfragen und fehlende Daten aus der Buchhaltung</p>
         </div>
       </div>
-      <div class="acc-section-body" id="accProcessBody"></div>
+      <div class="acc-panel-body" id="accProcessBody"></div>
     </section>
 
-    <section class="acc-section is-confirm" id="accConfirm">
-      <div class="acc-section-head">
+    <section class="acc-panel hidden" id="accConfirm" data-acc-panel="confirm">
+      <div class="acc-panel-head">
+        <button type="button" class="ghost acc-back-boxes" data-acc-back data-acc-i18n="backBoxes">← Postfächer</button>
         <div>
-          <h2>Bestätigung</h2>
-          <p>Perioden-Übergaben und Freigaben, die von der Plattform bestätigt oder abgelehnt werden.</p>
+          <h2 data-acc-i18n="boxConfirmTitle">Bestätigung</h2>
+          <p data-acc-i18n="boxConfirmDesc">Perioden-Übergaben freigeben oder ablehnen</p>
         </div>
       </div>
-      <div class="acc-section-body" id="accConfirmBody"></div>
+      <div class="acc-panel-body" id="accConfirmBody"></div>
     </section>
 
-    <section class="acc-section is-studio" id="accStudio">
-      <div class="acc-section-head">
+    <section class="acc-panel hidden" id="accStudio" data-acc-panel="studio">
+      <div class="acc-panel-head">
+        <button type="button" class="ghost acc-back-boxes" data-acc-back data-acc-i18n="backBoxes">← Postfächer</button>
         <div>
-          <h2>Studio — Lohnabrechnungen</h2>
-          <p>Prüfung und Versand aller Abrechnungsdokumente an die Mitarbeiter-App.</p>
+          <h2 data-acc-i18n="boxStudioTitle">Studio</h2>
+          <p data-acc-i18n="boxStudioDesc">Lohnabrechnungen prüfen und an die App senden</p>
         </div>
-        <div class="acc-actions">
-          <button type="button" class="primary" id="accOpenStudioBtn">Studio öffnen</button>
-          <button type="button" class="ghost hidden" id="accExitStudioBtn">Zurück zur Übersicht</button>
-        </div>
+        <button type="button" class="primary" id="accOpenStudioBtn" data-acc-i18n="openStudio">Studio öffnen</button>
       </div>
-      <div class="acc-section-body">
+      <div class="acc-panel-body">
         <div id="accStudioHint" class="acc-empty">
-          <strong>Studio bereit</strong>
-          Offene Abrechnungen erscheinen hier. Klicke „Studio öffnen“, um die Freigabe zu starten.
-        </div>
-        <div id="accStudioFrameWrap" class="acc-studio-frame-wrap hidden">
-          <iframe id="accStudioFrame" title="Lohnabrechnungs-Studio" src="about:blank"></iframe>
+          <strong data-acc-i18n="studioReadyTitle">Studio bereit</strong>
+          <span data-acc-i18n="studioReadyBody">Öffne das Studio direkt auf dieser Seite — ohne Extra-Fenster.</span>
         </div>
       </div>
     </section>
   </div>
 
+  <!-- In-page payslip studio (same DOM ids as Betrieb — hosted locally for performance) -->
+  <div id="payslipReviewStudio" class="payslip-studio hidden" aria-hidden="true">
+    <div class="payslip-studio-backdrop" id="payslipStudioBackdrop"></div>
+    <div class="payslip-studio-shell" role="dialog" aria-modal="true" aria-labelledby="payslipStudioTitle">
+      <header class="payslip-studio-head">
+        <div class="payslip-studio-head-copy">
+          <h2 id="payslipStudioTitle">Lohnabrechnungen — Freigabe</h2>
+          <p id="payslipStudioProgress" class="payslip-studio-progress muted small" aria-live="polite"></p>
+          <p id="payslipStudioMetaLine" class="muted small payslip-studio-meta-line" aria-live="polite"></p>
+          <p id="payslipStudioSyncLine" class="payslip-studio-sync-line muted small" aria-live="polite"></p>
+        </div>
+        <div class="payslip-studio-head-actions">
+          <div class="payslip-studio-head-secondary">
+            <button type="button" id="payslipListCollapseBtn" class="ghost payslip-list-collapse-btn" data-payslip-ui="collapse-list" aria-controls="payslipStudioListPane" aria-expanded="true" title="Liste">Liste</button>
+            <button type="button" id="payslipStudioPullBtn" class="ghost" data-payslip-ui="pull">Von Lohn holen</button>
+            <button type="button" id="payslipStudioAuditBtn" class="ghost" data-payslip-ui="audit">Protokoll</button>
+          </div>
+          <button type="button" id="payslipStudioReleaseAll" class="primary" data-payslip-ui="release-all" disabled>Alle geprüften senden</button>
+          <button type="button" id="payslipStudioClose" class="ghost" data-payslip-ui="close">Schließen</button>
+        </div>
+      </header>
+      <div id="payslipKeysHintBar" class="payslip-keys-hint-bar" role="note">
+        <span>↑↓ · L Liste · F · Enter · R · Esc</span>
+        <button type="button" id="payslipKeysHintDismiss" class="ghost" aria-label="Dismiss">×</button>
+      </div>
+      <div class="payslip-studio-layout" id="payslipStudioLayout">
+        <aside class="payslip-studio-list" id="payslipStudioListPane">
+          <div class="payslip-list-pane-head">
+            <div class="payslip-inbox-tabs" id="payslipInboxTabs">
+              <button type="button" class="is-active" data-payslip-inbox="open">Offen</button>
+              <button type="button" data-payslip-inbox="archive">Archiv</button>
+            </div>
+            <button type="button" id="payslipListCollapseBtnPane" class="ghost payslip-list-collapse-btn" data-payslip-ui="collapse-list" aria-label="Collapse">‹</button>
+          </div>
+          <div class="payslip-list-search-row">
+            <input type="search" id="payslipArchiveSearch" class="payslip-archive-search" data-payslip-archive-q autocomplete="off" />
+            <button type="button" id="payslipFiltersToggle" class="ghost payslip-filters-toggle" data-payslip-ui="toggle-filters" aria-expanded="false">Filter</button>
+          </div>
+          <div id="payslipArchiveTools" class="payslip-archive-tools is-collapsed">
+            <div class="payslip-archive-stats" id="payslipArchiveStats"></div>
+            <div class="payslip-archive-filters" id="payslipArchiveFilters"></div>
+            <div class="payslip-archive-filters payslip-doctype-filters" id="payslipDocTypeFilters"></div>
+            <select id="payslipArchivePeriod" class="payslip-archive-period" data-payslip-archive-period></select>
+          </div>
+          <div id="payslipStudioList" class="payslip-list-scroll"></div>
+        </aside>
+        <button type="button" id="payslipListExpandRail" class="payslip-list-expand-rail hidden" data-payslip-ui="expand-list" aria-controls="payslipStudioListPane" aria-expanded="false" title="Liste">
+          <span aria-hidden="true">›</span>
+          <span class="payslip-list-expand-label">Liste</span>
+        </button>
+        <section class="payslip-studio-main" id="payslipStudioMain">
+          <div class="payslip-studio-empty" id="payslipStudioEmpty">Bitte eine Abrechnung links wählen.</div>
+          <div class="payslip-studio-work hidden" id="payslipStudioWork">
+            <div class="payslip-studio-pdf-wrap">
+              <div class="payslip-preview-toolbar" id="payslipPreviewToolbar">
+                <button type="button" data-payslip-zoom="out" title="Zoom −" aria-label="Zoom out">−</button>
+                <button type="button" data-payslip-zoom="reset" id="payslipZoomLabel">100%</button>
+                <button type="button" data-payslip-zoom="in" title="Zoom +" aria-label="Zoom in">+</button>
+                <label class="payslip-auto-advance">
+                  <input type="checkbox" id="payslipAutoAdvance" checked />
+                  <span>Weiter nach Senden</span>
+                </label>
+              </div>
+              <div class="payslip-sheet-stage" id="payslipSheetStage">
+                <iframe id="payslipStudioPdf" title="Lohnabrechnung" class="payslip-studio-pdf" scrolling="yes"></iframe>
+              </div>
+            </div>
+            <aside class="payslip-studio-side">
+              <div id="payslipIdentityCard" class="payslip-identity"></div>
+              <div id="payslipStudioAudit" class="payslip-studio-audit hidden" aria-live="polite"></div>
+              <div class="payslip-studio-actions" id="payslipStudioActions"></div>
+            </aside>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="payslipConfirmModal" class="payslip-confirm-modal hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="payslipConfirmTitle">
+    <div class="payslip-confirm-backdrop" id="payslipConfirmBackdrop"></div>
+    <div class="payslip-confirm-panel">
+      <h3 id="payslipConfirmTitle">Bestätigen</h3>
+      <p id="payslipConfirmBody" class="payslip-confirm-body"></p>
+      <div id="payslipConfirmWarnings" class="payslip-confirm-warnings hidden"></div>
+      <div class="payslip-confirm-actions">
+        <button type="button" id="payslipConfirmCancel" class="ghost">Abbrechen</button>
+        <button type="button" id="payslipConfirmOk" class="primary">Senden</button>
+      </div>
+    </div>
+  </div>
+  <div id="payslipSheetOverlay" class="payslip-sheet-overlay hidden" aria-hidden="true"></div>
+  <div id="globalToast" class="global-toast hidden" role="status" aria-live="polite"></div>
+
   <script src="/workpass-storage.js?v=20260819wp22"></script>
   <script src="/embed-helpers.js?v=20260819embed18"></script>
-  <script src="/admin-v2/accounting-app.js?v=20260820accHub1" type="module"></script>
+  <script src="/control-pass-theme.js?v=20260705a"></script>
+  <script type="module" src="/admin-v2/app.js?v=20260820accHub2"></script>
+  <script type="module" src="/admin-v2/accounting-app.js?v=20260820accHub2"></script>
 </body>
 </html>

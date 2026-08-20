@@ -4009,8 +4009,8 @@ async function refreshPayslipStudio({ keepSelection = false } = {}) {
 }
 
 async function openPayslipReviewStudio(opts = {}) {
-  // Prefer the dedicated Lohn-Zentrale page — keep local studio only for autostudio iframe host.
-  if (!opts.forceLocal && !isAutostudioEmbed()) {
+  // Prefer the dedicated Lohn-Zentrale page — keep local studio only for accounting host / autostudio iframe.
+  if (!opts.forceLocal && !isAutostudioEmbed() && !isAccountingHubHost()) {
     const cid = activeCompanyId();
     if (!cid && isSuperadminUser()) {
       showActionToast(t("common.selectCompany") || "Bitte Firma wählen", true);
@@ -5304,18 +5304,8 @@ function renderOverviewQuickBar() {
     { tab: "access", label: t("overview.quick.access"), icon: "✓" },
     { tab: "copilot", label: t("overview.quick.copilot"), icon: "✦" },
   ];
-  if (canShowLohnNavEntry()) {
-    items.splice(1, 0, {
-      href: accountingHubUrl(),
-      label: t("lohn.hubNav") || "Lohn-Zentrale",
-      icon: "Ł",
-    });
-  }
   bar.innerHTML = items
     .map((item) => {
-      if (item.href) {
-        return `<a class="quick-bar-btn" href="${escapeAttr(item.href)}"><span class="quick-bar-icon" aria-hidden="true">${item.icon}</span><span>${escapeHtml(item.label)}</span></a>`;
-      }
       return `<button type="button" class="quick-bar-btn" data-goto-tab="${item.tab}"${item.highlight ? ` data-highlight="${item.highlight}"` : ""}><span class="quick-bar-icon" aria-hidden="true">${item.icon}</span><span>${item.label}</span></button>`;
     })
     .join("");
@@ -10928,27 +10918,8 @@ async function maybePromptSatisfactionSurvey() {
 function paintOpsStripLohnOnly() {
   const strip = $("opsCommandStrip");
   if (!strip) return;
-  if (!canShowLohnNavEntry()) {
-    // Keep other strip content if present; only ensure Lohn is not forced on.
-    return;
-  }
-  strip.classList.remove("hidden");
-  let btn = strip.querySelector("#opsStripLohnLink");
-  if (!btn) {
-    btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "ops-strip-lohn-btn";
-    btn.id = "opsStripLohnLink";
-    btn.innerHTML = `${t("lohn.hubNav") || t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span>`;
-    btn.addEventListener("click", () => {
-      if (!canShowLohnNavEntry()) return;
-      goToAccountingHub({ companyId: activeCompanyId() });
-    });
-    strip.prepend(btn);
-  } else {
-    btn.classList.remove("hidden");
-    btn.hidden = false;
-  }
+  // Accounting workflows live in Lohn-Zentrale — do not inject strip shortcuts here.
+  strip.querySelector("#opsStripLohnLink")?.remove();
 }
 
 async function loadOverview() {
@@ -11132,7 +11103,6 @@ async function loadOverview() {
       <span class="ops-strip-kpi"><strong>${twin.workersOnSite ?? wf.onSite ?? 0}</strong> ${t("overview.onSiteKpi")}</span>
       ${opsSurfaceEnabled("security", opsFeatures) ? `<span class="ops-strip-kpi"><strong>${(sec.openAlerts || []).length}</strong> ${t("inbox.filterSecurity")}</span>` : ""}
       <span class="ops-strip-kpi">${emg.active ? t("overview.emergency") : t("overview.calm")}</span>
-      ${canShowLohnNavEntry() ? `<button type="button" class="ops-strip-lohn-btn" id="opsStripLohnLink">${t("lohn.hubNav") || t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span></button>` : ""}
       ${canCmd ? `<a href="/ops-command-center.html${qs}" target="_blank" rel="noopener">${t("ops.commandCenter")}</a>` : ""}
       ${canMap ? `<a href="/ops-live-map.html${qs}" target="_blank" rel="noopener">${t("ops.liveMap")}</a>` : ""}
       ${canAi ? `<a href="/ai-command-center.html${qs}" target="_blank" rel="noopener">${t("ops.aiCenter")}</a>` : ""}
@@ -11143,21 +11113,12 @@ async function loadOverview() {
       switchToTab("operations");
       await loadOperations();
     });
-    strip.querySelector("#opsStripLohnLink")?.addEventListener("click", () => {
-      if (!canShowLohnNavEntry()) return;
-      goToAccountingHub({ companyId: activeCompanyId() || cid });
-    });
+    strip.querySelector("#opsStripLohnLink")?.remove();
     if (canAccessWorkpassLohnUi()) {
       void syncLohnOpenButton({ force: false });
-      refreshLohnBadgeOnly()
-        .then(() => {
-          const n = Number($("lohnOpsBadge")?.textContent || 0);
-          paintLohnBadge($("opsStripLohnBadge"), n);
-        })
-        .catch(() => {});
+      refreshLohnBadgeOnly().catch(() => {});
     } else {
       updateLohnNavBadge(0);
-      paintLohnBadge($("opsStripLohnBadge"), 0);
     }
   } else if (strip) {
     // No company context — still keep WorkPass Lohn reachable for owners.
@@ -12527,9 +12488,52 @@ $("satisfactionSurveyForm")?.addEventListener("submit", async (ev) => {
   }
 });
 
-bootSession();
-bindLegacyDashboardLinks();
-if (window.BaupassAuth?.loadPublicTenantBranding) {
-  void window.BaupassAuth.loadPublicTenantBranding();
+async function bootAccountingHubStudioHost() {
+  document.documentElement.classList.add("accounting-hub-host");
+  document.body.classList.add("theme-black", "accounting-hub-host");
+  // Session is adopted by accounting-app.js; ensure company from query is applied.
+  try {
+    const qsCid = new URLSearchParams(location.search).get("company_id") || "";
+    if (qsCid) {
+      wpSet(COMPANY_KEY, qsCid);
+      applyParentCompanyId(qsCid);
+    }
+  } catch {
+    /* ignore */
+  }
+  let token = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || "").trim();
+  if (!token) {
+    // brief wait for storage/parent sync from accounting-app
+    await new Promise((r) => setTimeout(r, 200));
+    token = String(WP?.readSessionToken?.() || wpGet(TOKEN_KEY) || "").trim();
+  }
+  if (!token) {
+    console.warn("[accounting-host] no token yet — studio opens after hub login");
+  }
+  wireLohnDrawer();
+  window.BaupassPayslipStudio = {
+    open: (opts = {}) => openPayslipReviewStudio({ forceLocal: true, ...opts }),
+    close: () => closePayslipReviewStudio(),
+  };
+  window.dispatchEvent(new CustomEvent("baupass-payslip-studio-ready"));
 }
-bindSurveyInvitePanelActions();
+
+function isAccountingHubHost() {
+  return (
+    document.body?.dataset?.page === "accounting"
+    || /\/admin-v2\/accounting\.html$/i.test(String(location.pathname || ""))
+  );
+}
+
+if (isAccountingHubHost()) {
+  bootAccountingHubStudioHost().catch((err) => {
+    console.warn("[accounting-host]", err);
+  });
+} else {
+  bootSession();
+  bindLegacyDashboardLinks();
+  if (window.BaupassAuth?.loadPublicTenantBranding) {
+    void window.BaupassAuth.loadPublicTenantBranding();
+  }
+  bindSurveyInvitePanelActions();
+}
