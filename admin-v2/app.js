@@ -941,14 +941,6 @@ function isLohnEnabledForActiveCompany() {
   return lohnEnabledByCompany[cid] === true;
 }
 
-/** Ops strip + Schnellnavigation: role-stable. Never flicker with settings polls. */
-function canShowLohnNavEntry() {
-  // Role only — company opt-in is enforced on launch/drawer APIs.
-  // Requiring activeCompanyId here caused the button to vanish whenever the
-  // company id briefly cleared during parent/token sync or overview reloads.
-  return canAccessWorkpassLohnUi();
-}
-
 function applyLohnNavVisibility(_enabled = null) {
   // Visibility is role-stable. Per-company opt-in is enforced on launch/API, not by hiding chrome.
   const showNav = canShowLohnNavEntry();
