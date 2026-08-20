@@ -430,7 +430,6 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
                 "lohn_original",
                 "lohn_html2canvas",
                 "lohn_sheet_capture",
-                "lohn_portal_form",
             }
             origin_source = str(meta.get("source") or meta.get("origin") or "").strip()
             origin = origin_source.lower()
@@ -449,15 +448,19 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
                     pass
             if pdf_is_stub:
                 pdf_immutable = False
-            passthrough = is_workpass_lohn_passthrough(meta, out) and not pdf_is_stub
+            # Platform-rebuilt Form VB/LStB (reportlab) is not a Lohn original capture.
+            platform_rebuilt_cert = pdf_source == "lohn_portal_form"
+            if platform_rebuilt_cert:
+                pdf_immutable = False
+            passthrough = is_workpass_lohn_passthrough(meta, out) and not pdf_is_stub and not platform_rebuilt_cert
             sheet_types = {"lohnabrechnung", "gehaltsabrechnung"}
             title_type = infer_payroll_doc_type_from_title(title) if title else None
             certificate_like = bool(
                 (doc_type and doc_type not in sheet_types)
                 or (title_type and title_type not in sheet_types)
             )
-            # Hard rule: any WorkPass Lohn PDF opens as-is — except known text stubs.
-            if pdf_is_stub and certificate_like:
+            # Hard rule: real WorkPass Lohn PDFs open as-is; stubs/rebuilds use portal HTML.
+            if certificate_like and (pdf_is_stub or platform_rebuilt_cert):
                 preview_mode = "sheet"
             elif has_pdf or pdf_immutable or passthrough or origin in {"lohn_delivery", "workpass_lohn", "lohn"}:
                 preview_mode = "pdf"

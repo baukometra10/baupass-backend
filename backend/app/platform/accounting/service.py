@@ -194,12 +194,13 @@ def render_verdienst_certificate_pdf_bytes(doc: dict[str, Any] | None, *, meta: 
     from reportlab.lib.units import mm
     from reportlab.pdfgen import canvas as pdf_canvas
 
-    from .lohn_certificate_sheet import _amt
+    from .lohn_certificate_sheet import _amt, format_date_de, format_period_label_de
 
     d = doc if isinstance(doc, dict) else {}
     m = meta if isinstance(meta, dict) else {}
     year = str(d.get("year") or m.get("year") or (str(d.get("period") or "")[:4]) or "").strip()
     period = str(d.get("period") or m.get("period") or "").strip()[:7]
+    period_label = format_period_label_de(period) or period or "—"
     buf = BytesIO()
     c = pdf_canvas.Canvas(buf, pagesize=A4)
     width, height = A4
@@ -216,9 +217,10 @@ def render_verdienst_certificate_pdf_bytes(doc: dict[str, Any] | None, *, meta: 
     text(left, y, "WorkPass Lohn  ·  Form VB", size=8)
     y -= 7 * mm
     text(left, y, "Verdienstbescheinigung", size=16, bold=True)
-    text(right - 45 * mm, y + 3 * mm, f"Bezugsmonat {period}", size=9, bold=True)
-    text(right - 45 * mm, y - 2 * mm, f"Jahr {year or period[:4]}", size=9)
-    y -= 8 * mm
+    text(right - 45 * mm, y + 3 * mm, "Bezugsmonat", size=7)
+    text(right - 45 * mm, y - 1 * mm, period_label, size=11, bold=True)
+    text(right - 45 * mm, y - 5 * mm, f"Jahr {year or period[:4]}", size=8)
+    y -= 10 * mm
     c.setStrokeColorRGB(0.1, 0.1, 0.1)
     c.setLineWidth(1)
     c.line(left, y, right, y)
@@ -228,6 +230,8 @@ def render_verdienst_certificate_pdf_bytes(doc: dict[str, Any] | None, *, meta: 
 
     box_w = (right - left - 4 * mm) / 2
     box_h = 42 * mm
+    months = d.get("monthsInYear") if isinstance(d.get("monthsInYear"), list) else []
+    months_label = ", ".join(format_period_label_de(x) or str(x) for x in months) if months else ""
     for i, title in enumerate(("Arbeitnehmer/in", "Arbeitgeber")):
         x0 = left + i * (box_w + 4 * mm)
         c.rect(x0, y - box_h, box_w, box_h, stroke=1, fill=0)
@@ -237,9 +241,9 @@ def render_verdienst_certificate_pdf_bytes(doc: dict[str, Any] | None, *, meta: 
                 str(d.get("employeeName") or m.get("employeeName") or "—"),
                 str(d.get("employeeAddress") or ""),
                 f"Personal-Nr.: {d.get('personnelNumber') or d.get('employeeId') or '—'}",
-                f"Steuer-ID: {d.get('employeeTaxId') or '—'}",
+                f"Identifikationsnummer: {d.get('employeeTaxId') or '—'}",
                 f"SV-Nr.: {d.get('employeeInsuranceNo') or '—'}",
-                f"Geburtsdatum: {d.get('employeeBirthDate') or '—'}",
+                f"Geburtsdatum: {format_date_de(d.get('employeeBirthDate'))}",
                 f"Steuerklasse: {d.get('taxClass') or '—'}",
             ]
         else:
@@ -247,7 +251,8 @@ def render_verdienst_certificate_pdf_bytes(doc: dict[str, Any] | None, *, meta: 
             lines = [
                 *seller.split("\n")[:3],
                 f"Steuernummer: {d.get('taxNumber') or '—'}",
-                f"Monate {year}: {d.get('monthsCount') or '—'}",
+                f"Abgerechnete Monate {year}: {d.get('monthsCount') or len(months) or '—'}",
+                months_label,
             ]
         yy = y - 10 * mm
         for line in lines:
@@ -266,6 +271,8 @@ def render_verdienst_certificate_pdf_bytes(doc: dict[str, Any] | None, *, meta: 
             ("Abrechnungs-Brutto", "gross"),
             ("Steuer-Brutto", "taxGross"),
             ("SV-Brutto", "svGross"),
+            ("Gesamt-Brutto mtl.", "gross"),
+            ("Nettoentgelt mtl.", "net"),
             ("Lohnsteuer", "payrollTax"),
             ("Solidaritaetszuschlag", "solidarity"),
             ("Kirchensteuer", "churchTax"),
@@ -289,7 +296,7 @@ def render_verdienst_certificate_pdf_bytes(doc: dict[str, Any] | None, *, meta: 
     col_m = right - 55 * mm
     col_y = right - 8 * mm
     text(col_label, y, "Bezeichnung", size=8, bold=True)
-    text(col_m - 18 * mm, y, f"mtl. ({period})", size=8, bold=True)
+    text(col_m - 28 * mm, y, f"mtl. ({period_label})", size=8, bold=True)
     text(col_y - 18 * mm, y, f"Jahr {year}", size=8, bold=True)
     y -= 3 * mm
     c.line(left, y, right, y)
@@ -297,7 +304,7 @@ def render_verdienst_certificate_pdf_bytes(doc: dict[str, Any] | None, *, meta: 
     for row in rows:
         if not isinstance(row, dict):
             continue
-        if y < 55 * mm:
+        if y < 35 * mm:
             c.showPage()
             y = height - 20 * mm
         text(col_label, y, str(row.get("label") or "")[:55], size=8)
@@ -305,16 +312,7 @@ def render_verdienst_certificate_pdf_bytes(doc: dict[str, Any] | None, *, meta: 
         c.drawRightString(col_y, y, money(row.get("yearly")))
         y -= 5.2 * mm
 
-    # Signature + footer anchored near page bottom (fills empty white area).
-    sign_y = 42 * mm
-    c.setStrokeColorRGB(0.15, 0.15, 0.15)
-    c.setLineWidth(0.7)
-    mid = (left + right) / 2
-    c.line(left, sign_y, mid - 6 * mm, sign_y)
-    c.line(mid + 6 * mm, sign_y, right, sign_y)
-    text(left, sign_y - 4.5 * mm, "Ort, Datum", size=7)
-    text(mid + 6 * mm, sign_y - 4.5 * mm, "Unterschrift Arbeitgeber", size=7)
-
+    # Footer only (no signature lines — matches WorkPass Lohn Form VB).
     foot_y = 22 * mm
     c.setLineWidth(1)
     c.line(left, foot_y + 5 * mm, right, foot_y + 5 * mm)
@@ -395,6 +393,41 @@ def replace_stub_certificate_pdf(db, stmt: dict[str, Any]) -> dict[str, Any]:
             pass
 
     if doc_type == "lohnsteuerbescheinigung" and not (doc.get("rows") or doc.get("kind")):
+        try:
+            from urllib.parse import urlencode
+
+            from .platform_link import get_platform_link
+
+            link = get_platform_link(db)
+            company_id = str(stmt.get("company_id") or meta.get("companyId") or "").strip()
+            employee_id = str(
+                meta.get("employeeId") or meta.get("externalEmployeeId") or stmt.get("worker_id") or ""
+            ).strip()
+            year = str(doc.get("year") or (stmt.get("period") or "")[:4] or "").strip()
+            if link.get("enabled") and company_id and employee_id and year:
+                q = urlencode(
+                    {
+                        "companyId": company_id,
+                        "employeeId": employee_id,
+                        "year": year,
+                    }
+                )
+                fetched = _lohn_http_get(
+                    link,
+                    path=f"/v1/portal/certificates/lstb?{q}",
+                    company_id=company_id,
+                    event="certificate.lstb",
+                )
+                body = fetched.get("body") if isinstance(fetched.get("body"), dict) else {}
+                if fetched.get("ok") and body.get("ok") is not False and (
+                    body.get("rows") or body.get("kind")
+                ):
+                    doc = body
+                    meta["document"] = body
+        except Exception:
+            pass
+
+    if doc_type == "lohnsteuerbescheinigung" and not (doc.get("rows") or doc.get("kind")):
         return {"ok": False, "error": "lstb_document_missing"}
 
     pdf_bytes = render_verdienst_certificate_pdf_bytes(doc, meta=meta)
@@ -410,8 +443,10 @@ def replace_stub_certificate_pdf(db, stmt: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(meta2, dict):
         meta2 = meta
     meta2["pdfIsStub"] = False
-    meta2["pdfImmutable"] = True
+    # Not a Lohn capture — studio must prefer Form VB/LStB HTML sheet.
+    meta2["pdfImmutable"] = False
     meta2["pdfSource"] = "lohn_portal_form"
+    meta2["previewMode"] = "sheet"
     meta2["document"] = doc or meta2.get("document")
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     db.execute(

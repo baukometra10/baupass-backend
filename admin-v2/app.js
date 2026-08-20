@@ -1734,6 +1734,10 @@ function fitPayslipPreview() {
     const sheet =
       doc.querySelector("#datevSheetA4") ||
       doc.querySelector(".datev-sheet-a4") ||
+      doc.querySelector(".verdienst-document") ||
+      doc.querySelector(".lstb-document") ||
+      doc.querySelector(".verdienst-sheet") ||
+      doc.querySelector(".lstb-sheet") ||
       doc.body;
     const nw = Math.max(1, sheet.offsetWidth || PAYSLIP_A4_PX_W);
     const nh = Math.max(1, sheet.offsetHeight || PAYSLIP_A4_PX_H);
@@ -1973,6 +1977,10 @@ async function waitForPayslipSheetReady({ timeoutMs = 8000 } = {}) {
   const sheet0 =
     doc0?.querySelector?.(".datev-sheet-a4")
     || doc0?.querySelector?.("#datevSheetA4")
+    || doc0?.querySelector?.(".verdienst-document")
+    || doc0?.querySelector?.(".lstb-document")
+    || doc0?.querySelector?.(".verdienst-sheet")
+    || doc0?.querySelector?.(".lstb-sheet")
     || doc0?.querySelector?.("[class*='datev-sheet']");
   if (sheet0 && String(payslipStudioState.sheetHtml || "").length > 200) {
     return { iframe: iframe0, doc: doc0, sheet: sheet0 };
@@ -1984,6 +1992,10 @@ async function waitForPayslipSheetReady({ timeoutMs = 8000 } = {}) {
     const sheet =
       doc?.querySelector?.(".datev-sheet-a4")
       || doc?.querySelector?.("#datevSheetA4")
+      || doc?.querySelector?.(".verdienst-document")
+      || doc?.querySelector?.(".lstb-document")
+      || doc?.querySelector?.(".verdienst-sheet")
+      || doc?.querySelector?.(".lstb-sheet")
       || doc?.querySelector?.("[class*='datev-sheet']");
     if (sheet && String(payslipStudioState.sheetHtml || "").length > 200) {
       return { iframe, doc, sheet };
@@ -2751,6 +2763,20 @@ function openPayslipSheetWindow(html) {
 function statementPrefersPdfPreview(stmt) {
   if (!stmt) return false;
   const src = String(stmt.pdfSource || "").toLowerCase();
+  const docType = String(stmt.docType || stmt.documentType || "").toLowerCase();
+  const certTypes = new Set([
+    "verdienstbescheinigung",
+    "verdienstabrechnung",
+    "vordienstbescheinigung",
+    "lohnsteuerbescheinigung",
+  ]);
+  // Stubs / platform-rebuilt Form VB+LStB → HTML sheet matching WorkPass Lohn print.
+  if (
+    certTypes.has(docType)
+    && (stmt.pdfIsStub || src === "lohn_stub_placeholder" || src === "lohn_stub" || src === "lohn_portal_form")
+  ) {
+    return false;
+  }
   if (stmt.pdfIsStub || src === "lohn_stub_placeholder" || src === "lohn_stub") {
     return false;
   }
@@ -2763,7 +2789,6 @@ function statementPrefersPdfPreview(stmt) {
     src === "lohn_original"
     || src === "lohn_html2canvas"
     || src === "lohn_sheet_capture"
-    || src === "lohn_portal_form"
   ) {
     return true;
   }
@@ -2771,7 +2796,7 @@ function statementPrefersPdfPreview(stmt) {
   if (origin === "lohn_delivery" || origin === "workpass_lohn" || origin === "lohn") return true;
   const mode = String(stmt.previewMode || "").toLowerCase();
   if (mode === "pdf") return true;
-  const docType = String(stmt.docType || stmt.documentType || "").toLowerCase();
+  if (mode === "sheet") return false;
   const sheetTypes = new Set(["lohnabrechnung", "gehaltsabrechnung", ""]);
   if (docType && !sheetTypes.has(docType)) return true;
   const title = String(stmt.title || stmt.docTypeLabel || stmt.filename || "").toLowerCase();
@@ -2884,8 +2909,11 @@ async function selectPayslipStatement(batchId, statementId) {
       "vordienstbescheinigung",
       "lohnsteuerbescheinigung",
     ]);
+    const preferCertSheet =
+      certTypes.has(docType)
+      && (isStub || src === "lohn_portal_form" || String(stmt.previewMode || "").toLowerCase() === "sheet");
     const allowSheetFallback =
-      (isStub && certTypes.has(docType))
+      preferCertSheet
       || (
         ["lohnabrechnung", "gehaltsabrechnung"].includes(docType)
         && !stmt.pdfImmutable
@@ -2900,9 +2928,9 @@ async function selectPayslipStatement(batchId, statementId) {
         && origin !== "workpass_lohn"
         && origin !== "lohn"
       );
-    // Prefer portal form after stub repair; otherwise try Lohn PDF first.
+    // Prefer portal Form VB/LStB HTML (matches WorkPass Lohn) over rebuilt reportlab PDF.
     let usedPdf = false;
-    if (!(isStub && certTypes.has(docType))) {
+    if (!preferCertSheet) {
       try {
         await loadPayslipStudioOriginalPdf(batchId, statementId, iframe);
         usedPdf = true;

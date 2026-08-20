@@ -479,6 +479,82 @@ def test_enrich_statement_preview_mode_pdf_for_tax_doc(tmp_path, monkeypatch):
     assert out["pdfIsStub"] is False
 
 
+def test_portal_form_certificate_prefers_sheet_preview(tmp_path, monkeypatch):
+    import json
+
+    from backend.app.platform.accounting import repository as repo
+    from backend.app.platform.accounting import service as svc
+
+    pdf = tmp_path / "vb-portal.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n% portal form rebuild\n" + (b"y" * 2000) + b"\n%%EOF\n")
+    monkeypatch.setattr(svc, "is_lohn_stub_pdf", lambda *_a, **_k: False)
+    row = {
+        "id": "s-vb",
+        "batch_id": "b1",
+        "company_id": "c1",
+        "worker_id": "w1",
+        "status": "pending",
+        "file_path": str(pdf),
+        "file_size": pdf.stat().st_size,
+        "first_name": "Feras",
+        "last_name": "Almohammad",
+        "match_confidence": "exact",
+        "matched_by": "id",
+        "meta_json": json.dumps(
+            {
+                "docType": "verdienstbescheinigung",
+                "title": "Verdienstbescheinigung",
+                "pdfSource": "lohn_portal_form",
+                "pdfImmutable": False,
+                "document": {
+                    "period": "2026-08",
+                    "year": "2026",
+                    "employeeBirthDate": "2001-01-01",
+                    "monthsInYear": ["2026-07", "2026-08"],
+                },
+            }
+        ),
+    }
+    out = repo.enrich_statement_row(None, row)
+    assert out["previewMode"] == "sheet"
+    assert out["pdfImmutable"] is False
+    assert out["docType"] == "verdienstbescheinigung"
+
+
+def test_certificate_html_matches_lohn_period_labels():
+    from backend.app.platform.accounting.lohn_certificate_sheet import (
+        build_certificate_html,
+        build_verdienst_certificate_html,
+    )
+
+    html = build_verdienst_certificate_html(
+        {
+            "period": "2026-08",
+            "year": "2026",
+            "employeeName": "Feras Almohammad",
+            "employeeBirthDate": "2001-01-01",
+            "monthsInYear": ["2026-07", "2026-08"],
+            "rows": [{"label": "Abrechnungs-Brutto", "monthly": 447.3, "yearly": 568.98}],
+        }
+    )
+    assert "August 2026" in html
+    assert "Juli 2026" in html
+    assert "01.01.2001" in html
+    assert "Ort, Datum" not in html
+    lstb = build_certificate_html(
+        {
+            "year": "2026",
+            "taxNumber": "143/123/45678",
+            "employeeName": "Feras Almohammad",
+            "kmId": "FD20261001",
+            "rows": [{"nr": 3, "label": "Brutto", "money": True, "value": 568.98}],
+        },
+        doc_type="lohnsteuerbescheinigung",
+    )
+    assert "Lohnsteuerbescheinigung" in lstb
+    assert "FD20261001" in lstb
+
+
 def test_lohn_stub_pdf_detection_and_form_render():
     from backend.app.platform.accounting.service import (
         is_lohn_stub_pdf,

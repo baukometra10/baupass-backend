@@ -1639,17 +1639,21 @@ def register_accounting_blueprint(flask_app) -> None:
             except Exception:
                 pass
         doc_type = str(meta.get("docType") or meta.get("documentType") or "").strip().lower()
-        # Stub certificates: serve portal Form VB HTML (same look as Lohn Steuer).
-        if stub and doc_type in {
+        pdf_source = str(meta.get("pdfSource") or "").strip().lower()
+        cert_types = {
             "verdienstbescheinigung",
             "verdienstabrechnung",
             "vordienstbescheinigung",
             "lohnsteuerbescheinigung",
-        }:
-            from .lohn_certificate_sheet import build_verdienst_certificate_html
+        }
+        # Portal Form VB / LStB HTML matches WorkPass Lohn print view.
+        # Use it for stubs and platform-rebuilt reportlab PDFs — not for real Lohn captures.
+        platform_rebuilt = pdf_source in {"lohn_portal_form", "lohn_stub_placeholder", "lohn_stub"}
+        if doc_type in cert_types and (stub or platform_rebuilt):
+            from .lohn_certificate_sheet import build_certificate_html
 
             doc = meta.get("document") if isinstance(meta.get("document"), dict) else {}
-            html_doc = build_verdienst_certificate_html(doc, meta=meta)
+            html_doc = build_certificate_html(doc, meta=meta, doc_type=doc_type)
             return Response(
                 apply_sheet_chrome(html_doc, theme=theme, embed=embed),
                 mimetype="text/html; charset=utf-8",
