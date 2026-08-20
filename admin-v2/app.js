@@ -893,11 +893,6 @@ function canAccessOwnerFinance() {
   return role === "superadmin" || role === "company-admin";
 }
 
-function canAccessWorkpassLohnUi() {
-  // Owner-only: office operators must not see Lohn button, drawer, or accounting toasts.
-  return canAccessOwnerFinance();
-}
-
 /** Ops strip + Schnellnavigation + topbar: stable visibility. */
 function canShowLohnNavEntry() {
   const role = String(getUser()?.role || "").toLowerCase();
@@ -905,6 +900,29 @@ function canShowLohnNavEntry() {
   // Embed Betrieb is only opened for allowed roles; do not hide while user JSON is still empty.
   if (!role) return Boolean(isEmbedMode() || wpGet(TOKEN_KEY) || WP?.readSessionToken?.());
   return role === "superadmin" || role === "company-admin";
+}
+
+function canAccessWorkpassLohnUi() {
+  // Must match canShowLohnNavEntry — otherwise the strip shows WorkPass Lohn but clicks no-op.
+  return canShowLohnNavEntry();
+}
+
+/** Ops strip / topbar: open payslip + documents studio (not the empty drawer / SSO launch). */
+async function openWorkpassLohnStudioFromNav() {
+  if (!canShowLohnNavEntry()) {
+    showActionToast(t("error.forbidden") || "Keine Berechtigung", true);
+    return;
+  }
+  const cid = activeCompanyId();
+  if (!cid && isSuperadminUser()) {
+    showActionToast(t("common.selectCompany") || "Bitte Firma wählen", true);
+    return;
+  }
+  try {
+    await openPayslipReviewStudio();
+  } catch (err) {
+    showActionToast(humanizeUserError(err), true);
+  }
 }
 
 const LOHN_ENABLED_CACHE_KEY = "workpass-lohn-enabled-by-company";
@@ -3063,7 +3081,13 @@ async function selectPayslipStatement(batchId, statementId) {
 }
 
 async function refreshPayslipStudio({ keepSelection = false } = {}) {
-  if (shouldSkipSupportBackgroundLoads()) return;
+  if (shouldSkipSupportBackgroundLoads()) {
+    payslipStudioState.batches = [];
+    renderPayslipStudioList();
+    $("payslipStudioEmpty")?.classList.remove("hidden");
+    $("payslipStudioWork")?.classList.add("hidden");
+    throw new Error(t("login.sessionExpired") || "Sitzung ungültig");
+  }
   const cid = activeCompanyId();
   const inbox = payslipStudioState.inbox === "archive" ? "archive" : "open";
   const params = new URLSearchParams();
@@ -3093,14 +3117,24 @@ async function refreshPayslipStudio({ keepSelection = false } = {}) {
 
 async function openPayslipReviewStudio(opts = {}) {
   closeLohnDrawer();
+  if (!canAccessWorkpassLohnUi()) {
+    showActionToast(t("error.forbidden") || "Keine Berechtigung", true);
+    return;
+  }
   const el = $("payslipReviewStudio");
-  if (!el) return;
+  if (!el) {
+    showActionToast(t("common.error") || "Studio nicht gefunden", true);
+    return;
+  }
   el.classList.remove("hidden");
   el.setAttribute("aria-hidden", "false");
   document.body.classList.add("payslip-studio-open");
   warmPayslipCaptureLibs();
   schedulePayslipPreviewFit();
-  $("payslipStudioList").innerHTML = `<div class="payslip-studio-empty">${escapeHtml(t("common.loading") || "…")}</div>`;
+  const listHost = $("payslipStudioList");
+  if (listHost) {
+    listHost.innerHTML = `<div class="payslip-studio-empty">${escapeHtml(t("common.loading") || "…")}</div>`;
+  }
   try {
     await refreshPayslipStudio({ keepSelection: false });
     if (opts.batchId && opts.statementId) {
@@ -3111,7 +3145,11 @@ async function openPayslipReviewStudio(opts = {}) {
       if (stmt) await selectPayslipStatement(batch.id, stmt.statementId || stmt.id);
     }
   } catch (err) {
-    toast(err?.message || "load_failed", "error");
+    const msg = humanizeUserError(err) || err?.message || "load_failed";
+    if (listHost) {
+      listHost.innerHTML = `<div class="payslip-studio-empty">${escapeHtml(msg)}</div>`;
+    }
+    showActionToast(msg, true);
   }
 }
 
@@ -3443,12 +3481,19 @@ function renderLohnDrawerChips(fields) {
 async function openLohnDrawer() {
   if (!canAccessWorkpassLohnUi()) {
     closeLohnDrawer();
+    showActionToast(t("error.forbidden") || "Keine Berechtigung", true);
     return;
   }
-  if (shouldSkipSupportBackgroundLoads()) return;
+  if (shouldSkipSupportBackgroundLoads()) {
+    showActionToast(t("login.sessionExpired") || "Sitzung ungültig — bitte neu anmelden", true);
+    return;
+  }
   const drawer = $("lohnDrawer");
   const body = $("lohnDrawerBody");
-  if (!drawer || !body) return;
+  if (!drawer || !body) {
+    showActionToast(t("common.error") || "UI nicht bereit", true);
+    return;
+  }
   drawer.classList.remove("hidden");
   document.body.classList.add("lohn-drawer-open");
   body.innerHTML = `<div class="lohn-drawer-empty">${escapeHtml(t("common.loading") || "Wird geladen…")}</div>`;
@@ -3729,14 +3774,7 @@ function wireLohnDrawer() {
     openLohnSystem().catch(() => {});
   });
   $("topbarLohnBtn")?.addEventListener("click", () => {
-    if (!canShowLohnNavEntry()) {
-      showActionToast(t("error.forbidden") || "Keine Berechtigung", true);
-      return;
-    }
-    // Drawer for inbox; launch SSO from «Buchhaltung öffnen» / Schnellnavigation.
-    openLohnDrawer().catch((err) => {
-      showActionToast(humanizeUserError(err), true);
-    });
+    openWorkpassLohnStudioFromNav().catch(() => {});
   });
   applyLohnNavVisibility(true);
   $("lohnDrawerBody")?.addEventListener("click", (ev) => {
@@ -9723,7 +9761,7 @@ function paintOpsStripLohnOnly() {
     btn.innerHTML = `${t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span>`;
     btn.addEventListener("click", () => {
       if (!canShowLohnNavEntry()) return;
-      openLohnDrawer().catch(() => {});
+      openWorkpassLohnStudioFromNav().catch(() => {});
     });
     strip.prepend(btn);
   } else {
@@ -9911,7 +9949,7 @@ async function loadOverview() {
     });
     strip.querySelector("#opsStripLohnLink")?.addEventListener("click", () => {
       if (!canShowLohnNavEntry()) return;
-      openLohnDrawer().catch(() => {});
+      openWorkpassLohnStudioFromNav().catch(() => {});
     });
     if (canAccessWorkpassLohnUi()) {
       void syncLohnOpenButton({ force: false });
