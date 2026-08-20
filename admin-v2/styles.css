@@ -2326,6 +2326,18 @@ a.mobile-channel-card:hover {
   border: 1px solid var(--border);
   border-radius: 12px;
   margin-top: 0.75rem;
+  background: #050816;
+}
+
+/* Command Center / AI Center need a tall scrollable viewport, not a 420px map box */
+.ops-map-frame.is-ops-tall {
+  height: min(78vh, calc(100dvh - 11rem));
+  min-height: 560px;
+}
+
+body.embed-mode.admin-v2-embed .ops-map-frame.is-ops-tall {
+  height: calc(100dvh - 9.5rem);
+  min-height: 480px;
 }
 
 .hub-embed-frame {

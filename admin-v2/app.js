@@ -7434,6 +7434,9 @@ function initOpsEmbedTabs(panel, companyId) {
     const target = page || frame.getAttribute("data-ops-page") || "/ops-live-map.html";
     const nextSrc = buildOpsEmbedUrl(target, companyId);
     frame.setAttribute("data-ops-page", target);
+    const tall =
+      /ops-command-center|ai-command-center|enterprise-hub/i.test(String(target));
+    frame.classList.toggle("is-ops-tall", tall);
     // Avoid reload loop when soft-updating the ops shell.
     if (frame.getAttribute("src") !== nextSrc) {
       frame.src = nextSrc;
@@ -8300,7 +8303,7 @@ function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, fe
         <button type="button" class="btn-link ops-embed-tab" data-ops-page="/enterprise-hub.html">${t("common.enterpriseHub")}</button>
         <a href="${defaultOpsPage}${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}" target="_blank" rel="noopener" class="muted small">${t("ops.openNewTab")}</a>
       </div>
-      <iframe id="opsEmbedFrame" src="${mapSrc}" title="${t("ops.liveMap")}" class="ops-map-frame" loading="lazy"></iframe>
+      <iframe id="opsEmbedFrame" src="${mapSrc}" title="${t("ops.liveMap")}" class="ops-map-frame${defaultOpsPage.includes("ops-command") || defaultOpsPage.includes("ai-command") || defaultOpsPage.includes("enterprise-hub") ? " is-ops-tall" : ""}" loading="lazy"></iframe>
       <div class="panel-block">
         <h3>${t("contracts.title")}</h3>
         <p class="muted small">${t("contracts.desc")}</p>

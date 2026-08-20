@@ -10,10 +10,50 @@
   <link rel="icon" type="image/svg+xml" sizes="192x192" href="/branding/suppix-ai-mark.svg" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/design-tokens.css" />
-  <link rel="stylesheet" href="/embed-shell.css?v=20260531shell2" />
-  <link rel="stylesheet" href="/ops-shell.css" />
+  <link rel="stylesheet" href="/embed-shell.css?v=20260820opsScroll1" />
+  <link rel="stylesheet" href="/ops-shell.css?v=20260820opsScroll1" />
   <style>
-    main { padding: 0.75rem 1rem; display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    html { scroll-behavior: smooth; }
+    /* Standalone: page itself scrolls (no trapped nested viewport) */
+    html:not(.embed-document) body.ops-app {
+      min-height: 100dvh;
+      height: auto;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+    html:not(.embed-document) body.ops-app main#grid {
+      overflow: visible;
+    }
+    main#grid {
+      padding: 0.75rem 1rem 2.5rem;
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      align-content: start;
+    }
+    .ops-jump-nav {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      padding: 0.45rem 0.15rem;
+      background: linear-gradient(180deg, rgba(5, 8, 22, 0.96), rgba(5, 8, 22, 0.88));
+      backdrop-filter: blur(8px);
+    }
+    .ops-jump-nav a {
+      font-size: 0.74rem;
+      font-weight: 700;
+      padding: 0.35rem 0.7rem;
+      border-radius: 999px;
+      border: 1px solid rgba(120, 156, 255, 0.28);
+      color: #dbeafe;
+      text-decoration: none;
+      background: rgba(12, 18, 36, 0.9);
+    }
+    .ops-jump-nav a:hover { border-color: rgba(56, 189, 248, 0.55); color: #fff; }
     .card {
       background: var(--panel); border-radius: 12px; padding: 0.85rem; border: 1px solid var(--border);
       transition: border-color 0.2s, transform 0.15s;
@@ -34,7 +74,7 @@
       font-size: 0.72rem; padding: 0.3rem 0.55rem; border-radius: 8px; border: 1px solid var(--border);
       background: #0c1218; color: var(--accent); cursor: pointer; text-decoration: none;
     }
-    .event-feed { max-height: 190px; overflow-y: auto; font-size: 0.74rem; }
+    .event-feed { max-height: min(48vh, 26rem); overflow-y: auto; overscroll-behavior: contain; font-size: 0.74rem; }
     .event-line { padding: 0.35rem 0; border-bottom: 1px solid var(--border); color: var(--muted); }
     .event-line strong { color: var(--text); }
     .guardian-card {
@@ -291,11 +331,30 @@
       text-transform: uppercase;
       color: rgba(148, 163, 184, 0.95);
     }
-    .guardian-body { padding: 0.85rem 1.15rem 1.05rem; }
-    .guardian-alert {
-      font-size: 0.86rem; font-weight: 650; color: #eaf3ff; margin-bottom: 0.35rem;
+    .guardian-body {
+      padding: 0.85rem 1.15rem 1.15rem;
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(15rem, 0.9fr);
+      gap: 0.85rem 1.1rem;
+      align-items: start;
     }
-    .guardian-extra { font-size: 0.74rem; color: var(--muted); margin-bottom: 0.65rem; line-height: 1.4; }
+    @media (max-width: 980px) {
+      .guardian-body { grid-template-columns: 1fr; }
+    }
+    .guardian-body-main,
+    .guardian-body-side { min-width: 0; }
+    .guardian-alert {
+      font-size: 0.9rem; font-weight: 700; color: #eaf3ff; margin-bottom: 0.35rem;
+    }
+    .guardian-extra { font-size: 0.74rem; color: var(--muted); margin-bottom: 0.65rem; line-height: 1.45; }
+    .guardian-section-label {
+      margin: 0.55rem 0 0.3rem;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
     .guardian-probes { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.15rem; }
     .guardian-probe {
       font-size: 0.7rem; padding: 0.28rem 0.55rem; border-radius: 999px;
@@ -304,6 +363,21 @@
     }
     .guardian-probe.ok { border-color: rgba(75, 227, 209, 0.4); color: var(--accent); background: rgba(75, 227, 209, 0.08); }
     .guardian-probe.fail { border-color: rgba(248, 113, 113, 0.5); color: #f87171; background: rgba(248, 113, 113, 0.08); font-weight: 700; }
+    .guardian-probe-ok {
+      margin-top: 0.45rem;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 10px;
+      padding: 0.35rem 0.55rem;
+      background: rgba(8, 14, 20, 0.35);
+    }
+    .guardian-probe-ok summary {
+      cursor: pointer;
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: #cbd5e1;
+      list-style: none;
+    }
+    .guardian-probe-ok summary::-webkit-details-marker { display: none; }
     .guardian-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.85rem; }
     .guardian-actions button {
       font-size: 0.78rem; font-weight: 700; padding: 0.48rem 0.9rem; border-radius: 10px;
@@ -322,17 +396,43 @@
     }
     .guardian-ops { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.7rem; }
     .guardian-ops span {
-      font-size: 0.7rem; color: var(--muted); padding: 0.26rem 0.55rem;
-      border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 999px;
-      background: rgba(8, 14, 20, 0.45);
+      font-size: 0.72rem;
+      padding: 0.35rem 0.55rem;
+      border-radius: 8px;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      background: rgba(8, 14, 20, 0.5);
+      color: #e2e8f0;
     }
-    .guardian-ops span.warn { color: #fbbf24; border-color: rgba(251, 191, 36, 0.45); background: rgba(251, 191, 36, 0.08); font-weight: 700; }
+    .guardian-ops span.warn { color: #fbbf24; border-color: rgba(251, 191, 36, 0.4); }
+    .guardian-history-head {
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 0.35rem;
+    }
     .guardian-history {
-      margin-top: 0.75rem; font-size: 0.7rem; color: var(--muted);
-      max-height: 120px; overflow-y: auto;
-      border-top: 1px solid rgba(148, 163, 184, 0.14); padding-top: 0.55rem;
+      margin-top: 0;
+      max-height: min(42vh, 22rem);
+      min-height: 9rem;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 0.55rem 0.65rem;
+      border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      background: rgba(4, 8, 14, 0.55);
+      font-size: 0.74rem;
+      color: #cbd5e1;
     }
-    .guardian-history-row { padding: 0.22rem 0; border-bottom: 1px solid rgba(148, 163, 184, 0.1); }
+    .guardian-history-row { padding: 0.28rem 0; border-bottom: 1px solid rgba(148, 163, 184, 0.12); }
+    .guardian-history-row:last-child { border-bottom: 0; }
+    .event-feed {
+      max-height: min(48vh, 26rem);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      font-size: 0.74rem;
+    }
     .payroll-card { grid-column: 1 / -1; }
     .payroll-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: space-between; padding: 0.45rem 0; border-bottom: 1px solid var(--border); }
     .payroll-row:last-child { border-bottom: 0; }
@@ -577,6 +677,11 @@
         guardianSub: "Crash-Schutz aktiv — erkennt Fehler früh, repariert automatisch, hält die Plattform stabil",
         guardianLive: "Im Dienst",
         guardianOnWatch: "Wacht aktiv",
+        guardianProblems: "Probleme",
+        guardianOkProbes: "OK-Probes anzeigen",
+        guardianAppliedFixes: "Angewendete Fixes",
+        guardianHistory: "Verlauf",
+        liveFeed: "Live-Feed",
         guardianHealStrong: "Auto-Heilung STARK",
         guardianHealApplied: "{n} Fixes angewendet",
         guardianHealReady: "Bereit zu reparieren",
@@ -1259,10 +1364,15 @@
       const statusLabel = status === "ok" ? tr("statusOk") : status === "down" ? tr("statusOffline") : tr("statusDegraded");
       const failed = Array.isArray(g.failedProbes) ? g.failedProbes : [];
       const probes = Array.isArray(g.probes) ? g.probes : [];
-      const probeHtml = probes.map((p) => {
-        const ok = !!p.ok;
+      const failedProbes = probes.filter((p) => !p.ok);
+      const okProbes = probes.filter((p) => p.ok);
+      const failProbeHtml = failedProbes.map((p) => {
         const label = p.id || "probe";
-        return `<span class="guardian-probe ${ok ? "ok" : "fail"}">${label}${p.latencyMs != null ? ` · ${p.latencyMs}ms` : ""}</span>`;
+        return `<span class="guardian-probe fail">${label}${p.latencyMs != null ? ` · ${p.latencyMs}ms` : ""}</span>`;
+      }).join("");
+      const okProbeHtml = okProbes.map((p) => {
+        const label = p.id || "probe";
+        return `<span class="guardian-probe ok">${label}${p.latencyMs != null ? ` · ${p.latencyMs}ms` : ""}</span>`;
       }).join("");
       const host = (g.cloud && g.cloud.host) || "";
       const checked = (g.timestamp || "").replace("T", " ").slice(0, 19);
@@ -1296,7 +1406,7 @@
           <span class="${(ops.queueDeadLetterEvents || 0) > 0 ? "warn" : ""}">${tr("queueDl")}: ${ops.queueDeadLetterEvents ?? 0}</span>
           <span>${tr("worker")}: ${ops.activeWorkers ?? 0}</span>
         </div>`;
-      const historyHtml = (history || []).slice(0, 8).map((row) => {
+      const historyHtml = (history || []).slice(0, 16).map((row) => {
         const ts = String(row.timestamp || "").replace("T", " ").slice(0, 16);
         const st = String(row.status || "?").toUpperCase();
         const fixes = row.appliedCount ? ` · ${row.appliedCount} ${tr("guardianFix")}` : "";
@@ -1310,6 +1420,11 @@
         .slice(0, 8)
         .map((id) => `<span class="guardian-probe ok">${id}</span>`)
         .join("");
+      const probesBlock = `
+        ${failedProbes.length ? `<div class="guardian-section-label">${tr("guardianProblems") || "Probleme"} (${failedProbes.length})</div><div class="guardian-probes">${failProbeHtml}</div>` : ""}
+        ${okProbes.length ? `<details class="guardian-probe-ok"><summary>${tr("guardianOkProbes") || "OK-Probes"} (${okProbes.length})</summary><div class="guardian-probes" style="margin-top:0.4rem">${okProbeHtml}</div></details>` : (!failedProbes.length ? `<div class="guardian-probes"><span class="guardian-probe">—</span></div>` : "")}
+        ${appliedActions ? `<div class="guardian-section-label">${tr("guardianAppliedFixes") || "Fixes"}</div><div class="guardian-probes">${appliedActions}</div>` : ""}
+      `;
       return `
         <div class="card guardian-card ${cls}" id="guardianCard">
           <div class="guardian-shell">
@@ -1334,16 +1449,21 @@
               </div>
             </div>
             <div class="guardian-body">
-              <div class="guardian-alert">${alertHint}</div>
-              ${extraHints ? `<div class="guardian-extra">${extraHints}</div>` : ""}
-              <div class="guardian-probes">${probeHtml || '<span class="guardian-probe">—</span>'}</div>
-              ${appliedActions ? `<div class="guardian-probes" style="margin-top:0.45rem">${appliedActions}</div>` : ""}
-              ${opsHtml}
-              <div class="guardian-actions">
-                <button type="button" id="guardianCheckBtn">${tr("healthCheck")}</button>
-                <button type="button" class="ghost" id="guardianRepairBtn">${tr("repairNow")}</button>
+              <div class="guardian-body-main">
+                <div class="guardian-alert">${alertHint}</div>
+                ${extraHints ? `<div class="guardian-extra">${extraHints}</div>` : ""}
+                ${probesBlock}
+                ${opsHtml}
+                <div class="guardian-actions">
+                  <button type="button" id="guardianCheckBtn">${tr("healthCheck")}</button>
+                  <button type="button" class="ghost" id="guardianRepairBtn">${tr("repairNow")}</button>
+                  <a class="ghost" href="#lohnHub" style="display:inline-flex;align-items:center;text-decoration:none;padding:0.48rem 0.9rem;border-radius:10px;border:1px solid rgba(148,163,184,0.35);color:var(--accent);font-size:0.78rem;font-weight:650">${tr("lohnHubTitle") || "WorkPass Lohn"} ↓</a>
+                </div>
               </div>
-              <div class="guardian-history">${historyHtml}</div>
+              <div class="guardian-body-side">
+                <div class="guardian-history-head">${tr("guardianHistory") || "Verlauf"}</div>
+                <div class="guardian-history">${historyHtml}</div>
+              </div>
             </div>
           </div>
         </div>`;
@@ -2630,6 +2750,11 @@
         lastLohnSig = sig;
       }
       grid.innerHTML = `
+        <nav class="ops-jump-nav" aria-label="Ops sections">
+          <a href="#guardianCard">${tr("guardianLabel") || "Guard"}</a>
+          <a href="#lohnHub">${tr("lohnHubTitle") || "WorkPass Lohn"}</a>
+          <a href="#eventFeedCard">${tr("liveFeed") || "Live-Feed"}</a>
+        </nav>
         ${renderGuardianCard(guardian, guardianHistory)}
         ${renderLohnHubSafe(lohnLink, lohnMessages, dataAlerts, payrollBatches, employeePreview, periodRequests)}
         <div class="card ops-card clickable" data-action="onsite" title="${tr("cardOnSiteHint")}">
@@ -2663,7 +2788,7 @@
             <button type="button" id="refreshBtn">${tr("refreshNow")}</button>
           </div>
         </div>
-        <div class="card" style="grid-column: 1 / -1">
+        <div class="card" id="eventFeedCard" style="grid-column: 1 / -1">
           <div class="label">${tr("liveEvents")}</div>
           <div id="eventFeed" class="event-feed"><span class="muted">${tr("connecting")}</span></div>
         </div>`;

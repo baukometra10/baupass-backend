@@ -378,6 +378,13 @@ html.embed-document body.ops-app.embed-mode main {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: 2rem;
+}
+
+/* Prefer page scroll for Ops Command Center content blocks */
+html.embed-document body.ops-app.embed-mode .guardian-history,
+html.embed-document body.ops-app.embed-mode .event-feed {
+  max-height: min(50vh, 24rem);
 }
 
 @media (max-width: 1100px) {
