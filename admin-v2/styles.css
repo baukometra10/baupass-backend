@@ -4176,6 +4176,178 @@ body.payslip-studio-open {
   font-size: 0.78rem;
   color: #475569;
 }
+.payslip-studio-sync-line {
+  margin: 0.2rem 0 0;
+  font-weight: 600;
+  color: #334155;
+}
+.payslip-studio-sync-line.is-fresh { color: #166534; }
+.payslip-studio-sync-line.is-stale { color: #9a3412; }
+.payslip-studio-sync-line.is-idle { color: #64748b; font-weight: 500; }
+body.theme-black .payslip-studio-sync-line { color: #cbd5e1; }
+body.theme-black .payslip-studio-sync-line.is-fresh { color: #4ade80; }
+body.theme-black .payslip-studio-sync-line.is-stale { color: #fb923c; }
+body.theme-black .payslip-studio-sync-line.is-idle { color: #94a3b8; }
+.payslip-keys-hint-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 1rem;
+  border-bottom: 1px solid #d8dee6;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 0.78rem;
+  flex: 0 0 auto;
+}
+.payslip-keys-hint-bar.hidden { display: none !important; }
+.payslip-keys-hint-bar button {
+  min-width: 2rem;
+  padding: 0.15rem 0.45rem;
+}
+body.theme-black .payslip-keys-hint-bar {
+  background: #0d1628;
+  border-bottom-color: rgba(120, 156, 255, 0.14);
+  color: #cbd5e1;
+}
+.payslip-empty-rich {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  align-items: flex-start;
+  text-align: start;
+  padding: 1.25rem 1rem !important;
+  margin: 0.75rem !important;
+}
+.payslip-empty-title {
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+.payslip-empty-body {
+  margin: 0;
+  color: #475569;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.payslip-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+body.theme-black .payslip-empty-title { color: #f8fafc; }
+body.theme-black .payslip-empty-body { color: #94a3b8; }
+.payslip-list-more {
+  padding: 0.65rem 0.8rem 1rem;
+}
+.payslip-list-more button { width: 100%; }
+.payslip-match-hint {
+  margin: 0.45rem 0 0 !important;
+  color: #334155 !important;
+  line-height: 1.35;
+}
+body.theme-black .payslip-match-hint { color: #cbd5e1 !important; }
+.payslip-match.is-unreviewed {
+  background: #fef3c7;
+  color: #92400e;
+}
+body.theme-black .payslip-match.is-unreviewed {
+  background: #422006;
+  color: #fcd34d;
+}
+.payslip-audit-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+.payslip-audit-head-row .payslip-audit-head { margin-bottom: 0; }
+.payslip-audit-export {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.72rem;
+}
+.payslip-confirm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 13000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.payslip-confirm-modal.hidden { display: none !important; }
+.payslip-confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+}
+.payslip-confirm-panel {
+  position: relative;
+  z-index: 1;
+  width: min(28rem, 100%);
+  max-height: min(80vh, 36rem);
+  overflow: auto;
+  padding: 1.1rem 1.15rem;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 22px 50px rgba(15, 23, 42, 0.35);
+}
+.payslip-confirm-panel h3 {
+  margin: 0 0 0.55rem;
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+.payslip-confirm-body {
+  margin: 0;
+  line-height: 1.45;
+  color: #1e293b;
+  white-space: pre-wrap;
+}
+.payslip-confirm-warnings {
+  margin-top: 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  font-size: 0.82rem;
+}
+.payslip-confirm-warnings ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.payslip-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin-top: 1rem;
+}
+.payslip-confirm-actions .primary.danger {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
+body.theme-black .payslip-confirm-panel {
+  background: #0d1628;
+  border-color: rgba(148, 163, 184, 0.28);
+  color: #e2e8f0;
+}
+body.theme-black .payslip-confirm-panel h3,
+body.theme-black .payslip-confirm-body { color: #f1f5f9; }
+body.theme-black .payslip-confirm-warnings {
+  background: #431407;
+  border-color: rgba(251, 146, 60, 0.4);
+  color: #fdba74;
+}
+.payslip-studio button:focus-visible,
+.payslip-confirm-modal button:focus-visible {
+  outline: 2px solid var(--accent, #38bdf8);
+  outline-offset: 2px;
+}
 .payslip-studio-audit {
   margin: 0.55rem 0 0.75rem;
   padding: 0.65rem 0.7rem;

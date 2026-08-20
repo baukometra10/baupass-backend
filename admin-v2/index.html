@@ -34,7 +34,7 @@
   <link rel="shortcut icon" href="/branding/suppix-icon-192.png" id="adminAppFavicon" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
-  <link rel="stylesheet" href="styles.css?v=20260820lohnStudio13" />
+  <link rel="stylesheet" href="styles.css?v=20260820lohnStudio14" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" media="print" onload="this.media='all'" />
   <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" /></noscript>
   <!-- Leaflet JS loaded on demand in Tools/Geofencing — not on every Betrieb boot -->
@@ -582,6 +582,7 @@
           <h2 id="payslipStudioTitle" data-i18n="lohn.payslipReviewTitle">Lohnabrechnungen — Freigabe</h2>
           <p id="payslipStudioProgress" class="payslip-studio-progress muted small" aria-live="polite"></p>
           <p id="payslipStudioMetaLine" class="muted small payslip-studio-meta-line" aria-live="polite"></p>
+          <p id="payslipStudioSyncLine" class="payslip-studio-sync-line muted small" aria-live="polite"></p>
         </div>
         <div class="payslip-studio-head-actions">
           <div class="payslip-studio-head-secondary">
@@ -593,6 +594,10 @@
           <button type="button" id="payslipStudioClose" class="ghost" data-payslip-ui="close" data-i18n="common.close">Schließen</button>
         </div>
       </header>
+      <div id="payslipKeysHintBar" class="payslip-keys-hint-bar" role="note">
+        <span data-i18n="lohn.payslipKeysHint">↑↓ · L Liste · F · Enter · R · Esc</span>
+        <button type="button" id="payslipKeysHintDismiss" class="ghost" data-i18n="common.dismiss" aria-label="Hinweis ausblenden">×</button>
+      </div>
       <div class="payslip-studio-layout" id="payslipStudioLayout">
         <aside class="payslip-studio-list" id="payslipStudioListPane">
           <div class="payslip-list-pane-head">
@@ -647,12 +652,25 @@
     </div>
   </div>
 
+  <div id="payslipConfirmModal" class="payslip-confirm-modal hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="payslipConfirmTitle">
+    <div class="payslip-confirm-backdrop" id="payslipConfirmBackdrop"></div>
+    <div class="payslip-confirm-panel">
+      <h3 id="payslipConfirmTitle">Bestätigen</h3>
+      <p id="payslipConfirmBody" class="payslip-confirm-body"></p>
+      <div id="payslipConfirmWarnings" class="payslip-confirm-warnings hidden"></div>
+      <div class="payslip-confirm-actions">
+        <button type="button" id="payslipConfirmCancel" class="ghost">Abbrechen</button>
+        <button type="button" id="payslipConfirmOk" class="primary">Senden</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/geo-precision.js?v=20260624geofence12"></script>
   <script src="/tenant-brand-icon.js?v=20260814brand3"></script>
   <script src="/embed-helpers.js?v=20260819embed18"></script>
   <script src="/control-pass-theme.js?v=20260705a"></script>
   <script src="/sector-copy.js?v=20260818opsSector3"></script>
-  <script src="app.js?v=20260820lohnStudio13" type="module"></script>
+  <script src="app.js?v=20260820lohnStudio14" type="module"></script>
   <script>
     // Realtime/chat/voice CDNs must not block Geofencing / Tools first paint.
     (function deferAdminRealtime() {
