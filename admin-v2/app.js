@@ -1,4 +1,4 @@
-import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260820lohnStudio12";
+import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260820lohnStudio13";
 import { ensureLeafletLoaded, mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -2223,8 +2223,10 @@ function renderPayslipAuditPanel() {
   } else {
     for (const row of archive.slice(0, 16)) {
       const when = formatPayslipShortDate(row.at) || String(row.at || "").slice(0, 16);
+      const st = String(row.status || "").toLowerCase();
+      const stClass = st === "released" ? " is-released" : st === "rejected" ? " is-rejected" : "";
       parts.push(
-        `<div class="payslip-audit-row"><strong>${escapeHtml(payslipStatusLabel(row.status))}</strong> · ${escapeHtml(row.name)} · ${escapeHtml(payslipDocKindLabel(row.kind))}<span class="muted"> · ${escapeHtml(row.period || "")} · ${escapeHtml(when)}</span></div>`,
+        `<div class="payslip-audit-row${stClass}"><strong>${escapeHtml(payslipStatusLabel(row.status))}</strong> · ${escapeHtml(row.name)} · ${escapeHtml(payslipDocKindLabel(row.kind))}<span class="muted"> · ${escapeHtml(row.period || "")} · ${escapeHtml(when)}</span></div>`,
       );
     }
   }

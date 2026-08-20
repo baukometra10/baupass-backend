@@ -4179,9 +4179,10 @@ body.payslip-studio-open {
 .payslip-studio-audit {
   margin: 0.55rem 0 0.75rem;
   padding: 0.65rem 0.7rem;
-  border: 1px solid #d8dee6;
+  border: 1px solid #cbd5e1;
   border-radius: 10px;
-  background: #f8fafc;
+  background: #ffffff;
+  color: #0f172a;
   max-height: 220px;
   overflow: auto;
 }
@@ -4189,20 +4190,58 @@ body.payslip-studio-open {
 .payslip-audit-head {
   font-weight: 700;
   margin-bottom: 0.35rem;
+  color: #0f172a;
+  font-size: 0.92rem;
 }
 .payslip-audit-sub {
   margin: 0.45rem 0 0.2rem;
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #64748b;
+  color: #475569;
+  font-weight: 700;
 }
 .payslip-audit-row {
   font-size: 0.78rem;
-  line-height: 1.35;
-  padding: 0.2rem 0;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  line-height: 1.4;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #e2e8f0;
+  color: #1e293b;
 }
+.payslip-audit-row strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+.payslip-audit-row .muted,
+.payslip-studio-audit .muted {
+  color: #475569 !important;
+}
+.payslip-audit-row.is-released strong { color: #166534; }
+.payslip-audit-row.is-rejected strong { color: #b91c1c; }
+body.theme-black .payslip-studio-audit {
+  background: #0b1220;
+  border-color: rgba(148, 163, 184, 0.35);
+  color: #e2e8f0;
+}
+body.theme-black .payslip-audit-head {
+  color: #f8fafc;
+}
+body.theme-black .payslip-audit-sub {
+  color: #94a3b8;
+}
+body.theme-black .payslip-audit-row {
+  color: #e2e8f0;
+  border-bottom-color: rgba(148, 163, 184, 0.22);
+}
+body.theme-black .payslip-audit-row strong {
+  color: #f8fafc;
+}
+body.theme-black .payslip-audit-row .muted,
+body.theme-black .payslip-studio-audit .muted {
+  color: #94a3b8 !important;
+}
+body.theme-black .payslip-audit-row.is-released strong { color: #4ade80; }
+body.theme-black .payslip-audit-row.is-rejected strong { color: #f87171; }
 #payslipStudioAuditBtn.is-active {
   border-color: color-mix(in srgb, var(--accent, #38bdf8) 55%, transparent);
   color: var(--accent, #0284c7);
