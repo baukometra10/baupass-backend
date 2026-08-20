@@ -34,7 +34,7 @@
   <link rel="shortcut icon" href="/branding/suppix-icon-192.png" id="adminAppFavicon" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
-  <link rel="stylesheet" href="styles.css?v=20260820betriebFast1" />
+  <link rel="stylesheet" href="styles.css?v=20260820accHub1" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" media="print" onload="this.media='all'" />
   <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" /></noscript>
   <!-- Leaflet JS loaded on demand in Tools/Geofencing — not on every Betrieb boot -->
@@ -126,6 +126,10 @@
               <button type="button" class="tab nav-item nav-item-lohn" id="openLohnSystemBtn">
                 <span data-i18n="lohn.openSystem">Buchhaltung öffnen</span>
               </button>
+              <a class="tab nav-item nav-item-lohn" id="openLohnHubBtn" href="/admin-v2/accounting.html">
+                <span data-i18n="lohn.hubNav">Lohn-Zentrale</span>
+                <span id="lohnHubNavBadge" class="tab-badge hidden" title="WorkPass Lohn"></span>
+              </a>
               <button type="button" data-tab="billing" class="tab nav-item" data-i18n="tab.billing">Rechnungen</button>
               <button type="button" data-tab="tools" class="tab nav-item" data-i18n="tab.tools">Tools</button>
               <button type="button" data-tab="platform" class="tab nav-item" data-i18n="tab.platform">Plattform</button>
@@ -569,7 +573,7 @@
         <button type="button" id="lohnDrawerPayslips" class="primary" data-i18n="lohn.openPayslipReview">Lohnabrechnungen prüfen</button>
         <button type="button" id="lohnDrawerPullPayslips" data-i18n="lohn.pullPayslips">Abrechnungen von Lohn holen</button>
         <button type="button" id="lohnDrawerRefresh" data-i18n="lohn.drawerRefresh">Aktualisieren</button>
-        <a id="lohnDrawerOpsLink" href="/ops-command-center.html#lohnHub" target="_blank" rel="noopener" data-i18n="lohn.drawerOpenOps">Ops Zentrale</a>
+        <a id="lohnDrawerOpsLink" href="/admin-v2/accounting.html" rel="noopener" data-i18n="lohn.drawerOpenHub">Lohn-Zentrale</a>
       </footer>
     </aside>
   </div>
@@ -670,7 +674,7 @@
   <script src="/embed-helpers.js?v=20260819embed18"></script>
   <script src="/control-pass-theme.js?v=20260705a"></script>
   <script src="/sector-copy.js?v=20260818opsSector3"></script>
-  <script src="app.js?v=20260820betriebFast1" type="module"></script>
+  <script src="app.js?v=20260820accHub1" type="module"></script>
   <script>
     // Realtime/chat/voice CDNs must not block Geofencing / Tools first paint.
     (function deferAdminRealtime() {

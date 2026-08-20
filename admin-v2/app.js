@@ -188,6 +188,10 @@ async function activateCommandItem(item) {
       syncEnterpriseFrame();
       return;
     }
+    if (item.href.includes("accounting.html")) {
+      goToAccountingHub({ companyId: activeCompanyId() });
+      return;
+    }
     if (item.href.includes("/index.html")) {
       openLegacyDashboard("auto");
       return;
@@ -934,6 +938,32 @@ function canAccessWorkpassLohnUi() {
 }
 
 /** Ops strip / topbar: open payslip + documents studio (not the empty drawer / SSO launch). */
+function accountingHubUrl(opts = {}) {
+  const u = new URL("/admin-v2/accounting.html", window.location.origin);
+  const cid = String(opts.companyId || activeCompanyId() || "").trim();
+  if (cid) u.searchParams.set("company_id", cid);
+  const focus = String(opts.focus || "").trim();
+  if (focus) u.searchParams.set("focus", focus);
+  if (opts.batchId) u.searchParams.set("batch_id", String(opts.batchId));
+  if (opts.statementId) u.searchParams.set("statement_id", String(opts.statementId));
+  const lang = document.documentElement.lang || "";
+  if (lang) u.searchParams.set("lang", lang);
+  if (opts.hash) u.hash = String(opts.hash).replace(/^#/, "");
+  return u.pathname + u.search + u.hash;
+}
+
+function goToAccountingHub(opts = {}) {
+  window.location.assign(accountingHubUrl(opts));
+}
+
+function isAutostudioEmbed() {
+  try {
+    return new URLSearchParams(location.search).get("autostudio") === "1";
+  } catch {
+    return false;
+  }
+}
+
 async function openWorkpassLohnStudioFromNav() {
   if (!canShowLohnNavEntry()) {
     showActionToast(t("error.forbidden") || "Keine Berechtigung", true);
@@ -944,11 +974,7 @@ async function openWorkpassLohnStudioFromNav() {
     showActionToast(t("common.selectCompany") || "Bitte Firma wählen", true);
     return;
   }
-  try {
-    await openPayslipReviewStudio();
-  } catch (err) {
-    showActionToast(humanizeUserError(err), true);
-  }
+  goToAccountingHub({ focus: "studio", companyId: cid });
 }
 
 const LOHN_ENABLED_CACHE_KEY = "workpass-lohn-enabled-by-company";
@@ -1556,6 +1582,7 @@ function paintLohnBadge(el, count) {
 function updateLohnNavBadge(count) {
   paintLohnBadge($("lohnOpsBadge"), count);
   paintLohnBadge($("lohnOpsMobileBadge"), count);
+  paintLohnBadge($("lohnHubNavBadge"), count);
 }
 
 async function syncLohnOpenButton({ force = false } = {}) {
@@ -2371,6 +2398,13 @@ function closePayslipReviewStudio() {
   revokePayslipViewerBlobUrl();
   const iframe = $("payslipStudioPdf");
   if (iframe) iframe.src = "about:blank";
+  if (isAutostudioEmbed() && window.parent && window.parent !== window) {
+    try {
+      window.parent.postMessage({ type: "workpass-accounting-studio-close" }, window.location.origin);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 function payslipStatusLabel(status) {
@@ -3975,6 +4009,19 @@ async function refreshPayslipStudio({ keepSelection = false } = {}) {
 }
 
 async function openPayslipReviewStudio(opts = {}) {
+  // Prefer the dedicated Lohn-Zentrale page — keep local studio only for autostudio iframe host.
+  if (!opts.forceLocal && !isAutostudioEmbed()) {
+    const cid = activeCompanyId();
+    if (!cid && isSuperadminUser()) {
+      showActionToast(t("common.selectCompany") || "Bitte Firma wählen", true);
+      return;
+    }
+    const focusOpts = { focus: "studio", companyId: cid };
+    if (opts.batchId) focusOpts.batchId = opts.batchId;
+    if (opts.statementId) focusOpts.statementId = opts.statementId;
+    goToAccountingHub(focusOpts);
+    return;
+  }
   closeLohnDrawer();
   wireLohnDrawer();
   bindPayslipStudioChromeButtons();
@@ -4677,146 +4724,13 @@ async function openLohnDrawer() {
     showActionToast(t("error.forbidden") || "Keine Berechtigung", true);
     return;
   }
-  if (shouldSkipSupportBackgroundLoads()) {
-    showActionToast(t("login.sessionExpired") || "Sitzung ungültig — bitte neu anmelden", true);
+  const cid = activeCompanyId();
+  if (!cid && isSuperadminUser()) {
+    showActionToast(t("common.selectCompany") || "Bitte Firma wählen", true);
     return;
   }
-  const drawer = $("lohnDrawer");
-  const body = $("lohnDrawerBody");
-  if (!drawer || !body) {
-    showActionToast(t("common.error") || "UI nicht bereit", true);
-    return;
-  }
-  drawer.classList.remove("hidden");
-  document.body.classList.add("lohn-drawer-open");
-  body.innerHTML = `<div class="lohn-drawer-empty">${escapeHtml(t("common.loading") || "Wird geladen…")}</div>`;
-  drawer.setAttribute("aria-hidden", "false");
-
-  const q = companyQuery();
-  const cid = activeCompanyId() || q.replace("?company_id=", "");
-  const opsLink = $("lohnDrawerOpsLink");
-  if (opsLink) {
-    opsLink.href = `/ops-command-center.html${cid ? `?company_id=${encodeURIComponent(cid)}` : ""}#lohnHub`;
-  }
-  if (getUser().role === "superadmin" && !cid) {
-    body.innerHTML = `<div class="lohn-drawer-empty">${escapeHtml(t("common.selectCompany") || "Bitte Firma wählen")}</div>`;
-    return;
-  }
-
-  const cq = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
-  const sync = isSupportReadOnlySession() ? "0" : "1";
-  const msgUrl = `/api/payroll/accounting/messages?sync=${sync}${cid ? `&company_id=${encodeURIComponent(cid)}` : ""}`;
-  let messages = [];
-  let alerts = [];
-  let periodRequests = [];
-  let payslipBatches = [];
-  try {
-    const [msgRes, alertRes, periodRes, payslipRes] = await Promise.all([
-      apiSoft(msgUrl, { messages: [] }, 8000),
-      apiSoft(`/api/payroll/accounting/data-alerts${cq}`, { alerts: [] }, 4000),
-      apiSoft(
-        `/api/payroll/accounting/period-requests?status=pending_confirmation${cid ? `&company_id=${encodeURIComponent(cid)}` : ""}`,
-        { requests: [] },
-        4000,
-      ),
-      apiSoft(`/api/payroll/statements/pending${cq}`, { batches: [] }, 5000),
-    ]);
-    messages = Array.isArray(msgRes?.messages) ? msgRes.messages : [];
-    alerts = Array.isArray(alertRes?.alerts) ? alertRes.alerts : [];
-    periodRequests = Array.isArray(periodRes?.requests) ? periodRes.requests : [];
-    payslipBatches = Array.isArray(payslipRes?.batches) ? payslipRes.batches : [];
-  } catch (e) {
-    body.innerHTML = `<div class="lohn-drawer-empty">${escapeHtml(e.message || "load_failed")}</div>`;
-    return;
-  }
-
-  const payslipCount = payslipBatches.reduce(
-    (n, b) => n + (Array.isArray(b.statements) ? b.statements.length : Number(b.statement_count || 0)),
-    0,
-  );
-  updateLohnNavBadge(messages.length + payslipCount);
-  paintLohnBadge($("opsStripLohnBadge"), messages.length + payslipCount);
-
-  if (!messages.length && !alerts.length && !periodRequests.length && !payslipBatches.length) {
-    body.innerHTML = `<div class="lohn-drawer-empty"><strong>${escapeHtml(t("lohn.drawerEmptyTitle") || "Alles erledigt")}</strong>${escapeHtml(t("lohn.drawerEmptyBody") || "Keine offenen Anfragen von WorkPass Lohn.")}</div>`;
-    return;
-  }
-
-  const parts = [];
-
-  if (payslipBatches.length) {
-    parts.push(`
-      <article class="lohn-drawer-item is-alert">
-        <div class="lohn-drawer-item-title">${escapeHtml(t("lohn.payslipPendingTitle") || "Lohnabrechnungen zur Prüfung")}</div>
-        <div class="lohn-drawer-item-body">${escapeHtml(t("lohn.payslipPendingBody", { n: String(payslipCount) }) || `${payslipCount} PDF(s) warten auf Prüfung und Versand an die Mitarbeiter-App.`)}</div>
-        <div class="lohn-drawer-actions">
-          <button type="button" class="primary" data-lohn-drawer="open-payslips">${escapeHtml(t("lohn.openPayslipReview") || "Jetzt prüfen & senden")}</button>
-        </div>
-      </article>`);
-  }
-
-  for (const req of periodRequests.slice(0, 8)) {
-    const id = String(req.id || "");
-    const period = String(req.period || "—");
-    parts.push(`
-      <article class="lohn-drawer-item is-alert" data-lohn-period="${escapeAttr(id)}">
-        <div class="lohn-drawer-item-title">${escapeHtml(t("lohn.periodRequestTitle") || "Perioden-Übergabe")}</div>
-        <div class="lohn-drawer-item-body">${escapeHtml(t("lohn.periodRequestBody", { period }) || `Buchhaltung bittet um Daten für ${period}.`)}</div>
-        <div class="lohn-drawer-item-meta">${escapeHtml(period)}</div>
-        <div class="lohn-drawer-actions">
-          <button type="button" class="primary" data-lohn-drawer="period-confirm" data-id="${escapeAttr(id)}">${escapeHtml(t("lohn.periodConfirm") || "Freigeben")}</button>
-          <button type="button" data-lohn-drawer="period-reject" data-id="${escapeAttr(id)}">${escapeHtml(t("lohn.periodReject") || "Ablehnen")}</button>
-        </div>
-      </article>`);
-  }
-
-  for (const a of alerts.slice(0, 12)) {
-    const id = String(a.id || "");
-    const wid = String(a.workerId || a.employeeId || "").trim();
-    const fields = a.missingFields || a.missing_fields || [];
-    const name = String(a.workerDisplayName || "").trim()
-      || [a.workerFirstName, a.workerLastName].filter(Boolean).join(" ").trim()
-      || a.workerName || wid || "—";
-    const href = lohnContractsUrl(a.companyId || cid, wid, fields, a.message || "");
-    parts.push(`
-      <article class="lohn-drawer-item is-alert" data-lohn-alert="${escapeAttr(id)}">
-        <div class="lohn-drawer-item-title"><strong>${escapeHtml(name)}</strong>${wid && name !== wid ? ` <span class="muted">(${escapeHtml(wid)})</span>` : ""}</div>
-        <div class="lohn-drawer-item-body">${escapeHtml(a.message || (t("lohn.missingData") || "Fehlende Stammdaten"))}</div>
-        ${renderLohnDrawerChips(fields)}
-        <div class="lohn-drawer-actions">
-          <a class="primary" href="${escapeAttr(href)}" target="_blank" rel="noopener" data-lohn-drawer="open-stammdaten" data-alert-id="${escapeAttr(id)}" data-worker-id="${escapeAttr(wid)}">${escapeHtml(t("lohn.openStammdaten") || "Stammdaten öffnen")}</a>
-          <button type="button" data-lohn-drawer="dismiss-alert" data-id="${escapeAttr(id)}">${escapeHtml(t("lohn.dismiss") || "Erledigt")}</button>
-        </div>
-      </article>`);
-  }
-
-  for (const m of messages.slice(0, 20)) {
-    const id = String(m.id || "");
-    const fields = m.missingFields || m.missing_fields || [];
-    const subject = m.subject || m.kind || "WorkPass Lohn";
-    const bodyText = String(m.body || "").trim();
-    const wid = String(m.workerId || "").trim();
-    const name = String(m.workerDisplayName || "").trim()
-      || [m.workerFirstName, m.workerLastName].filter(Boolean).join(" ").trim();
-    const workerLine = name && wid
-      ? `${name} · ID ${wid}`
-      : (name || (wid ? `ID ${wid}` : ""));
-    const href = lohnContractsUrl(m.companyId || cid, m.workerId, fields, `${subject} ${bodyText}`);
-    parts.push(`
-      <article class="lohn-drawer-item" data-lohn-msg="${escapeAttr(id)}">
-        <div class="lohn-drawer-item-title">${escapeHtml(subject)}</div>
-        ${workerLine ? `<div class="lohn-drawer-item-worker"><strong>${escapeHtml(name || "—")}</strong>${wid ? ` <span class="muted">(${escapeHtml(wid)})</span>` : ""}</div>` : ""}
-        ${bodyText ? `<div class="lohn-drawer-item-body">${escapeHtml(bodyText.slice(0, 220))}</div>` : ""}
-        ${renderLohnDrawerChips(fields)}
-        <div class="lohn-drawer-item-meta">${escapeHtml([m.period, workerLine].filter(Boolean).join(" · ") || "—")}</div>
-        <div class="lohn-drawer-actions">
-          <a class="primary" href="${escapeAttr(href)}" target="_blank" rel="noopener" data-lohn-drawer="open-msg-stammdaten" data-id="${escapeAttr(id)}">${escapeHtml(t("lohn.openStammdaten") || "Bearbeiten")}</a>
-          <button type="button" data-lohn-drawer="ack-msg" data-id="${escapeAttr(id)}">${escapeHtml(t("lohn.markDone") || "Erledigt")}</button>
-        </div>
-      </article>`);
-  }
-
-  body.innerHTML = parts.join("");
+  // Drawer is retired as primary inbox — route to dedicated Lohn-Zentrale.
+  goToAccountingHub({ companyId: cid });
 }
 
 async function handleLohnDrawerAction(ev) {
@@ -4978,10 +4892,23 @@ function wireLohnDrawer() {
     persistPayslipStudioPrefs();
     renderPayslipStudioList();
   });
-  // Deep-link: ?payslipReview=1&batch_id=…
+    // Deep-link: ?payslipReview=1&batch_id=…
   try {
     const params = new URLSearchParams(location.search);
-    if (params.get("payslipReview") === "1" || params.get("payslip_review") === "1") {
+    if (params.get("autostudio") === "1") {
+      document.documentElement.classList.add("embed-document", "autostudio-embed");
+      document.body.classList.add("embed-mode", "admin-v2-embed", "autostudio-embed");
+      // Hide Betrieb chrome — this iframe only hosts the payslip studio for Lohn-Zentrale.
+      $("dashboardView")?.querySelector?.(".app-sidebar")?.classList.add("hidden");
+      $("dashboardView")?.querySelector?.(".topbar")?.classList.add("hidden");
+      $("overviewQuickBar")?.classList.add("hidden");
+      $("opsCommandStrip")?.classList.add("hidden");
+      openPayslipReviewStudio({
+        forceLocal: true,
+        batchId: params.get("batch_id") || params.get("batchId") || "",
+        statementId: params.get("statement_id") || params.get("statementId") || "",
+      }).catch(() => {});
+    } else if (params.get("payslipReview") === "1" || params.get("payslip_review") === "1") {
       openPayslipReviewStudio({
         batchId: params.get("batch_id") || params.get("batchId") || "",
         statementId: params.get("statement_id") || params.get("statementId") || "",
@@ -4993,6 +4920,19 @@ function wireLohnDrawer() {
   $("openLohnSystemBtn")?.addEventListener("click", () => {
     openLohnSystem().catch(() => {});
   });
+  const hubBtn = $("openLohnHubBtn");
+  if (hubBtn) {
+    hubBtn.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      if (!canShowLohnNavEntry()) return;
+      const cid = activeCompanyId();
+      if (!cid && isSuperadminUser()) {
+        showActionToast(t("common.selectCompany") || "Bitte Firma wählen", true);
+        return;
+      }
+      goToAccountingHub({ companyId: cid });
+    });
+  }
   applyLohnNavVisibility(true);
   $("lohnDrawerBody")?.addEventListener("click", (ev) => {
     handleLohnDrawerAction(ev).catch(() => {});
@@ -5162,6 +5102,12 @@ const COMMAND_NAV = [
     titleKey: "lohn.opsLink",
     groupKey: "nav.group.ops",
     searchTerms: "lohn buchhaltung accounting workpass payroll abrechnung firma.de sso verdienst lstb",
+  },
+  {
+    href: "/admin-v2/accounting.html",
+    titleKey: "lohn.hubNav",
+    groupKey: "nav.group.ops",
+    searchTerms: "lohn zentrale hub buchhaltung anfragen studio period bestätigung abrechnung",
   },
   { tab: "analytics", titleKey: "tab.analytics", groupKey: "nav.group.start" },
   { tab: "inbox", titleKey: "tab.inbox", groupKey: "nav.group.start" },
@@ -5358,11 +5304,20 @@ function renderOverviewQuickBar() {
     { tab: "access", label: t("overview.quick.access"), icon: "✓" },
     { tab: "copilot", label: t("overview.quick.copilot"), icon: "✦" },
   ];
+  if (canShowLohnNavEntry()) {
+    items.splice(1, 0, {
+      href: accountingHubUrl(),
+      label: t("lohn.hubNav") || "Lohn-Zentrale",
+      icon: "Ł",
+    });
+  }
   bar.innerHTML = items
-    .map(
-      (item) =>
-        `<button type="button" class="quick-bar-btn" data-goto-tab="${item.tab}"${item.highlight ? ` data-highlight="${item.highlight}"` : ""}><span class="quick-bar-icon" aria-hidden="true">${item.icon}</span><span>${item.label}</span></button>`,
-    )
+    .map((item) => {
+      if (item.href) {
+        return `<a class="quick-bar-btn" href="${escapeAttr(item.href)}"><span class="quick-bar-icon" aria-hidden="true">${item.icon}</span><span>${escapeHtml(item.label)}</span></a>`;
+      }
+      return `<button type="button" class="quick-bar-btn" data-goto-tab="${item.tab}"${item.highlight ? ` data-highlight="${item.highlight}"` : ""}><span class="quick-bar-icon" aria-hidden="true">${item.icon}</span><span>${item.label}</span></button>`;
+    })
     .join("");
   bar.querySelectorAll("[data-goto-tab]").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -5414,6 +5369,9 @@ function renderCommandPaletteList(query) {
     if (item.openLohn && !canShowLohnNavEntry()) {
       return false;
     }
+    if (String(item.href || "").includes("accounting.html") && !canShowLohnNavEntry()) {
+      return false;
+    }
     if (item.tab === "analytics" && !canAccessAnalyticsTab()) {
       return false;
     }
@@ -5427,7 +5385,7 @@ function renderCommandPaletteList(query) {
     ) {
       return false;
     }
-    if (isOfficeUser() && (item.openLohn || item.tab === "billing" || item.tab === "audit")) {
+    if (isOfficeUser() && (item.openLohn || item.tab === "billing" || item.tab === "audit" || String(item.href || "").includes("accounting.html"))) {
       return false;
     }
     const title = t(item.titleKey).toLowerCase();
@@ -10981,10 +10939,10 @@ function paintOpsStripLohnOnly() {
     btn.type = "button";
     btn.className = "ops-strip-lohn-btn";
     btn.id = "opsStripLohnLink";
-    btn.innerHTML = `${t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span>`;
+    btn.innerHTML = `${t("lohn.hubNav") || t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span>`;
     btn.addEventListener("click", () => {
       if (!canShowLohnNavEntry()) return;
-      openWorkpassLohnStudioFromNav().catch(() => {});
+      goToAccountingHub({ companyId: activeCompanyId() });
     });
     strip.prepend(btn);
   } else {
@@ -11174,7 +11132,7 @@ async function loadOverview() {
       <span class="ops-strip-kpi"><strong>${twin.workersOnSite ?? wf.onSite ?? 0}</strong> ${t("overview.onSiteKpi")}</span>
       ${opsSurfaceEnabled("security", opsFeatures) ? `<span class="ops-strip-kpi"><strong>${(sec.openAlerts || []).length}</strong> ${t("inbox.filterSecurity")}</span>` : ""}
       <span class="ops-strip-kpi">${emg.active ? t("overview.emergency") : t("overview.calm")}</span>
-      ${canShowLohnNavEntry() ? `<button type="button" class="ops-strip-lohn-btn" id="opsStripLohnLink">${t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span></button>` : ""}
+      ${canShowLohnNavEntry() ? `<button type="button" class="ops-strip-lohn-btn" id="opsStripLohnLink">${t("lohn.hubNav") || t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span></button>` : ""}
       ${canCmd ? `<a href="/ops-command-center.html${qs}" target="_blank" rel="noopener">${t("ops.commandCenter")}</a>` : ""}
       ${canMap ? `<a href="/ops-live-map.html${qs}" target="_blank" rel="noopener">${t("ops.liveMap")}</a>` : ""}
       ${canAi ? `<a href="/ai-command-center.html${qs}" target="_blank" rel="noopener">${t("ops.aiCenter")}</a>` : ""}
@@ -11187,7 +11145,7 @@ async function loadOverview() {
     });
     strip.querySelector("#opsStripLohnLink")?.addEventListener("click", () => {
       if (!canShowLohnNavEntry()) return;
-      openWorkpassLohnStudioFromNav().catch(() => {});
+      goToAccountingHub({ companyId: activeCompanyId() || cid });
     });
     if (canAccessWorkpassLohnUi()) {
       void syncLohnOpenButton({ force: false });

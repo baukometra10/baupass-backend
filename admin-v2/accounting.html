@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="de" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#060a12" />
+  <meta name="apple-mobile-web-app-title" content="SUPPIX Lohn-Zentrale" />
+  <meta name="application-name" content="SUPPIX Lohn-Zentrale" />
+  <title>SUPPIX — Lohn-Zentrale</title>
+  <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
+  <link rel="icon" type="image/svg+xml" sizes="192x192" href="/branding/suppix-ai-mark.svg" />
+  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
+  <link rel="stylesheet" href="/admin-v2/accounting.css?v=20260820accHub1" />
+</head>
+<body>
+  <div id="accBoot" class="acc-boot">
+    <div class="spinner" aria-hidden="true"></div>
+    <div id="accBootMsg">Lade Lohn-Zentrale…</div>
+  </div>
+
+  <div id="accApp" class="acc-shell hidden">
+    <header class="acc-top">
+      <div class="acc-brand">
+        <div class="acc-mark" aria-hidden="true">Ł</div>
+        <div>
+          <h1 id="accTitle">Lohn-Zentrale</h1>
+          <p id="accSub">Alle Anfragen der Buchhaltung — prüfen, bestätigen, Freigabe im Studio.</p>
+        </div>
+      </div>
+      <div class="acc-actions">
+        <a class="btn ghost" id="accBackBetrieb" href="/admin-v2/index.html">← Betrieb</a>
+        <button type="button" class="ghost" id="accRefreshBtn">Aktualisieren</button>
+        <button type="button" class="primary" id="accOpenExternalBtn">Buchhaltung öffnen</button>
+      </div>
+    </header>
+
+    <nav class="acc-jump" aria-label="Abschnitte">
+      <a href="#accProcess" id="jumpProcess">Zu bearbeiten <span class="badge is-zero" id="badgeProcess">0</span></a>
+      <a href="#accConfirm" id="jumpConfirm">Bestätigung <span class="badge is-zero" id="badgeConfirm">0</span></a>
+      <a href="#accStudio" id="jumpStudio">Studio <span class="badge is-zero" id="badgeStudio">0</span></a>
+    </nav>
+    <div id="accStatus" class="acc-status" role="status" aria-live="polite"></div>
+
+    <section class="acc-section" id="accProcess">
+      <div class="acc-section-head">
+        <div>
+          <h2>Zu bearbeiten</h2>
+          <p>Anfragen und Hinweise aus dem Buchhaltungssystem, die eine Bearbeitung in der Plattform brauchen.</p>
+        </div>
+      </div>
+      <div class="acc-section-body" id="accProcessBody"></div>
+    </section>
+
+    <section class="acc-section is-confirm" id="accConfirm">
+      <div class="acc-section-head">
+        <div>
+          <h2>Bestätigung</h2>
+          <p>Perioden-Übergaben und Freigaben, die von der Plattform bestätigt oder abgelehnt werden.</p>
+        </div>
+      </div>
+      <div class="acc-section-body" id="accConfirmBody"></div>
+    </section>
+
+    <section class="acc-section is-studio" id="accStudio">
+      <div class="acc-section-head">
+        <div>
+          <h2>Studio — Lohnabrechnungen</h2>
+          <p>Prüfung und Versand aller Abrechnungsdokumente an die Mitarbeiter-App.</p>
+        </div>
+        <div class="acc-actions">
+          <button type="button" class="primary" id="accOpenStudioBtn">Studio öffnen</button>
+          <button type="button" class="ghost hidden" id="accExitStudioBtn">Zurück zur Übersicht</button>
+        </div>
+      </div>
+      <div class="acc-section-body">
+        <div id="accStudioHint" class="acc-empty">
+          <strong>Studio bereit</strong>
+          Offene Abrechnungen erscheinen hier. Klicke „Studio öffnen“, um die Freigabe zu starten.
+        </div>
+        <div id="accStudioFrameWrap" class="acc-studio-frame-wrap hidden">
+          <iframe id="accStudioFrame" title="Lohnabrechnungs-Studio" src="about:blank"></iframe>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="/workpass-storage.js?v=20260819wp22"></script>
+  <script src="/embed-helpers.js?v=20260819embed18"></script>
+  <script src="/admin-v2/accounting-app.js?v=20260820accHub1" type="module"></script>
+</body>
+</html>

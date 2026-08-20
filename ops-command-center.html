@@ -10,8 +10,8 @@
   <link rel="icon" type="image/svg+xml" sizes="192x192" href="/branding/suppix-ai-mark.svg" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/design-tokens.css" />
-  <link rel="stylesheet" href="/embed-shell.css?v=20260820opsStandalone2" />
-  <link rel="stylesheet" href="/ops-shell.css?v=20260820opsStandalone2" />
+  <link rel="stylesheet" href="/embed-shell.css?v=20260820accHub1" />
+  <link rel="stylesheet" href="/ops-shell.css?v=20260820accHub1" />
   <style>
     html { scroll-behavior: smooth; }
     /* Standalone: page itself scrolls (no trapped nested viewport) */
@@ -1486,7 +1486,7 @@
                 <div class="guardian-actions">
                   <button type="button" id="guardianCheckBtn">${tr("healthCheck")}</button>
                   <button type="button" class="ghost" id="guardianRepairBtn">${tr("repairNow")}</button>
-                  <a class="ghost" href="#lohnHub" style="display:inline-flex;align-items:center;text-decoration:none;padding:0.48rem 0.9rem;border-radius:10px;border:1px solid rgba(148,163,184,0.35);color:var(--accent);font-size:0.78rem;font-weight:650">${tr("lohnHubTitle") || "WorkPass Lohn"} ↓</a>
+                  <a class="ghost" href="/admin-v2/accounting.html${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ""}" style="display:inline-flex;align-items:center;text-decoration:none;padding:0.48rem 0.9rem;border-radius:10px;border:1px solid rgba(148,163,184,0.35);color:var(--accent);font-size:0.78rem;font-weight:650">${tr("lohnHubTitle") || "WorkPass Lohn"} →</a>
                 </div>
               </div>
               <div class="guardian-body-side">
@@ -2009,8 +2009,10 @@
       const notify = list.filter((m) => m && m.bannerVisible === true).length;
       chip.textContent = n ? `WorkPass Lohn (${n})` : "WorkPass Lohn";
       chip.classList.toggle("has-mail", n > 0 || notify > 0);
-      chip.href = "#lohnHub";
+      chip.href = `/admin-v2/accounting.html${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ""}`;
       chip.title = notify ? tr("lohnMessagesToastEyebrow") : tr("lohnHubTitle");
+      chip.target = "_self";
+      chip.rel = "";
     }
 
     let lastLohnSig = "";
@@ -2051,9 +2053,16 @@
       const alertCount = Array.isArray(dataAlerts) ? dataAlerts.length : 0;
       const batchCount = Array.isArray(payrollBatches) ? payrollBatches.length : 0;
       const reqCount = Array.isArray(periodRequests) ? periodRequests.length : 0;
-      const notifyCount = (Array.isArray(lohnMessages) ? lohnMessages : []).filter((m) => m.bannerVisible === true).length;
-      return `${renderLohnNotificationToasts(lohnMessages)}
-      <div class="lohn-hub" id="lohnHub">
+      const payslipCount = (Array.isArray(payrollBatches) ? payrollBatches : []).reduce(
+        (n, b) => n + (Array.isArray(b.statements) ? b.statements.length : Number(b.statement_count || 0)),
+        0,
+      );
+      const total = msgCount + alertCount + reqCount + batchCount;
+      const cid = String(companyId || "").trim();
+      const hubUrl = `/admin-v2/accounting.html${cid ? `?company_id=${encodeURIComponent(cid)}` : ""}`;
+      const studioUrl = `/admin-v2/accounting.html?${cid ? `company_id=${encodeURIComponent(cid)}&` : ""}focus=studio`;
+      return `
+      <div class="lohn-hub lohn-hub-compact" id="lohnHub">
         <div class="lohn-hub-head">
           <div>
             <div class="lohn-hub-title">${tr("lohnHubTitle")}</div>
@@ -2061,20 +2070,22 @@
           </div>
           <div class="lohn-hub-pills">
             ${reqCount ? `<span class="lohn-pill warn">${tr("lohnPeriodRequestsPending", { n: reqCount })}</span>` : ""}
-            ${notifyCount ? `<span class="lohn-pill warn">${notifyCount} | ${escapeLohnHtml(tr("lohnMessagesToastEyebrow"))}</span>` : ""}
             <span class="lohn-pill ${msgCount ? "warn" : "ok"}">${msgCount ? tr("lohnMessagesPending", { n: msgCount }) : tr("lohnMessagesNone")}</span>
             <span class="lohn-pill ${alertCount ? "warn" : ""}">${alertCount ? tr("dataAlertsPending", { n: alertCount }) : tr("dataAlertsNone")}</span>
             <span class="lohn-pill ${batchCount ? "warn" : ""}">${batchCount ? tr("payrollPending", { n: batchCount }) : tr("payrollNone")}</span>
           </div>
         </div>
         <div class="lohn-hub-body">
-          ${renderLohnPeriodRequestsSection(periodRequests)}
-          ${renderLohnMessagesSection(lohnMessages)}
-          ${renderDataAlertsSection(dataAlerts)}
-          ${renderLohnEmployeesSection(employeePreview)}
-          ${renderLohnBatchSection()}
-          ${renderPayrollCard(payrollBatches)}
-          ${renderLohnLinkSection(lohnLink)}
+          <div class="lohn-section">
+            <div class="lohn-empty" style="text-align:start;padding:0.85rem 0">
+              <strong style="display:block;margin-bottom:0.35rem;color:var(--text)">${total ? `${total} offene Punkte` : (tr("lohnMessagesNone") || "Keine offenen Anfragen")}</strong>
+              <span class="muted">${payslipCount ? `${payslipCount} Abrechnung(en) zur Prüfung · ` : ""}Buchhaltungs-Workflows laufen in der Lohn-Zentrale (Betrieb).</span>
+              <div style="display:flex;flex-wrap:wrap;gap:0.45rem;margin-top:0.75rem">
+                <a class="ghost" href="${hubUrl}" style="display:inline-flex;align-items:center;text-decoration:none;padding:0.48rem 0.9rem;border-radius:10px;border:1px solid rgba(94,234,212,0.45);color:var(--accent);font-size:0.78rem;font-weight:650;background:rgba(94,234,212,0.08)">Lohn-Zentrale öffnen</a>
+                <a class="ghost" href="${studioUrl}" style="display:inline-flex;align-items:center;text-decoration:none;padding:0.48rem 0.9rem;border-radius:10px;border:1px solid rgba(148,163,184,0.35);color:var(--text);font-size:0.78rem;font-weight:650">Studio</a>
+              </div>
+            </div>
+          </div>
         </div>
       </div>`;
     }
@@ -2649,7 +2660,11 @@
       const mode = opts.mode || "full";
       const status = document.getElementById("status");
       const grid = document.getElementById("grid");
-      const focusLohn = location.hash === "#lohnHub" || mode === "lohn";
+      if (location.hash === "#lohnHub") {
+        const hub = `/admin-v2/accounting.html${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ""}`;
+        window.location.replace(hub);
+        return;
+      }
       const gen = (load._gen = (load._gen || 0) + 1);
       try {
         await loadMeCached();
@@ -2699,7 +2714,9 @@
           periodRequests,
         );
         if (location.hash === "#lohnHub") {
-          document.getElementById("lohnHub")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          const hub = `/admin-v2/accounting.html${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ""}`;
+          window.location.replace(hub);
+          return;
         }
         if (mode === "lohn") {
           if (status) status.textContent = `${lastStatusDate} · ${tr("live")}`;
@@ -2740,7 +2757,9 @@
           periodRequests,
         );
         if (location.hash === "#lohnHub") {
-          document.getElementById("lohnHub")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          const hub = `/admin-v2/accounting.html${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ""}`;
+          window.location.replace(hub);
+          return;
         }
       } catch (e) {
         if (status) status.textContent = "";
@@ -2781,7 +2800,7 @@
       grid.innerHTML = `
         <nav class="ops-jump-nav" aria-label="Ops sections">
           <a href="#guardianCard">${tr("guardianLabel") || "Guard"}</a>
-          <a href="#lohnHub">${tr("lohnHubTitle") || "WorkPass Lohn"}</a>
+          <a href="/admin-v2/accounting.html${companyId ? `?company_id=${encodeURIComponent(companyId)}` : ""}">${tr("lohnHubTitle") || "WorkPass Lohn"}</a>
           <a href="#eventFeedCard">${tr("liveFeed") || "Live-Feed"}</a>
         </nav>
         ${renderGuardianCard(guardian, guardianHistory)}

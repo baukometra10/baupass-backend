@@ -489,6 +489,31 @@ button.ghost {
   font-weight: 500;
 }
 
+body.autostudio-embed .app-sidebar,
+body.autostudio-embed .topbar,
+body.autostudio-embed #overviewQuickBar,
+body.autostudio-embed #opsCommandStrip,
+body.autostudio-embed #platformBanner,
+body.autostudio-embed .sidebar-footer,
+body.autostudio-embed #embedQuickNav {
+  display: none !important;
+}
+body.autostudio-embed .app-main {
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: none !important;
+}
+body.autostudio-embed .app-content,
+body.autostudio-embed .tab-panel {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+body.autostudio-embed #payslipReviewStudio:not(.hidden) {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+}
+
 .tab.nav-item.active,
 .tab.mobile-nav-item.active {
   color: var(--text);
@@ -5125,6 +5150,7 @@ body.theme-black .payslip-studio-side button:not(.primary) {
   font-size: 0.9rem;
   box-shadow: var(--shadow-card);
   transition: border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s;
+  text-decoration: none;
 }
 
 .quick-bar-btn:hover {

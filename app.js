@@ -19585,7 +19585,7 @@ function buildEnterpriseEmbedUrl(item) {
   const params = [];
   if (item.embed) {
     params.push("embed=1");
-    params.push("v=20260820betriebFast1");
+    params.push("v=20260820accHub1");
   } else if (item.version) {
     params.push("v=20260601hubupgrade1");
   }
