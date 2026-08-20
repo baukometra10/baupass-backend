@@ -115,21 +115,61 @@ LOHN_PASSTHROUGH_SOURCES = frozenset(
         "lohn_sheet_capture",
     }
 )
+LOHN_STUB_PDF_MARKERS = (
+    b"Original-PDF fuer Mitarbeiter-App",
+    b"Original-PDF f\xc3\xbcr Mitarbeiter-App",
+    b"Original-PDF fuer Mitarbeiter",
+)
+
+
+def is_lohn_stub_pdf(pdf_bytes: bytes | None, *, file_size: int | None = None) -> bool:
+    """
+    Detect WorkPass Lohn placeholder PDFs from build-document-pdf.mjs
+    (plain Helvetica dump — not the portal Form VB / LStB layout).
+    """
+    raw = pdf_bytes or b""
+    if not raw.startswith(b"%PDF"):
+        return False
+    size = int(file_size if file_size is not None else len(raw))
+    head = raw[:12000]
+    if any(marker in head for marker in LOHN_STUB_PDF_MARKERS):
+        return True
+    # Tiny single-font dumps from Lohn's zero-dep builder (portal forms / ReportLab are larger).
+    if size < 3500 and b"/BaseFont /Helvetica" in head:
+        if b"Verdienstbescheinigung" in head or b"Lohnsteuerbescheinigung" in head or b"Entgeltabrechnung" in head:
+            return True
+    return False
 
 
 def is_workpass_lohn_passthrough(meta: dict[str, Any] | None = None, stmt: dict[str, Any] | None = None) -> bool:
     """True when the statement must be shown/released exactly as received from WorkPass Lohn."""
     meta = meta if isinstance(meta, dict) else {}
     stmt = stmt if isinstance(stmt, dict) else {}
+    src = str(meta.get("pdfSource") or "").strip()
+    if src in {"lohn_stub_placeholder", "lohn_stub"} or bool(meta.get("pdfIsStub")):
+        return False
+    path = str(stmt.get("file_path") or "").strip()
+    if path and Path(path).is_file():
+        try:
+            disk = Path(path).read_bytes()
+            if is_lohn_stub_pdf(disk):
+                return False
+        except Exception:
+            pass
     if bool(meta.get("pdfImmutable")):
         return True
-    src = str(meta.get("pdfSource") or "").strip()
     if src in LOHN_PASSTHROUGH_SOURCES:
         return True
     origin = str(meta.get("source") or meta.get("origin") or "").strip().lower()
     if origin in {"lohn_delivery", "workpass_lohn", "lohn", "workpass-lohn"}:
+        # Origin alone is not enough when the bytes are a known stub placeholder.
+        if path and Path(path).is_file():
+            try:
+                if is_lohn_stub_pdf(Path(path).read_bytes()):
+                    return False
+            except Exception:
+                pass
         return True
-    path = str(stmt.get("file_path") or "").strip()
     if path and Path(path).is_file():
         try:
             size = Path(path).stat().st_size
@@ -137,8 +177,240 @@ def is_workpass_lohn_passthrough(meta: dict[str, Any] | None = None, stmt: dict[
             size = int(stmt.get("file_size") or 0)
         # Any non-Datev remake file on disk is treated as the authentic Lohn document.
         if size > 20 and src not in DATEV_REMAKE_PDF_SOURCES:
+            try:
+                if is_lohn_stub_pdf(Path(path).read_bytes()):
+                    return False
+            except Exception:
+                pass
             return True
     return False
+
+
+def render_verdienst_certificate_pdf_bytes(doc: dict[str, Any] | None, *, meta: dict[str, Any] | None = None) -> bytes:
+    """Form-like Verdienstbescheinigung PDF (portal layout), not the Lohn text stub."""
+    from io import BytesIO
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.pdfgen import canvas as pdf_canvas
+
+    from .lohn_certificate_sheet import _amt
+
+    d = doc if isinstance(doc, dict) else {}
+    m = meta if isinstance(meta, dict) else {}
+    year = str(d.get("year") or m.get("year") or (str(d.get("period") or "")[:4]) or "").strip()
+    period = str(d.get("period") or m.get("period") or "").strip()[:7]
+    buf = BytesIO()
+    c = pdf_canvas.Canvas(buf, pagesize=A4)
+    width, height = A4
+    left, right = 14 * mm, width - 14 * mm
+    y = height - 16 * mm
+
+    def text(x: float, yy: float, s: str, *, size: int = 9, bold: bool = False) -> None:
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", size)
+        c.drawString(x, yy, str(s or "")[:120])
+
+    def money(v: Any) -> str:
+        return _amt(v).replace("—", "-")
+
+    text(left, y, "WorkPass Lohn  ·  Form VB", size=8)
+    y -= 7 * mm
+    text(left, y, "Verdienstbescheinigung", size=16, bold=True)
+    text(right - 45 * mm, y + 3 * mm, f"Bezugsmonat {period}", size=9, bold=True)
+    text(right - 45 * mm, y - 2 * mm, f"Jahr {year or period[:4]}", size=9)
+    y -= 8 * mm
+    c.setStrokeColorRGB(0.1, 0.1, 0.1)
+    c.setLineWidth(1)
+    c.line(left, y, right, y)
+    y -= 6 * mm
+    text(left, y, "Ausdruck fuer den Arbeitnehmer · Betraege aus freigegebenen Monatsabrechnungen", size=8)
+    y -= 8 * mm
+
+    box_w = (right - left - 4 * mm) / 2
+    box_h = 42 * mm
+    for i, title in enumerate(("Arbeitnehmer/in", "Arbeitgeber")):
+        x0 = left + i * (box_w + 4 * mm)
+        c.rect(x0, y - box_h, box_w, box_h, stroke=1, fill=0)
+        text(x0 + 2 * mm, y - 5 * mm, title, size=9, bold=True)
+        if i == 0:
+            lines = [
+                str(d.get("employeeName") or m.get("employeeName") or "—"),
+                str(d.get("employeeAddress") or ""),
+                f"Personal-Nr.: {d.get('personnelNumber') or d.get('employeeId') or '—'}",
+                f"Steuer-ID: {d.get('employeeTaxId') or '—'}",
+                f"SV-Nr.: {d.get('employeeInsuranceNo') or '—'}",
+                f"Geburtsdatum: {d.get('employeeBirthDate') or '—'}",
+                f"Steuerklasse: {d.get('taxClass') or '—'}",
+            ]
+        else:
+            seller = str(d.get("seller") or m.get("companyName") or "—")
+            lines = [
+                *seller.split("\n")[:3],
+                f"Steuernummer: {d.get('taxNumber') or '—'}",
+                f"Monate {year}: {d.get('monthsCount') or '—'}",
+            ]
+        yy = y - 10 * mm
+        for line in lines:
+            if not str(line).strip():
+                continue
+            text(x0 + 2 * mm, yy, str(line)[:70], size=8)
+            yy -= 4.2 * mm
+    y -= box_h + 8 * mm
+
+    rows = d.get("rows") if isinstance(d.get("rows"), list) else []
+    if not rows:
+        totals = d.get("totals") if isinstance(d.get("totals"), dict) else {}
+        ytd = d.get("ytd") if isinstance(d.get("ytd"), dict) else {}
+        monthly = d.get("monthly") if isinstance(d.get("monthly"), dict) else {}
+        pairs = [
+            ("Abrechnungs-Brutto", "gross"),
+            ("Steuer-Brutto", "taxGross"),
+            ("SV-Brutto", "svGross"),
+            ("Lohnsteuer", "payrollTax"),
+            ("Solidaritaetszuschlag", "solidarity"),
+            ("Kirchensteuer", "churchTax"),
+            ("KV-Beitrag", "health"),
+            ("RV-Beitrag", "pension"),
+            ("PV-Beitrag", "care"),
+            ("AV-Beitrag", "unemployment"),
+            ("Netto-Verdienst", "net"),
+        ]
+        rows = []
+        for label, key in pairs:
+            mtl = monthly.get(key)
+            if mtl is None:
+                mtl = totals.get(key)
+            jahr = ytd.get(key)
+            if jahr is None:
+                jahr = mtl
+            rows.append({"label": label, "monthly": mtl, "yearly": jahr})
+
+    col_label = left
+    col_m = right - 55 * mm
+    col_y = right - 8 * mm
+    text(col_label, y, "Bezeichnung", size=8, bold=True)
+    text(col_m - 18 * mm, y, f"mtl. ({period})", size=8, bold=True)
+    text(col_y - 18 * mm, y, f"Jahr {year}", size=8, bold=True)
+    y -= 3 * mm
+    c.line(left, y, right, y)
+    y -= 5 * mm
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if y < 28 * mm:
+            c.showPage()
+            y = height - 20 * mm
+        text(col_label, y, str(row.get("label") or "")[:55], size=8)
+        c.drawRightString(col_m, y, money(row.get("monthly")))
+        c.drawRightString(col_y, y, money(row.get("yearly")))
+        y -= 4.8 * mm
+
+    y = max(18 * mm, y - 6 * mm)
+    c.line(left, y + 4 * mm, right, y + 4 * mm)
+    text(left, y, f"mtl. = Bezugsmonat · Jahr = Summe freigegebener Monate {year}", size=7)
+    y -= 4 * mm
+    text(left, y, "Ausdruck fuer den Arbeitnehmer · nicht Bestandteil der Monatsabrechnung", size=7)
+    c.showPage()
+    c.save()
+    return buf.getvalue()
+
+
+def replace_stub_certificate_pdf(db, stmt: dict[str, Any]) -> dict[str, Any]:
+    """Replace Lohn text-stub PDF with portal-form PDF built from delivery document JSON."""
+    try:
+        meta = json.loads(stmt.get("meta_json") or "{}")
+    except Exception:
+        meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    path = str(stmt.get("file_path") or "").strip()
+    raw = b""
+    if path and Path(path).is_file():
+        try:
+            raw = Path(path).read_bytes()
+        except Exception:
+            raw = b""
+    stub = bool(meta.get("pdfIsStub")) or str(meta.get("pdfSource") or "") in {
+        "lohn_stub_placeholder",
+        "lohn_stub",
+    }
+    if raw:
+        stub = stub or is_lohn_stub_pdf(raw)
+    if not stub and raw:
+        return {"ok": True, "skipped": "not_a_stub", "path": path}
+
+    doc = meta.get("document") if isinstance(meta.get("document"), dict) else {}
+    doc_type = resolve_payroll_doc_type(meta, doc, stmt)
+    if doc_type not in {"verdienstbescheinigung", "verdienstabrechnung", "lohnsteuerbescheinigung", "vordienstbescheinigung"}:
+        title = str(meta.get("title") or "")
+        if "verdienst" not in title.lower() and "lohnsteuer" not in title.lower() and "lstb" not in title.lower():
+            return {"ok": False, "error": "not_a_certificate_stub"}
+
+    if not doc.get("rows") and doc_type in {"verdienstbescheinigung", "verdienstabrechnung"}:
+        # Prefer live certificate JSON from Lohn when rows were not stored.
+        try:
+            from urllib.parse import urlencode
+
+            from .platform_link import get_platform_link
+
+            link = get_platform_link(db)
+            company_id = str(stmt.get("company_id") or meta.get("companyId") or "").strip()
+            employee_id = str(
+                meta.get("employeeId") or meta.get("externalEmployeeId") or stmt.get("worker_id") or ""
+            ).strip()
+            year = str(doc.get("year") or (stmt.get("period") or "")[:4] or "").strip()
+            period = str(doc.get("period") or stmt.get("period") or "").strip()[:7]
+            if link.get("enabled") and company_id and employee_id:
+                q = urlencode(
+                    {
+                        "companyId": company_id,
+                        "employeeId": employee_id,
+                        "year": year or period[:4],
+                        "period": period,
+                    }
+                )
+                fetched = _lohn_http_get(
+                    link,
+                    path=f"/v1/portal/certificates/verdienst?{q}",
+                    company_id=company_id,
+                    event="certificate.verdienst",
+                )
+                body = fetched.get("body") if isinstance(fetched.get("body"), dict) else {}
+                if fetched.get("ok") and body.get("ok") is not False and (
+                    body.get("rows") or body.get("kind")
+                ):
+                    doc = body
+                    meta["document"] = body
+        except Exception:
+            pass
+
+    if doc_type == "lohnsteuerbescheinigung" and not (doc.get("rows") or doc.get("kind")):
+        return {"ok": False, "error": "lstb_document_missing"}
+
+    pdf_bytes = render_verdienst_certificate_pdf_bytes(doc, meta=meta)
+    if not pdf_bytes.startswith(b"%PDF"):
+        return {"ok": False, "error": "render_failed"}
+    stored = store_statement_pdf_bytes(db, stmt, pdf_bytes, pdf_source="lohn_portal_form")
+    if not stored.get("ok"):
+        return stored
+    try:
+        meta2 = json.loads(stmt.get("meta_json") or "{}")
+    except Exception:
+        meta2 = {}
+    if not isinstance(meta2, dict):
+        meta2 = meta
+    meta2["pdfIsStub"] = False
+    meta2["pdfImmutable"] = True
+    meta2["pdfSource"] = "lohn_portal_form"
+    meta2["document"] = doc or meta2.get("document")
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    db.execute(
+        "UPDATE payroll_statements SET meta_json = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(meta2, ensure_ascii=False), now, stmt["id"]),
+    )
+    db.commit()
+    stmt["meta_json"] = json.dumps(meta2, ensure_ascii=False)
+    return {**stored, "replacedStub": True, "pdfSource": "lohn_portal_form"}
 
 
 def _lohn_http_get_bytes(
@@ -1903,6 +2175,38 @@ def ensure_statement_delivery_pdf(
     existing_size = int(stmt.get("file_size") or 0)
     path = str(stmt.get("file_path") or "").strip()
     passthrough = is_workpass_lohn_passthrough(existing_meta, stmt)
+    # Lohn text-stub PDFs look nothing like the portal Form VB — replace before delivery.
+    path = str(stmt.get("file_path") or "").strip()
+    if path and Path(path).is_file():
+        try:
+            disk_bytes = Path(path).read_bytes()
+        except Exception:
+            disk_bytes = b""
+        if (
+            bool(existing_meta.get("pdfIsStub"))
+            or str(existing_source) in {"lohn_stub_placeholder", "lohn_stub"}
+            or is_lohn_stub_pdf(disk_bytes)
+        ):
+            replaced = replace_stub_certificate_pdf(db, stmt)
+            if replaced.get("ok") and replaced.get("replacedStub"):
+                stmt = repo.get_statement(db, str(stmt.get("id") or "")) or stmt
+                try:
+                    existing_meta = json.loads(stmt.get("meta_json") or "{}")
+                except Exception:
+                    existing_meta = existing_meta
+                existing_source = str((existing_meta or {}).get("pdfSource") or existing_source)
+                existing_size = int(stmt.get("file_size") or existing_size)
+                path = str(stmt.get("file_path") or path)
+                passthrough = is_workpass_lohn_passthrough(existing_meta, stmt)
+                return {
+                    "ok": True,
+                    "path": path,
+                    "fileSize": existing_size,
+                    "filename": stmt.get("filename") or "",
+                    "period": str(stmt.get("period") or ""),
+                    "pdfSource": existing_source or "lohn_portal_form",
+                    "replacedStub": True,
+                }
     # Hard rule: anything from WorkPass Lohn with a stored PDF stays unchanged.
     if path and Path(path).is_file():
         try:
@@ -2174,12 +2478,20 @@ def ingest_statements(
         if title:
             meta["title"] = title
         if file_path and file_size:
-            meta["pdfSource"] = str(item.get("pdfSource") or meta.get("pdfSource") or "lohn_original")
-            meta["pdfImmutable"] = True
+            stub = is_lohn_stub_pdf(raw)
+            if stub:
+                meta["pdfSource"] = "lohn_stub_placeholder"
+                meta["pdfImmutable"] = False
+                meta["pdfIsStub"] = True
+            else:
+                meta["pdfSource"] = str(item.get("pdfSource") or meta.get("pdfSource") or "lohn_original")
+                meta["pdfImmutable"] = True
+                meta["pdfIsStub"] = False
         else:
             meta["pdfSource"] = str(item.get("pdfSource") or meta.get("pdfSource") or "pending_lohn_capture")
             # Still mark origin so later UI prefers Lohn passthrough when PDF arrives.
             meta["pdfImmutable"] = False
+            meta["pdfIsStub"] = False
         if invoice_key:
             meta["invoiceStorageKey"] = invoice_key
         stmt_id = repo.add_statement(

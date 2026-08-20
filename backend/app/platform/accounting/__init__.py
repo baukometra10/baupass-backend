@@ -1535,6 +1535,23 @@ def register_accounting_blueprint(flask_app) -> None:
         meta = _meta(stmt)
         path = str(stmt.get("file_path") or "").strip()
         pdf_source = str(meta.get("pdfSource") or "").strip()
+        # Replace Lohn text-stub placeholders with portal form PDF before preview.
+        from .service import is_lohn_stub_pdf, replace_stub_certificate_pdf
+
+        stub = bool(meta.get("pdfIsStub")) or pdf_source in {"lohn_stub_placeholder", "lohn_stub"}
+        if path and Path(path).is_file():
+            try:
+                stub = stub or is_lohn_stub_pdf(Path(path).read_bytes())
+            except Exception:
+                pass
+        if stub:
+            replaced = replace_stub_certificate_pdf(db, stmt)
+            if replaced.get("ok"):
+                stmt = repo.get_statement(db, statement_id) or stmt
+                meta = _meta(stmt)
+                path = str(stmt.get("file_path") or replaced.get("path") or path)
+                pdf_source = str(meta.get("pdfSource") or pdf_source)
+
         passthrough = is_workpass_lohn_passthrough(meta, stmt)
         doc_type = resolve_payroll_doc_type(meta, stmt)
 
@@ -1610,6 +1627,33 @@ def register_accounting_blueprint(flask_app) -> None:
             meta = {}
         path = str(stmt.get("file_path") or "").strip()
         has_pdf = bool(path and Path(path).is_file() and Path(path).stat().st_size > 20)
+        from .service import is_lohn_stub_pdf
+
+        stub = bool(meta.get("pdfIsStub")) or str(meta.get("pdfSource") or "") in {
+            "lohn_stub_placeholder",
+            "lohn_stub",
+        }
+        if has_pdf:
+            try:
+                stub = stub or is_lohn_stub_pdf(Path(path).read_bytes())
+            except Exception:
+                pass
+        doc_type = str(meta.get("docType") or meta.get("documentType") or "").strip().lower()
+        # Stub certificates: serve portal Form VB HTML (same look as Lohn Steuer).
+        if stub and doc_type in {
+            "verdienstbescheinigung",
+            "verdienstabrechnung",
+            "vordienstbescheinigung",
+            "lohnsteuerbescheinigung",
+        }:
+            from .lohn_certificate_sheet import build_verdienst_certificate_html
+
+            doc = meta.get("document") if isinstance(meta.get("document"), dict) else {}
+            html_doc = build_verdienst_certificate_html(doc, meta=meta)
+            return Response(
+                apply_sheet_chrome(html_doc, theme=theme, embed=embed),
+                mimetype="text/html; charset=utf-8",
+            )
         # Any WorkPass Lohn original must open via /pdf unchanged — never Datev sheet.
         if has_pdf or is_workpass_lohn_passthrough(meta, stmt) or is_exact_lohn_pdf_source(meta.get("pdfSource")):
             return jsonify(

@@ -442,23 +442,22 @@ def test_resolve_company_worker_by_name_unique():
     assert resolve_company_worker_by_name(_FakeDb(), "cmp-1", "Ambiguous") is None
 
 
-def test_enrich_statement_preview_mode_pdf_for_tax_doc(monkeypatch):
+def test_enrich_statement_preview_mode_pdf_for_tax_doc(tmp_path, monkeypatch):
     from backend.app.platform.accounting import repository as repo
-    import pathlib
+    from backend.app.platform.accounting import service as svc
 
-    class _P(pathlib.Path):
-        def is_file(self):
-            return True
-
-    monkeypatch.setattr(pathlib, "Path", _P)
+    pdf = tmp_path / "lstb.pdf"
+    # Large enough / without stub markers so it is treated as a real Lohn PDF.
+    pdf.write_bytes(b"%PDF-1.4\n% official form placeholder bytes\n" + (b"x" * 5000) + b"\n%%EOF\n")
+    monkeypatch.setattr(svc, "is_lohn_stub_pdf", lambda *_a, **_k: False)
     row = {
         "id": "s1",
         "batch_id": "b1",
         "company_id": "c1",
         "worker_id": "w1",
         "status": "pending",
-        "file_path": "/tmp/x.pdf",
-        "file_size": 100,
+        "file_path": str(pdf),
+        "file_size": pdf.stat().st_size,
         "first_name": "Max",
         "last_name": "Mustermann",
         "match_confidence": "exact",
@@ -477,3 +476,34 @@ def test_enrich_statement_preview_mode_pdf_for_tax_doc(monkeypatch):
     assert out["docType"] == "lohnsteuerbescheinigung"
     assert out["title"] == "Lohnsteuerbescheinigung 2025"
     assert out["pdfImmutable"] is True
+    assert out["pdfIsStub"] is False
+
+
+def test_lohn_stub_pdf_detection_and_form_render():
+    from backend.app.platform.accounting.service import (
+        is_lohn_stub_pdf,
+        render_verdienst_certificate_pdf_bytes,
+    )
+
+    stub = (
+        b"%PDF-1.4\n1 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj\n"
+        b"(Verdienstbescheinigung) Tj\n"
+        b"(WorkPass Lohn Original-PDF fuer Mitarbeiter-App) Tj\n%%EOF\n"
+    )
+    assert is_lohn_stub_pdf(stub) is True
+    form = render_verdienst_certificate_pdf_bytes(
+        {
+            "year": 2026,
+            "period": "2026-08",
+            "employeeName": "Feras Almohammad",
+            "employeeId": "BP-FA-Z2CIE",
+            "seller": "Lufthansa",
+            "rows": [
+                {"label": "Abrechnungs-Brutto", "monthly": 447.3, "yearly": 568.98},
+                {"label": "Netto-Verdienst", "monthly": 352.7, "yearly": 448.64},
+            ],
+        }
+    )
+    assert form.startswith(b"%PDF")
+    assert len(form) > 1500
+    assert is_lohn_stub_pdf(form) is False

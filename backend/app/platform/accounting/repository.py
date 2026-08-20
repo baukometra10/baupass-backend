@@ -405,6 +405,7 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
     pdf_suspect_remake = False
     passthrough = False
     origin_source = ""
+    pdf_is_stub = False
     try:
         import json as _json
 
@@ -429,20 +430,36 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
                 "lohn_original",
                 "lohn_html2canvas",
                 "lohn_sheet_capture",
+                "lohn_portal_form",
             }
             origin_source = str(meta.get("source") or meta.get("origin") or "").strip()
             origin = origin_source.lower()
-            from backend.app.platform.accounting.service import is_workpass_lohn_passthrough
+            from backend.app.platform.accounting.service import is_lohn_stub_pdf, is_workpass_lohn_passthrough
 
-            passthrough = is_workpass_lohn_passthrough(meta, out)
+            pdf_is_stub = bool(meta.get("pdfIsStub")) or pdf_source in {
+                "lohn_stub_placeholder",
+                "lohn_stub",
+            }
+            if has_pdf and out.get("file_path"):
+                try:
+                    from pathlib import Path as _P
+
+                    pdf_is_stub = pdf_is_stub or is_lohn_stub_pdf(_P(str(out.get("file_path"))).read_bytes())
+                except Exception:
+                    pass
+            if pdf_is_stub:
+                pdf_immutable = False
+            passthrough = is_workpass_lohn_passthrough(meta, out) and not pdf_is_stub
             sheet_types = {"lohnabrechnung", "gehaltsabrechnung"}
             title_type = infer_payroll_doc_type_from_title(title) if title else None
             certificate_like = bool(
                 (doc_type and doc_type not in sheet_types)
                 or (title_type and title_type not in sheet_types)
             )
-            # Hard rule: any WorkPass Lohn PDF opens as-is.
-            if has_pdf or pdf_immutable or passthrough or origin in {"lohn_delivery", "workpass_lohn", "lohn"}:
+            # Hard rule: any WorkPass Lohn PDF opens as-is — except known text stubs.
+            if pdf_is_stub and certificate_like:
+                preview_mode = "sheet"
+            elif has_pdf or pdf_immutable or passthrough or origin in {"lohn_delivery", "workpass_lohn", "lohn"}:
                 preview_mode = "pdf"
             elif certificate_like:
                 preview_mode = "pdf"
@@ -461,7 +478,7 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
         warnings, delivery_locked = [], status in {"released", "rejected"}
         doc_type, doc_type_label_de, title = "lohnabrechnung", "Lohnabrechnung", ""
         pdf_source, pdf_immutable, preview_mode, pdf_suspect_remake = "", False, "sheet", False
-        passthrough, origin_source = False, ""
+        passthrough, origin_source, pdf_is_stub = False, "", False
     out.update(
         {
             "statementId": out.get("id"),
@@ -491,9 +508,10 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
             "hasPdf": has_pdf,
             "pdfSource": pdf_source,
             "pdfImmutable": pdf_immutable,
+            "pdfIsStub": bool(pdf_is_stub),
             "previewMode": preview_mode,
             "pdfSuspectRemake": pdf_suspect_remake,
-            "lohnPassthrough": bool(passthrough or pdf_immutable or has_pdf),
+            "lohnPassthrough": bool((passthrough or pdf_immutable or has_pdf) and not pdf_is_stub),
             "source": origin_source,
             "fileSize": int(out.get("file_size") or 0),
             "status": status,
