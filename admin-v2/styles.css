@@ -4393,12 +4393,16 @@ body.theme-black .payslip-list-expand-rail {
   flex-wrap: wrap;
   gap: 0.35rem;
   margin-top: 0.4rem;
+  position: relative;
+  z-index: 2;
 }
 .payslip-batch-actions button {
   flex: 1 1 auto;
   min-width: 0;
   font-size: 0.72rem;
   padding: 0.35rem 0.5rem;
+  pointer-events: auto;
+  cursor: pointer;
 }
 .payslip-batch-head {
   display: flex;
@@ -4471,17 +4475,27 @@ body.theme-black .payslip-list-expand-rail {
   justify-content: flex-start;
   align-items: stretch;
 }
-.payslip-studio-pdf-wrap > .payslip-sheet-stage {
-  margin: 0.5rem auto;
+.payslip-studio-pdf-wrap.is-scrollable-preview,
+.payslip-studio-pdf-wrap.is-sheet-doc {
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  align-items: center;
+  justify-content: flex-start;
+}
+.payslip-studio-pdf-wrap.is-scrollable-preview > .payslip-sheet-stage,
+.payslip-studio-pdf-wrap.is-sheet-doc > .payslip-sheet-stage {
+  margin: 0.65rem auto 1.2rem;
+  flex: 0 0 auto;
 }
 .payslip-sheet-stage {
   position: relative;
   flex: 0 0 auto;
-  overflow: hidden;
+  overflow: visible;
   background: #fff;
   border-radius: 4px;
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
-  pointer-events: none;
+  pointer-events: auto;
 }
 .payslip-studio-pdf-wrap.is-pdf-doc {
   align-items: stretch;
