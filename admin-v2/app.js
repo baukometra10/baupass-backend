@@ -1,4 +1,4 @@
-import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260820lohnStudio4";
+import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260820lohnStudio5";
 import { ensureLeafletLoaded, mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -1691,8 +1691,14 @@ const payslipStudioState = {
   archiveQuery: "",
   archiveStatus: "all",
   openFilter: "all",
+  docTypeFilter: "all",
   archivePeriod: "",
   rematchedKeys: Object.create(null),
+  previewZoom: 1,
+  autoAdvanceAfterSend: true,
+  auditOpen: false,
+  auditRows: [],
+  sessionAudit: [],
   releaseInFlight: false,
   downloadInFlight: false,
   captureCache: null,
@@ -1794,7 +1800,8 @@ function fitPayslipPreview() {
   const pad = 8;
   const availW = Math.max(80, wrapW - pad);
   const availH = Math.max(80, wrapH - pad);
-  const boxScale = Math.min(availW / PAYSLIP_A4_PX_W, availH / PAYSLIP_A4_PX_H);
+  const zoom = Math.max(0.6, Math.min(1.8, Number(payslipStudioState.previewZoom) || 1));
+  const boxScale = Math.min(availW / PAYSLIP_A4_PX_W, availH / PAYSLIP_A4_PX_H) * zoom;
   const stageW = Math.max(1, Math.floor(PAYSLIP_A4_PX_W * boxScale));
   const stageH = Math.max(1, Math.floor(PAYSLIP_A4_PX_H * boxScale));
   stage.style.width = `${stageW}px`;
@@ -1827,6 +1834,8 @@ function fitPayslipPreview() {
   } catch {
     /* iframe not ready */
   }
+  const zoomLabel = $("payslipZoomLabel");
+  if (zoomLabel) zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
 }
 
 function schedulePayslipPreviewFit() {
@@ -1884,18 +1893,216 @@ async function pullPayslipsFromLohn() {
       showActionToast(res?.message || res?.error || t("lohn.pullPayslipsFailed") || "Abruf fehlgeschlagen", true);
       return;
     }
+    rememberPayslipPullResult(res);
     const n = Number(res.createdCount || 0);
     if (n > 0) {
       showActionToast((t("lohn.pullPayslipsOk") || "Abrechnungen übernommen") + ` (${n})`);
       broadcastLohnInboxChanged();
-      openPayslipReviewStudio().catch(() => {});
+      if (isPayslipStudioOpen()) {
+        await refreshPayslipStudio({ keepSelection: true });
+      } else {
+        openPayslipReviewStudio().catch(() => {});
+      }
     } else {
       showActionToast(res.message || t("lohn.pullPayslipsEmpty") || "Keine neuen Abrechnungen");
+      if (isPayslipStudioOpen()) {
+        await refreshPayslipStudio({ keepSelection: true });
+      }
     }
     refreshLohnBadgeOnly().catch(() => {});
   } catch (e) {
     showActionToast(e?.message || t("lohn.pullPayslipsFailed") || "Abruf fehlgeschlagen", true);
   }
+}
+
+const PAYSLIP_PULL_CACHE_KEY = "workpass-payslip-last-pull";
+
+function rememberPayslipPullResult(res) {
+  const payload = {
+    at: Date.now(),
+    created: Number(res?.createdCount || 0),
+    pending: Number(res?.pendingCount || 0),
+    companyId: String(activeCompanyId() || ""),
+  };
+  try {
+    sessionStorage.setItem(PAYSLIP_PULL_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    /* ignore */
+  }
+  updatePayslipSyncChrome();
+}
+
+function readPayslipPullResult() {
+  try {
+    const raw = sessionStorage.getItem(PAYSLIP_PULL_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function updatePayslipSyncChrome() {
+  const el = $("payslipStudioSyncStatus");
+  if (!el) return;
+  const last = readPayslipPullResult();
+  const cid = String(activeCompanyId() || "");
+  if (!last || (last.companyId && cid && last.companyId !== cid)) {
+    el.textContent = t("lohn.syncNever") || "Noch nicht von WorkPass Lohn geholt in dieser Sitzung.";
+    return;
+  }
+  const mins = Math.max(0, Math.round((Date.now() - Number(last.at || 0)) / 60000));
+  const when =
+    mins <= 0
+      ? (t("lohn.syncJustNow") || "gerade eben")
+      : (t("lohn.syncMinutesAgo", { n: String(mins) }) || `vor ${mins} Min.`);
+  el.textContent =
+    t("lohn.syncStatus", {
+      when,
+      created: String(last.created || 0),
+      pending: String(last.pending || 0),
+    })
+    || `Letzter Abruf ${when} · neu ${last.created || 0} · offen ${last.pending || 0}`;
+}
+
+function normalizePayslipDocKind(stmt) {
+  const raw = [
+    stmt?.docType,
+    stmt?.documentType,
+    stmt?.docTypeLabel,
+    stmt?.title,
+    stmt?.filename,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (/verdienst|earnings.?cert|certificate.?of.?earnings/.test(raw)) return "verdienst";
+  if (/lstb|lohnsteuer|steuerbescheinigung|tax.?certificate/.test(raw)) return "lstb";
+  if (/lohnabrechnung|gehaltsabrechnung|payslip|abrechnung|lohnblatt/.test(raw)) return "payslip";
+  if (!raw.trim()) return "payslip";
+  return "other";
+}
+
+function payslipDocKindLabel(kind) {
+  if (kind === "verdienst") return t("lohn.docVerdienst") || "Verdienstbescheinigung";
+  if (kind === "lstb") return t("lohn.docLstb") || "Lohnsteuerbescheinigung";
+  if (kind === "other") return t("lohn.docOther") || "Sonstige";
+  return t("lohn.docPayslip") || "Lohnabrechnung";
+}
+
+function pushPayslipSessionAudit(entry) {
+  if (!Array.isArray(payslipStudioState.sessionAudit)) payslipStudioState.sessionAudit = [];
+  payslipStudioState.sessionAudit.unshift({
+    at: Date.now(),
+    ...entry,
+  });
+  payslipStudioState.sessionAudit = payslipStudioState.sessionAudit.slice(0, 40);
+  if (payslipStudioState.auditOpen) renderPayslipAuditPanel();
+}
+
+function setPayslipPreviewZoom(next) {
+  const zoom = Math.max(0.6, Math.min(1.8, Number(next) || 1));
+  payslipStudioState.previewZoom = Math.round(zoom * 100) / 100;
+  schedulePayslipPreviewFit();
+}
+
+async function loadPayslipAuditRows() {
+  const cid = activeCompanyId();
+  const params = new URLSearchParams({ inbox: "archive" });
+  if (cid) params.set("company_id", cid);
+  const data = await apiSoft(`/api/payroll/statements/pending?${params.toString()}`, { batches: [] }, 6000);
+  const rows = [];
+  for (const b of data?.batches || []) {
+    for (const s of b.statements || []) {
+      const status = String(s.status || "");
+      if (status !== "released" && status !== "rejected") continue;
+      rows.push({
+        name: s.displayName || s.workerId || "—",
+        status,
+        period: s.documentPeriod || s.period || b.period || "",
+        kind: normalizePayslipDocKind(s),
+        at: s.releasedAt || s.reviewedAt || b.releasedAt || b.updatedAt || "",
+        amount: formatPayslipMoney(s.netAmount ?? s.grossAmount, s.currency),
+        source: "archive",
+      });
+    }
+  }
+  rows.sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  payslipStudioState.auditRows = rows.slice(0, 30);
+}
+
+function renderPayslipAuditPanel() {
+  const host = $("payslipStudioAudit");
+  if (!host) return;
+  if (!payslipStudioState.auditOpen) {
+    host.classList.add("hidden");
+    return;
+  }
+  host.classList.remove("hidden");
+  const session = Array.isArray(payslipStudioState.sessionAudit) ? payslipStudioState.sessionAudit : [];
+  const archive = Array.isArray(payslipStudioState.auditRows) ? payslipStudioState.auditRows : [];
+  const parts = [];
+  parts.push(`<div class="payslip-audit-head">${escapeHtml(t("lohn.auditTitle") || "Protokoll")}</div>`);
+  if (session.length) {
+    parts.push(`<div class="payslip-audit-sub">${escapeHtml(t("lohn.auditSession") || "Diese Sitzung")}</div>`);
+    for (const row of session.slice(0, 12)) {
+      const when = new Date(Number(row.at || Date.now())).toLocaleString();
+      parts.push(
+        `<div class="payslip-audit-row"><strong>${escapeHtml(row.action || "")}</strong> · ${escapeHtml(row.name || "—")}<span class="muted"> · ${escapeHtml(when)}</span></div>`,
+      );
+    }
+  }
+  parts.push(`<div class="payslip-audit-sub">${escapeHtml(t("lohn.auditArchive") || "Archiv (kürzlich)")}</div>`);
+  if (!archive.length) {
+    parts.push(`<div class="payslip-audit-row muted">${escapeHtml(t("lohn.auditEmpty") || "Noch keine gesendeten Einträge.")}</div>`);
+  } else {
+    for (const row of archive.slice(0, 16)) {
+      const when = formatPayslipShortDate(row.at) || String(row.at || "").slice(0, 16);
+      parts.push(
+        `<div class="payslip-audit-row"><strong>${escapeHtml(payslipStatusLabel(row.status))}</strong> · ${escapeHtml(row.name)} · ${escapeHtml(payslipDocKindLabel(row.kind))}<span class="muted"> · ${escapeHtml(row.period || "")} · ${escapeHtml(when)}</span></div>`,
+      );
+    }
+  }
+  host.innerHTML = parts.join("");
+}
+
+async function togglePayslipAuditPanel() {
+  payslipStudioState.auditOpen = !payslipStudioState.auditOpen;
+  $("payslipStudioAuditBtn")?.classList.toggle("is-active", payslipStudioState.auditOpen);
+  if (payslipStudioState.auditOpen) {
+    const host = $("payslipStudioAudit");
+    if (host) {
+      host.classList.remove("hidden");
+      host.innerHTML = `<div class="payslip-audit-row muted">${escapeHtml(t("common.loading") || "…")}</div>`;
+    }
+    try {
+      await loadPayslipAuditRows();
+    } catch {
+      payslipStudioState.auditRows = [];
+    }
+  }
+  renderPayslipAuditPanel();
+}
+
+function computePayslipMonthStats() {
+  const byPeriod = Object.create(null);
+  let weak = 0;
+  for (const b of payslipStudioState.batches || []) {
+    for (const s of b.statements || []) {
+      const period = String(s.documentPeriod || s.period || b.period || "—");
+      if (!byPeriod[period]) byPeriod[period] = { total: 0, ready: 0 };
+      byPeriod[period].total += 1;
+      if (s.canRelease) byPeriod[period].ready += 1;
+      const match = String(s.matchStatus || "matched");
+      if (match === "unmatched" || match === "ambiguous" || wasPayslipRematched(b.id, s.statementId || s.id)) {
+        weak += 1;
+      }
+    }
+  }
+  const periods = Object.keys(byPeriod).sort().reverse().slice(0, 3);
+  return { byPeriod, periods, weak };
 }
 
 function closePayslipReviewStudio() {
@@ -2445,10 +2652,12 @@ function filterPayslipListStatements(stmts) {
   const archived = payslipStudioState.inbox === "archive";
   const st = String(payslipStudioState.archiveStatus || "all");
   const openFilter = String(payslipStudioState.openFilter || "all");
+  const docTypeFilter = String(payslipStudioState.docTypeFilter || "all");
   return (stmts || []).filter((s) => {
     const p = String(s.documentPeriod || s.period || "");
     if (period && p !== period) return false;
     if (q && !payslipArchiveHaystack(s).includes(q)) return false;
+    if (docTypeFilter !== "all" && normalizePayslipDocKind(s) !== docTypeFilter) return false;
     if (archived) {
       const status = String(s.status || "");
       if (st !== "all" && status !== st) return false;
@@ -2592,6 +2801,7 @@ function renderPayslipInboxChrome() {
         )
         .join("");
     }
+    renderPayslipDocTypeFilters(batches);
     return;
   }
 
@@ -2624,6 +2834,33 @@ function renderPayslipInboxChrome() {
       )
       .join("");
   }
+  renderPayslipDocTypeFilters(batches);
+}
+
+function renderPayslipDocTypeFilters(batches) {
+  const host = $("payslipDocTypeFilters");
+  if (!host) return;
+  const counts = Object.create(null);
+  for (const b of batches || []) {
+    for (const s of b.statements || []) {
+      const kind = normalizePayslipDocKind(s);
+      counts[kind] = (counts[kind] || 0) + 1;
+    }
+  }
+  const cur = payslipStudioState.docTypeFilter || "all";
+  const opts = [
+    ["all", t("lohn.docFilterAll") || "Alle Typen"],
+    ["payslip", t("lohn.docPayslip") || "Lohnabrechnung"],
+    ["verdienst", t("lohn.docVerdienst") || "Verdienst"],
+    ["lstb", t("lohn.docLstb") || "LStB"],
+    ["other", t("lohn.docOther") || "Sonstige"],
+  ].filter(([id]) => id === "all" || counts[id]);
+  host.innerHTML = opts
+    .map(([id, label]) => {
+      const n = id === "all" ? "" : ` (${counts[id] || 0})`;
+      return `<button type="button" class="${cur === id ? "is-active" : ""}" data-payslip-doc-filter="${id}">${escapeHtml(label)}${escapeHtml(n)}</button>`;
+    })
+    .join("");
 }
 
 function flattenPayslipStatements() {
@@ -2696,6 +2933,33 @@ function updatePayslipStudioChrome() {
         ? (t("lohn.releaseReviewedN", { n: String(readyN) }) || `Alle geprüften senden (${readyN})`)
         : (t("lohn.releaseReviewed") || "Alle geprüften senden");
   }
+  const monthEl = $("payslipStudioMonthStats");
+  if (monthEl) {
+    if (payslipStudioState.inbox === "archive") {
+      monthEl.textContent = "";
+    } else {
+      const { byPeriod, periods, weak } = computePayslipMonthStats();
+      if (!periods.length) {
+        monthEl.textContent = "";
+      } else {
+        const parts = periods.map((p) => {
+          const row = byPeriod[p];
+          return t("lohn.monthStatRow", {
+            period: p,
+            total: String(row.total),
+            ready: String(row.ready),
+          }) || `${p}: ${row.total} offen · ${row.ready} bereit`;
+        });
+        if (weak > 0) {
+          parts.push(t("lohn.monthStatHints", { n: String(weak) }) || `${weak} Hinweise`);
+        }
+        monthEl.textContent = parts.join(" · ");
+      }
+    }
+  }
+  updatePayslipSyncChrome();
+  const auto = $("payslipAutoAdvance");
+  if (auto) auto.checked = payslipStudioState.autoAdvanceAfterSend !== false;
 }
 
 async function releaseAllReviewedPayslips() {
@@ -2791,44 +3055,59 @@ function renderPayslipStudioList() {
       const bid = String(batch.id || "");
       const stmts = Array.isArray(batch.statements) ? batch.statements : [];
       const releasable = Number(batch.releasableCount || 0);
-      const items = stmts
-        .map((s) => {
-          const sid = String(s.statementId || s.id || "");
-          const active =
-            bid === payslipStudioState.activeBatchId && sid === payslipStudioState.activeStmtId
-              ? " is-active"
-              : "";
-          const match = String(s.matchStatus || "matched");
-          const st = String(s.status || "pending");
-          const badges = [
-            `<span class="payslip-match is-${escapeAttr(match)}">${escapeHtml(payslipMatchLabel(match))}</span>`,
-          ];
-          if (st === "released" || st === "rejected") {
-            badges.push(
-              `<span class="payslip-match is-${escapeAttr(st)}">${escapeHtml(payslipStatusLabel(st))}</span>`,
-            );
-          } else if (s.reviewed) {
-            badges.push(
-              `<span class="payslip-match is-reviewed">${escapeHtml(t("lohn.reviewed") || "Geprüft")}</span>`,
-            );
-          }
-          if (s.locked || s.deliveryLocked) {
-            badges.push(`<span class="payslip-match is-locked">${escapeHtml(t("lohn.locked") || "Gesperrt")}</span>`);
-          }
-          const sentOn = archived ? formatPayslipShortDate(s.releasedAt || s.reviewedAt) : "";
-          const docTitle = String(s.title || s.docTypeLabel || s.documentType || s.docType || "").trim();
-          const metaParts = [
-            docTitle,
-            s.badgeId,
-            s.documentPeriod || s.period,
-            formatPayslipMoney(s.netAmount ?? s.grossAmount, s.currency),
-            sentOn ? `${t("lohn.archiveSentOn") || "am"} ${sentOn}` : "",
-          ].filter(Boolean);
-          return `<button type="button" class="payslip-stmt-item${active}" data-payslip-select="${escapeAttr(bid)}::${escapeAttr(sid)}">
+      const kindOrder = ["payslip", "verdienst", "lstb", "other"];
+      const byKind = Object.create(null);
+      for (const s of stmts) {
+        const kind = normalizePayslipDocKind(s);
+        if (!byKind[kind]) byKind[kind] = [];
+        byKind[kind].push(s);
+      }
+      const renderStmt = (s) => {
+        const sid = String(s.statementId || s.id || "");
+        const active =
+          bid === payslipStudioState.activeBatchId && sid === payslipStudioState.activeStmtId
+            ? " is-active"
+            : "";
+        const match = String(s.matchStatus || "matched");
+        const st = String(s.status || "pending");
+        const badges = [
+          `<span class="payslip-match is-${escapeAttr(match)}">${escapeHtml(payslipMatchLabel(match))}</span>`,
+        ];
+        if (st === "released" || st === "rejected") {
+          badges.push(
+            `<span class="payslip-match is-${escapeAttr(st)}">${escapeHtml(payslipStatusLabel(st))}</span>`,
+          );
+        } else if (s.reviewed) {
+          badges.push(
+            `<span class="payslip-match is-reviewed">${escapeHtml(t("lohn.reviewed") || "Geprüft")}</span>`,
+          );
+        }
+        if (s.locked || s.deliveryLocked) {
+          badges.push(`<span class="payslip-match is-locked">${escapeHtml(t("lohn.locked") || "Gesperrt")}</span>`);
+        }
+        const sentOn = archived ? formatPayslipShortDate(s.releasedAt || s.reviewedAt) : "";
+        const docTitle = String(s.title || s.docTypeLabel || s.documentType || s.docType || "").trim();
+        const metaParts = [
+          docTitle,
+          s.badgeId,
+          s.documentPeriod || s.period,
+          formatPayslipMoney(s.netAmount ?? s.grossAmount, s.currency),
+          sentOn ? `${t("lohn.archiveSentOn") || "am"} ${sentOn}` : "",
+        ].filter(Boolean);
+        return `<button type="button" class="payslip-stmt-item${active}" data-payslip-select="${escapeAttr(bid)}::${escapeAttr(sid)}">
             <div class="name">${escapeHtml(s.displayName || s.workerId || "—")}</div>
             <div class="meta">${escapeHtml(metaParts.join(" · "))}</div>
             ${badges.join(" ")}
           </button>`;
+      };
+      const showKindHeaders = Object.keys(byKind).length > 1;
+      const items = kindOrder
+        .filter((k) => byKind[k]?.length)
+        .map((kind) => {
+          const head = showKindHeaders
+            ? `<div class="payslip-doctype-head">${escapeHtml(payslipDocKindLabel(kind))} · ${byKind[kind].length}</div>`
+            : "";
+          return `${head}${byKind[kind].map(renderStmt).join("")}`;
         })
         .join("");
       const batchActions = archived
@@ -3514,6 +3793,16 @@ async function handlePayslipStudioKeydown(ev) {
     if (!clickPayslipStudioAction("focus-sheet")) clickPayslipStudioAction("open-window");
     return;
   }
+  if (key === "+" || key === "=") {
+    ev.preventDefault();
+    setPayslipPreviewZoom((Number(payslipStudioState.previewZoom) || 1) + 0.15);
+    return;
+  }
+  if (key === "-" || key === "_") {
+    ev.preventDefault();
+    setPayslipPreviewZoom((Number(payslipStudioState.previewZoom) || 1) - 0.15);
+    return;
+  }
   if (key === "Enter" || lower === "s") {
     if (payslipStudioState.inbox === "archive") return;
     ev.preventDefault();
@@ -3565,6 +3854,21 @@ async function handlePayslipStudioClick(ev) {
     renderPayslipStudioList();
     return;
   }
+  const docFilter = ev.target?.closest?.("[data-payslip-doc-filter]");
+  if (docFilter) {
+    payslipStudioState.docTypeFilter = docFilter.getAttribute("data-payslip-doc-filter") || "all";
+    renderPayslipStudioList();
+    return;
+  }
+  const zoomBtn = ev.target?.closest?.("[data-payslip-zoom]");
+  if (zoomBtn) {
+    const mode = zoomBtn.getAttribute("data-payslip-zoom");
+    const cur = Number(payslipStudioState.previewZoom) || 1;
+    if (mode === "in") setPayslipPreviewZoom(cur + 0.15);
+    else if (mode === "out") setPayslipPreviewZoom(cur - 0.15);
+    else setPayslipPreviewZoom(1);
+    return;
+  }
   const selectBtn = ev.target?.closest?.("[data-payslip-select]");
   if (selectBtn) {
     const [batchId, statementId] = String(selectBtn.getAttribute("data-payslip-select") || "").split("::");
@@ -3605,8 +3909,15 @@ async function handlePayslipStudioClick(ev) {
         body: "{}",
       });
       toast(res.message || `${res.released || 0} gesendet`, "ok");
+      pushPayslipSessionAudit({
+        action: t("lohn.releaseReviewed") || "Alle geprüften senden",
+        name: `${res.released || n} · ${batch?.period || batchId}`,
+      });
       await refreshPayslipStudio({ keepSelection: true });
       broadcastLohnInboxChanged();
+      if (payslipStudioState.auditOpen) {
+        loadPayslipAuditRows().then(() => renderPayslipAuditPanel()).catch(() => {});
+      }
       return;
     }
     if (action === "reject") {
@@ -3821,8 +4132,33 @@ async function handlePayslipStudioClick(ev) {
             : (t("lohn.sentToArchive") || t("lohn.sentToWorker") || "Gesendet")),
         "ok",
       );
+      pushPayslipSessionAudit({
+        action: t("lohn.statusReleased") || "Gesendet",
+        name: stmtNow?.displayName || stmtNow?.workerId || statementId,
+        period: stmtNow?.documentPeriod || stmtNow?.period || "",
+      });
+      const flatBefore = flattenPayslipStatements();
+      const idxBefore = flatBefore.findIndex(
+        (x) =>
+          String(x.batchId) === String(batchId) &&
+          String(x.statementId) === String(statementId),
+      );
+      const nextBefore = flatBefore[idxBefore + 1] || null;
       await refreshPayslipStudio({ keepSelection: false });
       broadcastLohnInboxChanged();
+      if (payslipStudioState.autoAdvanceAfterSend !== false && nextBefore) {
+        const stillThere = flattenPayslipStatements().some(
+          (x) =>
+            String(x.batchId) === String(nextBefore.batchId) &&
+            String(x.statementId) === String(nextBefore.statementId),
+        );
+        if (stillThere) {
+          await selectPayslipStatement(nextBefore.batchId, nextBefore.statementId);
+        }
+      }
+      if (payslipStudioState.auditOpen) {
+        loadPayslipAuditRows().then(() => renderPayslipAuditPanel()).catch(() => {});
+      }
     } catch (err) {
       const msg = humanizeUserError?.(err) || err?.message || t("lohn.sendFailed") || "Senden fehlgeschlagen";
       showActionToast(msg, true);
@@ -3844,6 +4180,11 @@ async function handlePayslipStudioClick(ev) {
       `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/reject`,
       { method: "POST", body: JSON.stringify({ reason }) },
     );
+    pushPayslipSessionAudit({
+      action: t("lohn.statusRejected") || "Abgelehnt",
+      name: stmtNow?.displayName || stmtNow?.workerId || statementId,
+      period: stmtNow?.documentPeriod || stmtNow?.period || "",
+    });
     toast(t("lohn.statementRejected") || "Abgelehnt", "ok");
     await refreshPayslipStudio({ keepSelection: false });
     broadcastLohnInboxChanged();
@@ -4132,6 +4473,15 @@ function wireLohnDrawer() {
   $("payslipStudioBackdrop")?.addEventListener("click", () => closePayslipReviewStudio());
   $("payslipStudioReleaseAll")?.addEventListener("click", () => {
     releaseAllReviewedPayslips().catch((err) => showActionToast(humanizeUserError(err), true));
+  });
+  $("payslipStudioPullBtn")?.addEventListener("click", () => {
+    pullPayslipsFromLohn().catch((err) => showActionToast(humanizeUserError(err), true));
+  });
+  $("payslipStudioAuditBtn")?.addEventListener("click", () => {
+    togglePayslipAuditPanel().catch(() => {});
+  });
+  $("payslipAutoAdvance")?.addEventListener("change", (ev) => {
+    payslipStudioState.autoAdvanceAfterSend = Boolean(ev.target?.checked);
   });
   $("payslipInboxTabs")?.addEventListener("pointerdown", (ev) => {
     const btn = ev.target?.closest?.("[data-payslip-inbox]");
