@@ -99,6 +99,48 @@ def _decode_pdf_b64(pdf_b64: str) -> bytes | None:
     return raw
 
 
+DATEV_REMAKE_PDF_SOURCES = frozenset(
+    {
+        "pending_datev_sheet",
+        "datev_sheet_html",
+        "datev_sheet_chromium",
+        "datev_sheet_weasyprint",
+        "datev_sheet_reportlab",
+    }
+)
+LOHN_PASSTHROUGH_SOURCES = frozenset(
+    {
+        "lohn_original",
+        "lohn_html2canvas",
+        "lohn_sheet_capture",
+    }
+)
+
+
+def is_workpass_lohn_passthrough(meta: dict[str, Any] | None = None, stmt: dict[str, Any] | None = None) -> bool:
+    """True when the statement must be shown/released exactly as received from WorkPass Lohn."""
+    meta = meta if isinstance(meta, dict) else {}
+    stmt = stmt if isinstance(stmt, dict) else {}
+    if bool(meta.get("pdfImmutable")):
+        return True
+    src = str(meta.get("pdfSource") or "").strip()
+    if src in LOHN_PASSTHROUGH_SOURCES:
+        return True
+    origin = str(meta.get("source") or meta.get("origin") or "").strip().lower()
+    if origin in {"lohn_delivery", "workpass_lohn", "lohn", "workpass-lohn"}:
+        return True
+    path = str(stmt.get("file_path") or "").strip()
+    if path and Path(path).is_file():
+        try:
+            size = Path(path).stat().st_size
+        except Exception:
+            size = int(stmt.get("file_size") or 0)
+        # Any non-Datev remake file on disk is treated as the authentic Lohn document.
+        if size > 20 and src not in DATEV_REMAKE_PDF_SOURCES:
+            return True
+    return False
+
+
 def _lohn_http_get_bytes(
     link: dict[str, Any],
     *,
@@ -1860,17 +1902,14 @@ def ensure_statement_delivery_pdf(
     existing_source = str(existing_meta.get("pdfSource") or "")
     existing_size = int(stmt.get("file_size") or 0)
     path = str(stmt.get("file_path") or "").strip()
-    immutable = bool(existing_meta.get("pdfImmutable")) or is_exact_lohn_pdf_source(existing_source)
-    # Certificate docs (Verdienst/Vordienst/Steuer/…) must never become Datev payslip PDFs.
-    resolved_doc_type = resolve_payroll_doc_type(existing_meta, stmt)
-    certificate_doc = resolved_doc_type not in {"lohnabrechnung", "gehaltsabrechnung", ""}
-    # Never replace the authentic Lohn PDF — deliver bytes as received, any size.
-    if not force and (immutable or certificate_doc) and path and Path(path).is_file():
+    passthrough = is_workpass_lohn_passthrough(existing_meta, stmt)
+    # Hard rule: anything from WorkPass Lohn with a stored PDF stays unchanged.
+    if path and Path(path).is_file():
         try:
             on_disk = Path(path).stat().st_size
         except Exception:
             on_disk = existing_size
-        if on_disk > 20 or existing_size > 20:
+        if on_disk > 20 and (passthrough or not force or is_exact_lohn_pdf_source(existing_source)):
             return {
                 "ok": True,
                 "path": path,
@@ -1878,16 +1917,16 @@ def ensure_statement_delivery_pdf(
                 "filename": stmt.get("filename") or "",
                 "period": str(stmt.get("period") or ""),
                 "pdfSource": existing_source or "lohn_original",
-                "skipped": "exact_lohn",
+                "skipped": "lohn_passthrough",
             }
-    if not force and (immutable or certificate_doc):
+    if passthrough:
         repaired = repair_statement_original_pdf_from_lohn(db, stmt)
         if repaired.get("ok"):
             return repaired
         return {
             "ok": False,
             "error": "missing_pdf",
-            "hint": repaired.get("error") or "immutable_pdf_missing",
+            "hint": repaired.get("error") or "lohn_original_missing",
         }
     # Locked high-fidelity deliveries stay immutable.
     already_html = is_high_fidelity_pdf_source(existing_source) and existing_size >= 12000
@@ -2130,6 +2169,7 @@ def ingest_statements(
         meta["matchConfidence"] = match_confidence
         meta["docType"] = doc_type
         meta["documentType"] = doc_type
+        meta["source"] = str(item.get("source") or meta.get("source") or "workpass_lohn").strip() or "workpass_lohn"
         title = resolve_document_title(item, item.get("document") if isinstance(item.get("document"), dict) else {})
         if title:
             meta["title"] = title
@@ -2138,6 +2178,8 @@ def ingest_statements(
             meta["pdfImmutable"] = True
         else:
             meta["pdfSource"] = str(item.get("pdfSource") or meta.get("pdfSource") or "pending_lohn_capture")
+            # Still mark origin so later UI prefers Lohn passthrough when PDF arrives.
+            meta["pdfImmutable"] = False
         if invoice_key:
             meta["invoiceStorageKey"] = invoice_key
         stmt_id = repo.add_statement(
@@ -3510,21 +3552,14 @@ def release_statement(
     if require_reviewed and not str(stmt.get("reviewed_at") or "").strip():
         return {"ok": False, "error": "review_required", "hint": "PDF zuerst öffnen und prüfen"}
     batch = repo.get_batch(db, str(stmt.get("batch_id") or "")) or {}
-    from .lohn_sheet_pdf import is_exact_lohn_pdf_source, is_high_fidelity_pdf_source
+    from .lohn_sheet_pdf import is_high_fidelity_pdf_source
 
     try:
         meta_now = json.loads(stmt.get("meta_json") or "{}")
     except Exception:
         meta_now = {}
-    doc_type_now = _statement_doc_type(stmt)
-    certificate_doc = doc_type_now not in {"lohnabrechnung", "gehaltsabrechnung", ""}
-    # Official tax forms (Verdienstbescheinigung etc.) and any Lohn original
-    # must stay byte-identical — never Datev remake.
-    if (
-        certificate_doc
-        or is_exact_lohn_pdf_source((meta_now or {}).get("pdfSource"))
-        or bool((meta_now or {}).get("pdfImmutable"))
-    ):
+    # Everything from WorkPass Lohn with an original file must stay byte-identical.
+    if is_workpass_lohn_passthrough(meta_now, stmt):
         path = str(stmt.get("file_path") or "").strip()
         if not path or not Path(path).is_file() or Path(path).stat().st_size < 20:
             repaired = repair_statement_original_pdf_from_lohn(db, stmt)
@@ -3533,13 +3568,17 @@ def release_statement(
                     "ok": False,
                     "error": "missing_original_pdf",
                     "hint": repaired.get("error") or "pdfBase64 from WorkPass Lohn required",
-                    "docType": doc_type_now,
+                    "docType": _statement_doc_type(stmt),
                 }
             stmt = repo.get_statement(db, statement_id) or stmt
-        built = {"ok": True, "skipped": "original_passthrough"}
+        built = {"ok": True, "skipped": "lohn_passthrough"}
     else:
-        force_pdf = not is_high_fidelity_pdf_source((meta_now or {}).get("pdfSource"))
-        built = ensure_statement_delivery_pdf(db, stmt, batch, force=force_pdf)
+        path = str(stmt.get("file_path") or "").strip()
+        if path and Path(path).is_file() and Path(path).stat().st_size > 20:
+            built = {"ok": True, "skipped": "existing_file"}
+        else:
+            force_pdf = not is_high_fidelity_pdf_source((meta_now or {}).get("pdfSource"))
+            built = ensure_statement_delivery_pdf(db, stmt, batch, force=force_pdf)
     if not built.get("ok"):
         return {"ok": False, "error": built.get("error") or "missing_pdf"}
     stmt = repo.get_statement(db, statement_id) or stmt

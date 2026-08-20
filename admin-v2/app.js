@@ -2750,8 +2750,10 @@ function openPayslipSheetWindow(html) {
 
 function statementPrefersPdfPreview(stmt) {
   if (!stmt) return false;
-  // Passthrough rule: any stored Lohn PDF must open as the original file — never Datev sheet.
-  if (stmt.hasPdf || stmt.pdfImmutable || Number(stmt.fileSize || 0) > 20) return true;
+  // Hard rule: everything from WorkPass Lohn with a PDF opens unchanged.
+  if (stmt.hasPdf || stmt.pdfImmutable || stmt.lohnPassthrough || Number(stmt.fileSize || 0) > 20) {
+    return true;
+  }
   if (stmt.pdfSuspectRemake) return true;
   const src = String(stmt.pdfSource || "").toLowerCase();
   if (
@@ -2761,6 +2763,8 @@ function statementPrefersPdfPreview(stmt) {
   ) {
     return true;
   }
+  const origin = String(stmt.source || stmt.origin || "").toLowerCase();
+  if (origin === "lohn_delivery" || origin === "workpass_lohn" || origin === "lohn") return true;
   const mode = String(stmt.previewMode || "").toLowerCase();
   if (mode === "pdf") return true;
   const docType = String(stmt.docType || stmt.documentType || "").toLowerCase();
@@ -2867,13 +2871,21 @@ async function selectPayslipStatement(batchId, statementId) {
   const iframe = $("payslipStudioPdf");
   try {
     const docType = String(stmt.docType || stmt.documentType || "").toLowerCase();
+    const src = String(stmt.pdfSource || "").toLowerCase();
+    const origin = String(stmt.source || stmt.origin || "").toLowerCase();
     const allowSheetFallback =
       ["lohnabrechnung", "gehaltsabrechnung"].includes(docType)
       && !stmt.pdfImmutable
+      && !stmt.lohnPassthrough
       && !stmt.hasPdf
       && Number(stmt.fileSize || 0) <= 20
-      && String(stmt.pdfSource || "").toLowerCase() !== "lohn_original";
-    // Always try the unchanged Lohn PDF first. Datev sheet is last-resort for classic monthly slips only.
+      && src !== "lohn_original"
+      && src !== "lohn_html2canvas"
+      && src !== "lohn_sheet_capture"
+      && origin !== "lohn_delivery"
+      && origin !== "workpass_lohn"
+      && origin !== "lohn";
+    // Always try the unchanged Lohn PDF first. Datev sheet only if no original exists.
     let usedPdf = false;
     try {
       await loadPayslipStudioOriginalPdf(batchId, statementId, iframe);

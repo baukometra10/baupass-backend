@@ -403,6 +403,8 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
     pdf_immutable = False
     preview_mode = "sheet"
     pdf_suspect_remake = False
+    passthrough = False
+    origin_source = ""
     try:
         import json as _json
 
@@ -428,16 +430,19 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
                 "lohn_html2canvas",
                 "lohn_sheet_capture",
             }
+            origin_source = str(meta.get("source") or meta.get("origin") or "").strip()
+            origin = origin_source.lower()
+            from backend.app.platform.accounting.service import is_workpass_lohn_passthrough
+
+            passthrough = is_workpass_lohn_passthrough(meta, out)
             sheet_types = {"lohnabrechnung", "gehaltsabrechnung"}
             title_type = infer_payroll_doc_type_from_title(title) if title else None
             certificate_like = bool(
                 (doc_type and doc_type not in sheet_types)
                 or (title_type and title_type not in sheet_types)
-                or pdf_immutable
-                or pdf_source == "lohn_original"
             )
-            # Any real PDF on disk is shown as-is (passthrough). Sheet only when no file exists.
-            if has_pdf or pdf_immutable or pdf_source == "lohn_original":
+            # Hard rule: any WorkPass Lohn PDF opens as-is.
+            if has_pdf or pdf_immutable or passthrough or origin in {"lohn_delivery", "workpass_lohn", "lohn"}:
                 preview_mode = "pdf"
             elif certificate_like:
                 preview_mode = "pdf"
@@ -450,16 +455,13 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
                 "datev_sheet_weasyprint",
                 "datev_sheet_reportlab",
             }
-            pdf_suspect_remake = bool(
-                (certificate_like or has_pdf)
-                and pdf_source in datev_sources
-                and has_pdf
-            )
+            pdf_suspect_remake = bool(passthrough and pdf_source in datev_sources and has_pdf)
     except Exception:
         doc_period = ""
         warnings, delivery_locked = [], status in {"released", "rejected"}
         doc_type, doc_type_label_de, title = "lohnabrechnung", "Lohnabrechnung", ""
         pdf_source, pdf_immutable, preview_mode, pdf_suspect_remake = "", False, "sheet", False
+        passthrough, origin_source = False, ""
     out.update(
         {
             "statementId": out.get("id"),
@@ -491,6 +493,8 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
             "pdfImmutable": pdf_immutable,
             "previewMode": preview_mode,
             "pdfSuspectRemake": pdf_suspect_remake,
+            "lohnPassthrough": bool(passthrough or pdf_immutable or has_pdf),
+            "source": origin_source,
             "fileSize": int(out.get("file_size") or 0),
             "status": status,
             "matchedBy": matched_by,

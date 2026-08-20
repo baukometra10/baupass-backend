@@ -1497,7 +1497,12 @@ def register_accounting_blueprint(flask_app) -> None:
         if err:
             return err
         from .lohn_sheet_pdf import is_exact_lohn_pdf_source
-        from .service import ensure_statement_delivery_pdf, repair_statement_original_pdf_from_lohn
+        from .service import (
+            DATEV_REMAKE_PDF_SOURCES,
+            ensure_statement_delivery_pdf,
+            is_workpass_lohn_passthrough,
+            repair_statement_original_pdf_from_lohn,
+        )
         from backend.app.platform.worker_documents import resolve_payroll_doc_type
 
         def _meta(row: dict) -> dict:
@@ -1520,29 +1525,23 @@ def register_accounting_blueprint(flask_app) -> None:
         meta = _meta(stmt)
         path = str(stmt.get("file_path") or "").strip()
         pdf_source = str(meta.get("pdfSource") or "").strip()
-        immutable = bool(meta.get("pdfImmutable")) or is_exact_lohn_pdf_source(pdf_source)
+        passthrough = is_workpass_lohn_passthrough(meta, stmt)
         doc_type = resolve_payroll_doc_type(meta, stmt)
-        certificate_doc = doc_type not in {"lohnabrechnung", "gehaltsabrechnung", ""}
-        datev_sources = {
-            "pending_datev_sheet",
-            "datev_sheet_html",
-            "datev_sheet_chromium",
-            "datev_sheet_weasyprint",
-            "datev_sheet_reportlab",
-        }
 
-        # Certificates previously overwritten by Datev remakes: restore from Lohn if possible.
-        if certificate_doc and pdf_source in datev_sources:
+        # If a Lohn original was overwritten by Datev remake, try restore.
+        if passthrough and pdf_source in DATEV_REMAKE_PDF_SOURCES:
             repaired = repair_statement_original_pdf_from_lohn(db, stmt)
             if repaired.get("ok"):
                 stmt = repo.get_statement(db, statement_id) or stmt
                 meta = _meta(stmt)
                 path = str(stmt.get("file_path") or repaired.get("path") or "")
                 pdf_source = str(meta.get("pdfSource") or pdf_source)
+                passthrough = is_workpass_lohn_passthrough(meta, stmt)
 
         if path and Path(path).is_file() and Path(path).stat().st_size > 20:
-            # Never serve a Datev remake as if it were the original certificate.
-            if certificate_doc and pdf_source in datev_sources:
+            if pdf_source in DATEV_REMAKE_PDF_SOURCES and (
+                bool(meta.get("pdfImmutable")) or str(meta.get("source") or "").startswith("lohn")
+            ):
                 return jsonify(
                     {
                         "error": "original_pdf_required",
@@ -1552,7 +1551,7 @@ def register_accounting_blueprint(flask_app) -> None:
                 ), 409
             return _send(path, stmt)
 
-        if immutable or certificate_doc:
+        if passthrough:
             repaired = repair_statement_original_pdf_from_lohn(db, stmt)
             if repaired.get("ok"):
                 path = str(repaired.get("path") or "")
@@ -1584,8 +1583,7 @@ def register_accounting_blueprint(flask_app) -> None:
 
         from .lohn_sheet import apply_sheet_chrome
         from .lohn_sheet_pdf import is_exact_lohn_pdf_source
-        from .service import resolve_statement_sheet
-        from backend.app.platform.worker_documents import resolve_payroll_doc_type
+        from .service import is_workpass_lohn_passthrough, resolve_statement_sheet
 
         user = g.current_user
         theme = request.args.get("theme") or request.headers.get("X-UI-Theme") or "light"
@@ -1602,19 +1600,15 @@ def register_accounting_blueprint(flask_app) -> None:
             meta = {}
         path = str(stmt.get("file_path") or "").strip()
         has_pdf = bool(path and Path(path).is_file() and Path(path).stat().st_size > 20)
-        immutable = bool(meta.get("pdfImmutable")) or is_exact_lohn_pdf_source(meta.get("pdfSource"))
-        doc_type = resolve_payroll_doc_type(meta, stmt)
-        # Original Lohn documents must never be replaced by a Datev sheet preview.
-        if immutable or has_pdf or doc_type not in {"lohnabrechnung", "gehaltsabrechnung", ""}:
+        # Any WorkPass Lohn original must open via /pdf unchanged — never Datev sheet.
+        if has_pdf or is_workpass_lohn_passthrough(meta, stmt) or is_exact_lohn_pdf_source(meta.get("pdfSource")):
             return jsonify(
                 {
                     "error": "use_original_pdf",
                     "hint": "Original document from WorkPass Lohn — open /pdf unchanged",
-                    "docType": doc_type,
                     "hasPdf": has_pdf,
                 }
             ), 409
-        # Exact WorkPass Lohn DatevSheet — no platform field injection in the preview.
         resolved = resolve_statement_sheet(db, stmt, batch, enrich=False)
         return Response(
             apply_sheet_chrome(resolved.get("html") or "", theme=theme, embed=embed),

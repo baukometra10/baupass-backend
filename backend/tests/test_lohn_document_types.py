@@ -75,6 +75,15 @@ def test_extract_pdf_base64_nested():
     assert extract_pdf_base64({"pdf": {"dataBase64": MINIMAL_PDF}}) == MINIMAL_PDF
 
 
+def test_workpass_lohn_passthrough_helper():
+    from backend.app.platform.accounting.service import is_workpass_lohn_passthrough
+
+    assert is_workpass_lohn_passthrough({"pdfImmutable": True}, {}) is True
+    assert is_workpass_lohn_passthrough({"pdfSource": "lohn_original"}, {}) is True
+    assert is_workpass_lohn_passthrough({"source": "workpass_lohn"}, {}) is True
+    assert is_workpass_lohn_passthrough({"pdfSource": "pending_datev_sheet"}, {}) is False
+
+
 def test_real_lstb_pdf_passthrough():
     """Official Lohnsteuerbescheinigung PDF must stay byte-identical."""
     from pathlib import Path
@@ -215,7 +224,7 @@ def test_ensure_statement_keeps_original_pdf(tmp_path, monkeypatch):
 
     out = ensure_statement_delivery_pdf(_FakeDb(), stmt, {"period": "2026-01"}, force=False)
     assert out.get("ok") is True
-    assert out.get("skipped") == "exact_lohn"
+    assert out.get("skipped") in {"exact_lohn", "lohn_passthrough"}
     assert out.get("path") == str(pdf_path)
     assert pdf_path.read_bytes().startswith(b"%PDF")
 
