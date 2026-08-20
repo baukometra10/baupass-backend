@@ -894,6 +894,15 @@ function canAccessWorkpassLohnUi() {
   return canAccessOwnerFinance();
 }
 
+/** Ops strip + Schnellnavigation + topbar: stable visibility. */
+function canShowLohnNavEntry() {
+  const role = String(getUser()?.role || "").toLowerCase();
+  if (role === "office" || role === "turnstile") return false;
+  // Embed Betrieb is only opened for allowed roles; do not hide while user JSON is still empty.
+  if (!role) return Boolean(isEmbedMode() || wpGet(TOKEN_KEY) || WP?.readSessionToken?.());
+  return role === "superadmin" || role === "company-admin";
+}
+
 const LOHN_ENABLED_CACHE_KEY = "workpass-lohn-enabled-by-company";
 
 function readLohnEnabledCache() {
@@ -940,18 +949,11 @@ function canShowLohnNavEntry() {
   return canAccessWorkpassLohnUi();
 }
 
-function applyLohnNavVisibility(enabled) {
-  // Sidebar "Buchhaltung öffnen" follows per-company opt-in.
-  const showSidebar = Boolean(enabled) && canAccessWorkpassLohnUi();
-  lohnOpenEnabled = showSidebar;
-  const btn = $("openLohnSystemBtn");
-  if (btn) {
-    btn.hidden = !showSidebar;
-    btn.classList.toggle("hidden", !showSidebar);
-  }
-  // Ops strip / palette entry stay role-stable — do not hide them from settings polls.
+function applyLohnNavVisibility(_enabled = null) {
+  // Visibility is role-stable. Per-company opt-in is enforced on launch/API, not by hiding chrome.
   const showNav = canShowLohnNavEntry();
-  document.querySelectorAll("#opsStripLohnLink, .ops-strip-lohn-btn").forEach((el) => {
+  lohnOpenEnabled = showNav;
+  document.querySelectorAll("#openLohnSystemBtn, .nav-item-lohn, #opsStripLohnLink, .ops-strip-lohn-btn, #topbarLohnBtn").forEach((el) => {
     el.classList.toggle("hidden", !showNav);
     if ("hidden" in el) el.hidden = !showNav;
   });
@@ -1047,13 +1049,13 @@ function applyRoleNavigation() {
     }
     // Sidebar visibility for enabled companies is owned by syncLohnOpenButton().
   });
-  document.querySelectorAll("#opsStripLohnLink, .ops-strip-lohn-btn").forEach((el) => {
+  document.querySelectorAll("#opsStripLohnLink, .ops-strip-lohn-btn, #topbarLohnBtn").forEach((el) => {
     const show = canShowLohnNavEntry();
     el.classList.toggle("hidden", !show);
     if ("hidden" in el) el.hidden = !show;
   });
-  if (canAccessWorkpassLohnUi()) {
-    applyLohnNavVisibility(isLohnEnabledForActiveCompany());
+  if (canShowLohnNavEntry()) {
+    applyLohnNavVisibility(true);
   } else {
     try {
       closeLohnDrawer();
@@ -1519,32 +1521,12 @@ function updateLohnNavBadge(count) {
 async function syncLohnOpenButton({ force = false } = {}) {
   const cid = String(activeCompanyId() || "").trim();
   const seq = ++lohnOpenSyncSeq;
-  if (!canAccessWorkpassLohnUi()) {
-    lohnOpenEnabled = false;
-    applyLohnNavVisibility(false);
-    return;
-  }
-  // Company id can blip empty during parent/token sync — never tear down nav for that.
-  if (!cid) {
-    return;
-  }
+  // Always keep chrome visible for owners — never hide from settings polls.
+  applyLohnNavVisibility(true);
+  if (!canShowLohnNavEntry()) return;
+  if (!cid) return;
 
   const cached = lohnEnabledByCompany[cid];
-  // Sidebar only: show immediately when already confirmed.
-  if (cached === true) {
-    lohnOpenEnabled = true;
-    const btn = $("openLohnSystemBtn");
-    if (btn) {
-      btn.hidden = false;
-      btn.classList.remove("hidden");
-    }
-  }
-  // Keep ops strip visible for any selected company (role-stable).
-  document.querySelectorAll("#opsStripLohnLink, .ops-strip-lohn-btn").forEach((el) => {
-    el.classList.remove("hidden");
-    if ("hidden" in el) el.hidden = false;
-  });
-
   const lastAt = Number(lohnOpenSyncAtByCompany[cid] || 0);
   if (!force && cached === true && Date.now() - lastAt < 60000) {
     return;
@@ -1557,22 +1539,10 @@ async function syncLohnOpenButton({ force = false } = {}) {
       4000,
     );
     if (seq !== lohnOpenSyncSeq || activeCompanyId() !== cid) return;
-
     if (!settings || typeof settings !== "object" || !("workpassLohnEnabled" in settings)) {
-      // Soft fail: never demote a confirmed enabled company.
-      if (cached === true) {
-        lohnOpenEnabled = true;
-        const btn = $("openLohnSystemBtn");
-        if (btn) {
-          btn.hidden = false;
-          btn.classList.remove("hidden");
-        }
-      }
       return;
     }
-
     const enabled = !!settings.workpassLohnEnabled;
-    // Latch: once true, ignore a lone false from a flaky read (keeps UI stable).
     if (cached === true && !enabled) {
       lohnOpenSyncAtByCompany[cid] = Date.now();
       return;
@@ -1580,22 +1550,9 @@ async function syncLohnOpenButton({ force = false } = {}) {
     lohnEnabledByCompany[cid] = enabled;
     lohnOpenSyncAtByCompany[cid] = Date.now();
     writeLohnEnabledCache(lohnEnabledByCompany);
-    lohnOpenEnabled = enabled;
-    const btn = $("openLohnSystemBtn");
-    if (btn) {
-      btn.hidden = !enabled;
-      btn.classList.toggle("hidden", !enabled);
-    }
+    lohnOpenEnabled = enabled || canShowLohnNavEntry();
   } catch {
-    if (seq !== lohnOpenSyncSeq || activeCompanyId() !== cid) return;
-    if (cached === true) {
-      lohnOpenEnabled = true;
-      const btn = $("openLohnSystemBtn");
-      if (btn) {
-        btn.hidden = false;
-        btn.classList.remove("hidden");
-      }
-    }
+    /* keep chrome visible */
   }
 }
 
@@ -3759,6 +3716,11 @@ function wireLohnDrawer() {
   $("openLohnSystemBtn")?.addEventListener("click", () => {
     openLohnSystem().catch(() => {});
   });
+  $("topbarLohnBtn")?.addEventListener("click", () => {
+    if (!canShowLohnNavEntry()) return;
+    openLohnDrawer().catch(() => openLohnSystem().catch(() => {}));
+  });
+  applyLohnNavVisibility(true);
   $("lohnDrawerBody")?.addEventListener("click", (ev) => {
     handleLohnDrawerAction(ev).catch(() => {});
   });
@@ -4149,6 +4111,7 @@ function renderOverviewQuickBar() {
 function openCommandPalette() {
   const pal = $("commandPalette");
   if (!pal) return;
+  applyLohnNavVisibility(true);
   pal.classList.remove("hidden");
   pal.setAttribute("aria-hidden", "false");
   document.body.classList.add("command-palette-open");
@@ -4158,7 +4121,6 @@ function openCommandPalette() {
     input.value = "";
     setTimeout(() => input.focus(), 0);
   }
-  // Sticky role visibility — do not wait on company-settings (that hid WorkPass Lohn).
   renderCommandPaletteList("");
 }
 
@@ -10964,6 +10926,8 @@ function superadminNeedsCompany() {
 }
 
 async function refreshActiveTab() {
+  paintOpsStripLohnOnly();
+  applyLohnNavVisibility(true);
   if (superadminNeedsCompany()) {
     showActionToast(t("common.selectCompany"), true);
     return;

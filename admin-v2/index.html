@@ -34,7 +34,7 @@
   <link rel="shortcut icon" href="/branding/suppix-icon-192.png" id="adminAppFavicon" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
-  <link rel="stylesheet" href="styles.css?v=20260819lohnPdf2" />
+  <link rel="stylesheet" href="styles.css?v=20260820lohnNavStable4" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" media="print" onload="this.media='all'" />
   <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" /></noscript>
   <!-- Leaflet JS loaded on demand in Tools/Geofencing — not on every Betrieb boot -->
@@ -123,7 +123,7 @@
                 <span data-i18n="tab.operations">Betrieb</span>
                 <span id="lohnOpsBadge" class="tab-badge hidden" title="WorkPass Lohn"></span>
               </button>
-              <button type="button" class="tab nav-item nav-item-lohn" id="openLohnSystemBtn" hidden>
+              <button type="button" class="tab nav-item nav-item-lohn" id="openLohnSystemBtn">
                 <span data-i18n="lohn.openSystem">Buchhaltung öffnen</span>
               </button>
               <button type="button" data-tab="billing" class="tab nav-item" data-i18n="tab.billing">Rechnungen</button>
@@ -149,6 +149,7 @@
               <div id="sectorChip" class="sector-chip hidden" aria-live="polite"></div>
             </div>
             <div class="topbar-actions">
+              <button type="button" id="topbarLohnBtn" class="ghost topbar-lohn-btn" data-i18n="lohn.opsLink">WorkPass Lohn</button>
               <button type="button" id="openCommandPaletteBtnTop" class="ghost cmd-kbd-btn" title="Ctrl+K" aria-label="Schnellsuche">⌘K</button>
               <label class="lang-row lang-row-compact">
                 <span data-i18n="lang" class="muted small">Sprache</span>
@@ -175,6 +176,8 @@
           <div id="platformBanner" class="platform-banner hidden"></div>
           <div id="globalToast" class="global-toast hidden" role="status" aria-live="polite"></div>
           <div id="overviewQuickBar" class="overview-quick-bar hidden" role="navigation" aria-label="Schnellzugriff"></div>
+          <!-- Outside tab panels so WorkPass Lohn stays visible on Inbox/Workers/… -->
+          <div id="opsCommandStrip" class="ops-command-strip hidden" aria-label="Betrieb shortcuts"></div>
 
           <main class="app-content">
         <div id="tab-enterprise" class="tab-panel hidden">
@@ -236,7 +239,6 @@
           <div class="cards" id="statCards"></div>
           <div id="billingSummaryPanel" class="billing-summary-panel hidden" aria-label="Billing"></div>
           <div id="forecastPanel" class="forecast-panel hidden"></div>
-          <div id="opsCommandStrip" class="ops-command-strip hidden"></div>
           <section id="lagePanel" class="lage-panel hidden" aria-label="Live-Lage"></section>
           <h2 class="section-title" data-i18n="section.overview.shortcuts">Shortcuts</h2>
           <div id="quickLinks" class="feature-grid"></div>
@@ -620,7 +622,7 @@
   <script src="/embed-helpers.js?v=20260819embed18"></script>
   <script src="/control-pass-theme.js?v=20260705a"></script>
   <script src="/sector-copy.js?v=20260818opsSector3"></script>
-  <script src="app.js?v=20260820lohnNavStable3" type="module"></script>
+  <script src="app.js?v=20260820lohnNavStable4" type="module"></script>
   <script>
     // Realtime/chat/voice CDNs must not block Geofencing / Tools first paint.
     (function deferAdminRealtime() {
