@@ -295,6 +295,12 @@
     s = s.replace(/\*([^*]+)\*/g, "$1");
     s = s.replace(/_{1,2}([^_]+)_{1,2}/g, "$1");
     s = s.replace(/https?:\/\/\S+/gi, " ");
+    // Opaque tokens sound like noise when spoken.
+    s = s.replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, " ");
+    s = s.replace(/\b(?:cmp|usr|wrk|gat|job|msg|req)-[a-z0-9_-]{6,}\b/gi, " ");
+    s = s.replace(/\b[A-Z0-9_]{16,}\b/g, " ");
+    s = s.replace(/\s*[/|\\]\s*/g, ", ");
+    s = s.replace(/\s*[→➜➔]\s*/g, ". ");
     return s;
   }
 
@@ -331,12 +337,13 @@
   function cleanTextForSpeech(text, options = {}) {
     let s = dropMetaSections(stripMarkdown(text));
     s = s.replace(/\s+/g, " ").trim();
+    s = s.replace(/\s*,\s*,+/g, ", ").replace(/\s*\.\s*\.+/g, ". ").replace(/^[,;\s.|]+|[,;\s.|]+$/g, "").trim();
     if (!s || isWeakTranscript(s)) return "";
     const uiLang = resolveLang(options.lang);
     const isAr = uiLang === "ar";
-    const maxSentences = options.maxSentences ?? (options.spoken ? (isAr ? 8 : 6) : 8);
+    const maxSentences = options.maxSentences ?? (options.spoken ? (isAr ? 8 : 8) : 8);
     s = truncateSentences(s, maxSentences);
-    const maxChars = options.maxChars ?? (options.spoken && isAr ? 1200 : (options.spoken ? 900 : 0));
+    const maxChars = options.maxChars ?? (options.spoken && isAr ? 1400 : (options.spoken ? 1100 : 0));
     if (maxChars > 0 && s.length > maxChars) {
       const cut = s.slice(0, maxChars);
       const breakAt = Math.max(

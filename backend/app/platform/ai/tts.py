@@ -113,12 +113,26 @@ def prepare_tts_text(text: str, *, lang: str, fast: bool = False) -> str:
         return ""
     lang = (lang or "de")[:2]
     cleaned = re.sub(r"[*_#>`|\[\](){}]", "", cleaned)
+    # Drop opaque tokens that sound like noise when spoken.
+    cleaned = re.sub(
+        r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
+        "",
+        cleaned,
+        flags=re.I,
+    )
+    cleaned = re.sub(r"\b(?:cmp|usr|wrk|gat|job|msg|req)-[a-z0-9_-]{6,}\b", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"\b[A-Z0-9_]{16,}\b", "", cleaned)
+    cleaned = re.sub(r"https?://\S+", "", cleaned, flags=re.I)
+    cleaned = re.sub(r"\s*[/|\\]\s*", ", ", cleaned)
+    cleaned = re.sub(r"\s*[→➜➔]\s*", ". ", cleaned)
     if lang == "ar":
         cleaned = unicodedata.normalize("NFKC", cleaned)
         cleaned = cleaned.replace("\u0640", "")
         cleaned = re.sub(r"[\u200c\u200d\u200e\u200f\ufeff]", "", cleaned)
         cleaned = re.sub(r"([،؛:])(?=\S)", r"\1 ", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    cleaned = re.sub(r"\s*,\s*,+", ", ", cleaned)
+    cleaned = re.sub(r"\s*\.\s*\.+", ". ", cleaned).strip(" ,;|")
     max_len = 280 if fast else 4096
     if len(cleaned) <= max_len:
         return cleaned
@@ -155,16 +169,19 @@ def _elevenlabs_api_key() -> str:
 
 def _resolve_tts_provider() -> str:
     """
-    Prefer ElevenLabs when ELEVENLABS_API_KEY is set (personas from elevenlabs.io).
+    Prefer OpenAI TTS personas (Ghizlane / Ramona / Vanessa / …) when OPENAI_API_KEY is set.
     Env: BAUPASS_TTS_PROVIDER or SUPPIX_TTS_PROVIDER = openai | elevenlabs | auto
     """
     explicit = _env_first("BAUPASS_TTS_PROVIDER", "SUPPIX_TTS_PROVIDER").lower() or "auto"
     eleven_ok = bool(_elevenlabs_api_key())
+    openai_ok = bool(_openai_api_key())
     if explicit in {"elevenlabs", "11labs", "eleven"}:
         return "elevenlabs" if eleven_ok else "openai"
     if explicit in {"openai", "oai"}:
         return "openai"
-    # auto (default): use ElevenLabs personas whenever the API key is present
+    # auto (default): OpenAI personas first; ElevenLabs only if OpenAI key missing
+    if openai_ok:
+        return "openai"
     if eleven_ok:
         return "elevenlabs"
     return "openai"
@@ -393,7 +410,7 @@ def tts_config_status() -> dict[str, Any]:
             "or OPENAI_API_KEY for OpenAI TTS personas."
         )
     elif provider == "openai" and eleven_ok:
-        hint = "ElevenLabs key present but BAUPASS_TTS_PROVIDER=openai forces OpenAI."
+        hint = "Using OpenAI TTS personas; set BAUPASS_TTS_PROVIDER=elevenlabs to force ElevenLabs."
     return {
         "provider": provider,
         "configured": configured,

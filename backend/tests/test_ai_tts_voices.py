@@ -39,7 +39,16 @@ def test_tts_status_defaults_to_openai(monkeypatch):
     assert status["voices"]["ar"]["name"] == "Ghizlane"
 
 
-def test_tts_auto_prefers_elevenlabs_when_key_set(monkeypatch):
+def test_tts_auto_prefers_openai_when_both_keys(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "el-test")
+    monkeypatch.delenv("BAUPASS_TTS_PROVIDER", raising=False)
+    monkeypatch.delenv("SUPPIX_TTS_PROVIDER", raising=False)
+    assert _resolve_tts_provider() == "openai"
+
+
+def test_tts_auto_uses_elevenlabs_without_openai(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("ELEVENLABS_API_KEY", "el-test")
     monkeypatch.delenv("BAUPASS_TTS_PROVIDER", raising=False)
     monkeypatch.delenv("SUPPIX_TTS_PROVIDER", raising=False)

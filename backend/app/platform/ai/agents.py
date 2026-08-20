@@ -257,53 +257,69 @@ _CONVERSATION_RULES: dict[str, str] = {
 
 _SPOKEN_MODE_RULES = {
     "de": (
-        "SPRACHMODUS (wie ChatGPT Voice): Der Nutzer hat gesprochen. "
-        "Antworte NUR auf die gestellte Frage — direkt, freundlich, klar. "
-        "Kein Markdown, keine Aufzählungen, keine Tabellen, keine Quellen- oder Tool-Hinweise im Antworttext. "
-        "2–6 kurze Sätze in natürlicher gesprochener Sprache, dann aufhören."
+        "SPRACHMODUS (wie ChatGPT Voice): Die Antwort wird vorgelesen. "
+        "Antworte NUR auf die gestellte Frage — direkt, freundlich, klar verständlich. "
+        "Kein Markdown, keine Aufzählungszeichen, keine Tabellen, keine Quellen- oder Tool-Hinweise. "
+        "Keine UUIDs, Token, JSON-Schlüssel oder internen IDs vorlesen. "
+        "Zahlen und Personen klar aussprechen (z. B. „drei offene Sicherheitsmeldungen“). "
+        "Bei Lage/Ereignissen: in vollständigen Sätzen sagen, was passiert ist und was jetzt zählt. "
+        "2–8 kurze natürliche Sätze, dann aufhören."
     ),
     "en": (
-        "VOICE MODE (ChatGPT Voice style): The user spoke their question. "
-        "Answer ONLY the question — direct, friendly, clear. "
-        "No markdown, bullet lists, tables, or source/tool mentions in the reply text. "
-        "2–6 short natural spoken sentences, then stop."
+        "VOICE MODE (ChatGPT Voice style): The answer will be read aloud. "
+        "Answer ONLY the question — direct, friendly, clearly understandable. "
+        "No markdown, bullet markers, tables, or source/tool mentions. "
+        "Never read UUIDs, tokens, JSON keys, or internal IDs aloud. "
+        "Say numbers and people clearly (e.g. “three open security alerts”). "
+        "For events/status: full sentences — what happened and what matters now. "
+        "2–8 short natural spoken sentences, then stop."
     ),
     "ar": (
-        "وضع الصوت (مثل ChatGPT Voice): المستخدم تحدّث بسؤاله — قد تكون لهجته عامية. "
-        "افهم اللهجة كما هي وأجب على السؤال فقط — مباشرة وبوضوح وبلطف. "
-        "استخدم عربية فصحى مبسطة سهلة النطق (أو قرّب أسلوب المستخدم إن كان لهجياً). "
-        "بدون Markdown أو قوائم أو جداول أو ذكر للمصادر في النص. "
-        "2–6 جمل واضحة تغطي الإجابة للمحادثة الصوتية."
+        "وضع الصوت (مثل ChatGPT Voice): ستُقرأ الإجابة بصوت عالٍ. "
+        "أجب على السؤال فقط — مباشرة وبوضوح وبلطف، بعبارات مفهومة تماماً. "
+        "استخدم عربية فصحى مبسطة سهلة النطق. "
+        "بدون Markdown أو نقاط أو جداول أو ذكر للمصادر/الأدوات في النص. "
+        "لا تقرأ معرّفات داخلية أو UUID أو مفاتيح JSON. "
+        "انطق الأعداد والأسماء بوضوح (مثلاً: ثلاث تنبيهات أمنية مفتوحة). "
+        "عند الأحداث/الوضع: جمل كاملة عمّا حدث وما المهم الآن. "
+        "2–8 جمل واضحة ثم توقف."
     ),
     "tr": (
-        "SES MODU: Kullanıcı soruyu konuşarak sordu. "
-        "Sadece soruya cevap ver — doğrudan, sıcak, net. "
-        "Markdown, madde listesi, tablo veya kaynak/tool adı yok. "
-        "2–6 kısa, doğal konuşma cümlesi."
+        "SES MODU: Yanıt sesli okunacak. "
+        "Sadece soruya cevap ver — doğrudan, sıcak, net ve anlaşılır. "
+        "Markdown, madde işareti, tablo veya kaynak/tool adı yok. "
+        "UUID, token veya dahili kimlikleri okuma. "
+        "Sayıları ve kişileri açık söyle. Olay/durum için tam cümleler. "
+        "2–8 kısa, doğal konuşma cümlesi."
     ),
     "fr": (
-        "MODE VOCAL: L'utilisateur a parlé. "
-        "Réponds UNIQUEMENT à la question — direct, amical, clair. "
+        "MODE VOCAL: La réponse sera lue à voix haute. "
+        "Réponds UNIQUEMENT à la question — direct, amical, parfaitement clair. "
         "Pas de markdown, listes, tableaux ni mentions d'outils. "
-        "2–6 phrases orales naturelles."
+        "Ne lis pas d'UUID ni d'identifiants internes. "
+        "Énonce clairement les chiffres et les personnes. "
+        "Pour les événements: phrases complètes. 2–8 phrases orales naturelles."
     ),
     "es": (
-        "MODO VOZ: El usuario habló. "
-        "Responde SOLO a la pregunta — directo, amable, claro. "
+        "MODO VOZ: La respuesta se leerá en voz alta. "
+        "Responde SOLO a la pregunta — directo, amable y totalmente claro. "
         "Sin markdown, listas, tablas ni menciones de herramientas. "
-        "2–6 frases orales naturales."
+        "No leas UUID ni IDs internos. Di cifras y personas con claridad. "
+        "Para eventos: frases completas. 2–8 frases orales naturales."
     ),
     "it": (
-        "MODALITÀ VOCALE: L'utente ha parlato. "
-        "Rispondi SOLO alla domanda — diretto, cordiale, chiaro. "
+        "MODALITÀ VOCALE: La risposta verrà letta ad alta voce. "
+        "Rispondi SOLO alla domanda — diretto, cordiale e chiarissimo. "
         "Niente markdown, elenchi, tabelle o menzioni di tool. "
-        "2–6 frasi parlate naturali."
+        "Non leggere UUID o ID interni. Pronuncia chiaramente numeri e persone. "
+        "Per eventi: frasi complete. 2–8 frasi parlate naturali."
     ),
     "pl": (
-        "TRYB GŁOSOWY: Użytkownik mówił. "
-        "Odpowiedz TYLKO na pytanie — bezpośrednio, przyjaźnie, jasno. "
+        "TRYB GŁOSOWY: Odpowiedź będzie czytana na głos. "
+        "Odpowiedz TYLKO na pytanie — bezpośrednio, przyjaźnie i bardzo jasno. "
         "Bez markdown, list, tabel i wzmianek o narzędziach. "
-        "2–6 krótkich naturalnych zdań mówionych."
+        "Nie czytaj UUID ani wewnętrznych ID. Wyraźnie mów liczby i osoby. "
+        "Dla zdarzeń: pełne zdania. 2–8 krótkich naturalnych zdań mówionych."
     ),
 }
 

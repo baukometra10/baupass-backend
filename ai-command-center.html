@@ -885,7 +885,7 @@
   <script src="/embed-helpers.js?v=20260819embed18"></script>
   <script src="/sector-copy.js?v=20260818opsSector1"></script>
   <script src="/ai-center-i18n-extra.js?v=20260705h"></script>
-  <script src="/ai-voice-ui.js?v=20260725voice12"></script>
+  <script src="/ai-voice-ui.js?v=20260820voice17"></script>
   <script src="/e2e-crypto.js?v=20260705e2e4"></script>
   <script src="/e2e-admin-bridge.js?v=20260705e2e4"></script>
   <script>
@@ -2762,7 +2762,8 @@
       appendMsg("user", q);
       lastUserQuestion = String(q || "").trim();
       const log = document.getElementById("chatLog");
-      const isVoiceTurn = Boolean(options.spoken);
+      const voiceReplyOn = window.BaupassAiUi?.isVoiceReplyEnabled?.() !== false;
+      const isVoiceTurn = Boolean(options.spoken) || voiceReplyOn;
       const botDiv = document.createElement("div");
       botDiv.className = "msg-bot";
       const botBody = document.createElement("div");
@@ -2844,7 +2845,7 @@
           headers: authHeaders({ "Content-Type": "application/json" }),
           body: JSON.stringify({
             question: q, company_id: selectedCompanyId, agent_id: options.agentId || activeAgent,
-            session_id: sessionId, lang: LANG, spoken: Boolean(options.spoken),
+            session_id: sessionId, lang: LANG, spoken: isVoiceTurn,
             ...(options.analysisTopic ? { analysis_topic: options.analysisTopic } : {}),
           }),
         });
@@ -2941,8 +2942,10 @@
           decision: meta.decision,
         });
         if (finalText && meta.ok !== false) {
+          const speakText = window.BaupassAiUi?.cleanTextForSpeech?.(finalText, { lang: LANG, spoken: true })
+            || finalText;
           const speakTask = pendingSpeech || (isVoiceTurn
-            ? window.BaupassAiUi?.speakReply?.(finalText, LANG, {
+            ? window.BaupassAiUi?.speakReply?.(speakText, LANG, {
                 spoken: true,
                 authHeaders: () => authHeaders(),
               })

@@ -10,8 +10,8 @@
     return;
   }
 
-  const VERSION = "20260725r";
-  const VOICE_UI_VERSION = "20260818voice16";
+  const VERSION = "20260820fab19";
+  const VOICE_UI_VERSION = "20260820voice17";
   const HANDS_FREE_KEY = "baupass-ai-hands-free";
   const SESSION_STORE_KEY = "baupass-aio-session-id";
   const WELCOME_STORE_KEY = "baupass-aio-welcome";
@@ -1693,12 +1693,8 @@
       if (!isAdminSurfaceReady()) return;
       if (hasPendingConfirmCard()) return;
       if (!welcomeOk) return;
-      // One morning briefing after login welcome only — not when browsing sections.
-      try {
-        await speakMorningBriefing();
-      } catch {
-        /* briefing optional */
-      }
+      // Short greeting only — do not auto-speak the company briefing / status dump.
+      // Briefing stays available when the user asks (chip / question).
       if (els.voiceHint) els.voiceHint.textContent = t("voiceHint");
       syncFabListeningState(false);
     } catch {
@@ -3259,8 +3255,10 @@
     appendStatus(t("thinking"));
     updateExpandHref();
 
-    const spoken = Boolean(opts.spoken);
-    const wantSpeak = shouldSpeakTurn(spoken);
+    const spokenInput = Boolean(opts.spoken);
+    const wantSpeak = opts.speak != null ? Boolean(opts.speak) : shouldSpeakTurn(spokenInput);
+    // Whenever we will TTS the answer, ask the model for clear spoken sentences.
+    const spoken = wantSpeak;
     let streamed = "";
     let meta = {};
     let pendingSpeech = null;
@@ -3354,7 +3352,7 @@
               setBotText(bot, streamed);
             }
             if (wantSpeak && streamed && !pendingSpeech && meta.ok !== false) {
-              const speakText = cleanSpeakText(streamed, spoken);
+              const speakText = cleanSpeakText(streamed, true);
               if (speakText) {
                 pendingSpeech = global.BaupassAiUi?.speakReply?.(speakText, lang, {
                   spoken: true,
@@ -3379,7 +3377,7 @@
       if (wantSpeak && answerPlain && answerPlain !== "—" && meta.ok !== false) {
         handsFreeArmed = (isAmbientEnabled() || isHandsFreeEnabled()) && !hasPendingConfirmCard();
         if (!pendingSpeech) {
-          const speakText = cleanSpeakText(answerPlain, spoken);
+          const speakText = cleanSpeakText(answerPlain, true);
           pendingSpeech = global.BaupassAiUi?.speakReply?.(speakText, lang, {
             spoken: true,
             authHeaders: () => authHeaders(),
