@@ -1,4 +1,4 @@
-import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260820lohnStudio3";
+import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260820lohnStudio4";
 import { ensureLeafletLoaded, mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -1690,7 +1690,9 @@ const payslipStudioState = {
   previewObserver: null,
   archiveQuery: "",
   archiveStatus: "all",
+  openFilter: "all",
   archivePeriod: "",
+  rematchedKeys: Object.create(null),
   releaseInFlight: false,
   downloadInFlight: false,
   captureCache: null,
@@ -2398,6 +2400,10 @@ function payslipArchiveHaystack(stmt) {
     stmt?.workerId,
     stmt?.documentPeriod || stmt?.period,
     stmt?.status,
+    stmt?.title,
+    stmt?.docTypeLabel,
+    stmt?.documentType,
+    stmt?.docType,
     formatPayslipMoney(stmt?.netAmount ?? stmt?.grossAmount, stmt?.currency),
   ]
     .filter(Boolean)
@@ -2405,33 +2411,136 @@ function payslipArchiveHaystack(stmt) {
     .toLowerCase();
 }
 
-function filterPayslipArchiveStatements(stmts) {
+function payslipListPeriods(batches) {
+  const periods = new Set();
+  for (const batch of batches || []) {
+    for (const s of batch.statements || []) {
+      const p = String(s.documentPeriod || s.period || "").trim();
+      if (p) periods.add(p);
+    }
+  }
+  return [...periods].sort().reverse();
+}
+
+function payslipOpenCounts(batches) {
+  let ready = 0;
+  let needsMatch = 0;
+  let unreviewed = 0;
+  for (const batch of batches || []) {
+    for (const s of batch.statements || []) {
+      if (s?.canRelease) ready += 1;
+      const match = String(s?.matchStatus || "matched");
+      if (match === "unmatched" || match === "ambiguous" || !String(s?.workerId || "").trim()) {
+        needsMatch += 1;
+      }
+      if (!s?.reviewed) unreviewed += 1;
+    }
+  }
+  return { ready, needsMatch, unreviewed, periods: payslipListPeriods(batches) };
+}
+
+function filterPayslipListStatements(stmts) {
   const q = String(payslipStudioState.archiveQuery || "").trim().toLowerCase();
-  const st = String(payslipStudioState.archiveStatus || "all");
   const period = String(payslipStudioState.archivePeriod || "");
+  const archived = payslipStudioState.inbox === "archive";
+  const st = String(payslipStudioState.archiveStatus || "all");
+  const openFilter = String(payslipStudioState.openFilter || "all");
   return (stmts || []).filter((s) => {
-    const status = String(s.status || "");
-    if (st !== "all" && status !== st) return false;
     const p = String(s.documentPeriod || s.period || "");
     if (period && p !== period) return false;
     if (q && !payslipArchiveHaystack(s).includes(q)) return false;
+    if (archived) {
+      const status = String(s.status || "");
+      if (st !== "all" && status !== st) return false;
+      return true;
+    }
+    if (openFilter === "ready" && !s.canRelease) return false;
+    if (openFilter === "needs_match") {
+      const match = String(s.matchStatus || "matched");
+      const needs = match === "unmatched" || match === "ambiguous" || !String(s.workerId || "").trim();
+      if (!needs) return false;
+    }
+    if (openFilter === "unreviewed" && s.reviewed) return false;
     return true;
   });
+}
+
+/** @deprecated use filterPayslipListStatements */
+function filterPayslipArchiveStatements(stmts) {
+  return filterPayslipListStatements(stmts);
 }
 
 function payslipArchiveCounts(batches) {
   let released = 0;
   let rejected = 0;
-  const periods = new Set();
   for (const batch of batches || []) {
     for (const s of batch.statements || []) {
       if (String(s.status) === "released") released += 1;
       if (String(s.status) === "rejected") rejected += 1;
-      const p = String(s.documentPeriod || s.period || "").trim();
-      if (p) periods.add(p);
     }
   }
-  return { released, rejected, periods: [...periods].sort().reverse() };
+  return { released, rejected, periods: payslipListPeriods(batches) };
+}
+
+function payslipStatementKey(batchId, statementId) {
+  return `${String(batchId || "")}::${String(statementId || "")}`;
+}
+
+function markPayslipRematched(batchId, statementId) {
+  if (!payslipStudioState.rematchedKeys) {
+    payslipStudioState.rematchedKeys = Object.create(null);
+  }
+  payslipStudioState.rematchedKeys[payslipStatementKey(batchId, statementId)] = true;
+}
+
+function wasPayslipRematched(batchId, statementId) {
+  return Boolean(payslipStudioState.rematchedKeys?.[payslipStatementKey(batchId, statementId)]);
+}
+
+function collectPayslipTrustWarnings(stmt, batchId = "", statementId = "") {
+  if (!stmt) return [];
+  const out = [];
+  for (const w of Array.isArray(stmt.stammdatenWarnings) ? stmt.stammdatenWarnings : []) {
+    const text = String(w || "").trim();
+    if (text) out.push(text);
+  }
+  const net = Number(stmt.netAmount ?? stmt.grossAmount);
+  if (Number.isFinite(net) && net <= 0) {
+    out.push(t("lohn.warnAmountZero") || "Nettobetrag ist 0 oder negativ — bitte prüfen.");
+  } else if (Number.isFinite(net) && Math.abs(net) >= 20000) {
+    out.push(
+      t("lohn.warnAmountHigh", { amount: formatPayslipMoney(net, stmt.currency) })
+        || `Ungewöhnlich hoher Betrag (${formatPayslipMoney(net, stmt.currency)}) — bitte prüfen.`,
+    );
+  }
+  const period = String(stmt.documentPeriod || stmt.period || "").trim();
+  const m = period.match(/^(\d{4})-(\d{2})/);
+  if (m) {
+    const py = Number(m[1]);
+    const pm = Number(m[2]);
+    const now = new Date();
+    const months = (now.getFullYear() - py) * 12 + (now.getMonth() + 1 - pm);
+    if (months < -1) {
+      out.push(t("lohn.warnPeriodFuture", { period }) || `Periode ${period} liegt in der Zukunft.`);
+    } else if (months > 6) {
+      out.push(t("lohn.warnPeriodOld", { period }) || `Periode ${period} ist älter als 6 Monate.`);
+    }
+  }
+  const match = String(stmt.matchStatus || "matched");
+  if (match === "unmatched" || match === "ambiguous") {
+    out.push(t("lohn.warnMatchWeak") || "Mitarbeiter-Zuordnung unsicher — bitte bestätigen.");
+  }
+  if (wasPayslipRematched(batchId || payslipStudioState.activeBatchId, statementId || payslipStudioState.activeStmtId)) {
+    out.push(t("lohn.warnRematched") || "Zuordnung wurde manuell geändert — bitte vor dem Senden prüfen.");
+  }
+  return [...new Set(out)];
+}
+
+function formatPayslipTrustConfirm(baseMsg, warnings) {
+  const base = String(baseMsg || "").trim();
+  if (!warnings?.length) return base;
+  const title = t("lohn.trustWarningsTitle") || "Hinweise vor dem Senden";
+  return `${base}\n\n${title}:\n- ${warnings.join("\n- ")}`;
 }
 
 function renderPayslipInboxChrome() {
@@ -2441,14 +2550,9 @@ function renderPayslipInboxChrome() {
   });
   const tools = $("payslipArchiveTools");
   if (!tools) return;
-  tools.classList.toggle("hidden", inbox !== "archive");
-  if (inbox !== "archive") return;
+  tools.classList.remove("hidden");
   const batches = payslipStudioState.batches || [];
-  const counts = payslipArchiveCounts(batches);
   const stats = $("payslipArchiveStats");
-  if (stats) {
-    stats.textContent = `${counts.released} ${t("lohn.statusReleased") || "Gesendet"} · ${counts.rejected} ${t("lohn.statusRejected") || "Abgelehnt"}`;
-  }
   const search = $("payslipArchiveSearch");
   if (search) {
     search.placeholder = t("lohn.archiveSearch") || "Name, Badge, Periode…";
@@ -2457,39 +2561,76 @@ function renderPayslipInboxChrome() {
     }
   }
   const filters = $("payslipArchiveFilters");
+  const periodSel = $("payslipArchivePeriod");
+
+  if (inbox === "archive") {
+    const counts = payslipArchiveCounts(batches);
+    if (stats) {
+      stats.textContent = `${counts.released} ${t("lohn.statusReleased") || "Gesendet"} · ${counts.rejected} ${t("lohn.statusRejected") || "Abgelehnt"}`;
+    }
+    if (filters) {
+      const cur = payslipStudioState.archiveStatus || "all";
+      filters.innerHTML = [
+        ["all", t("lohn.archiveFilterAll") || "Alle"],
+        ["released", t("lohn.statusReleased") || "Gesendet"],
+        ["rejected", t("lohn.statusRejected") || "Abgelehnt"],
+      ]
+        .map(
+          ([id, label]) =>
+            `<button type="button" class="${cur === id ? "is-active" : ""}" data-payslip-list-filter="${id}">${escapeHtml(label)}</button>`,
+        )
+        .join("");
+    }
+    if (periodSel) {
+      const cur = payslipStudioState.archivePeriod || "";
+      periodSel.innerHTML = [`<option value="">${escapeHtml(t("lohn.archiveAllPeriods") || "Alle Perioden")}</option>`]
+        .concat(
+          counts.periods.map(
+            (p) =>
+              `<option value="${escapeAttr(p)}"${p === cur ? " selected" : ""}>${escapeHtml(p)}</option>`,
+          ),
+        )
+        .join("");
+    }
+    return;
+  }
+
+  const counts = payslipOpenCounts(batches);
+  if (stats) {
+    stats.textContent = `${counts.ready} ${t("lohn.ready") || "bereit"} · ${counts.needsMatch} ${t("lohn.openNeedsMatch") || "Zuordnung"} · ${counts.unreviewed} ${t("lohn.openUnreviewed") || "ungeprüft"}`;
+  }
   if (filters) {
-    const cur = payslipStudioState.archiveStatus || "all";
+    const cur = payslipStudioState.openFilter || "all";
     filters.innerHTML = [
       ["all", t("lohn.archiveFilterAll") || "Alle"],
-      ["released", t("lohn.statusReleased") || "Gesendet"],
-      ["rejected", t("lohn.statusRejected") || "Abgelehnt"],
+      ["ready", t("lohn.openFilterReady") || "Bereit"],
+      ["needs_match", t("lohn.openFilterNeedsMatch") || "Zuordnung"],
+      ["unreviewed", t("lohn.openFilterUnreviewed") || "Ungeprüft"],
     ]
       .map(
         ([id, label]) =>
-          `<button type="button" class="${cur === id ? "is-active" : ""}" data-payslip-archive-status="${id}">${escapeHtml(label)}</button>`,
+          `<button type="button" class="${cur === id ? "is-active" : ""}" data-payslip-list-filter="${id}">${escapeHtml(label)}</button>`,
       )
       .join("");
   }
-  const periodSel = $("payslipArchivePeriod");
   if (periodSel) {
     const cur = payslipStudioState.archivePeriod || "";
-    const opts = [`<option value="">${escapeHtml(t("lohn.archiveAllPeriods") || "Alle Perioden")}</option>`]
+    periodSel.innerHTML = [`<option value="">${escapeHtml(t("lohn.archiveAllPeriods") || "Alle Perioden")}</option>`]
       .concat(
         counts.periods.map(
           (p) =>
             `<option value="${escapeAttr(p)}"${p === cur ? " selected" : ""}>${escapeHtml(p)}</option>`,
         ),
-      );
-    periodSel.innerHTML = opts.join("");
+      )
+      .join("");
   }
 }
 
 function flattenPayslipStatements() {
-  const archived = payslipStudioState.inbox === "archive";
   const flat = [];
   for (const b of payslipStudioState.batches || []) {
     const stmts = Array.isArray(b.statements) ? b.statements : [];
-    const list = archived ? filterPayslipArchiveStatements(stmts) : stmts;
+    const list = filterPayslipListStatements(stmts);
     for (const s of list) {
       flat.push({ batchId: b.id, statementId: s.statementId || s.id, stmt: s, batch: b });
     }
@@ -2568,13 +2709,24 @@ async function releaseAllReviewedPayslips() {
   const amount = batches.reduce((n, b) => n + (Number(b.amount) || 0), 0);
   const currency = batches[0]?.currency || "EUR";
   const money = formatPayslipMoney(amount, currency);
-  const detail =
+  const trust = [];
+  for (const b of batches) {
+    const full = (payslipStudioState.batches || []).find((x) => String(x.id) === String(b.id));
+    for (const s of full?.statements || []) {
+      if (!s?.canRelease) continue;
+      trust.push(...collectPayslipTrustWarnings(s, b.id, s.statementId || s.id));
+    }
+  }
+  const uniqueTrust = [...new Set(trust)];
+  const detail = formatPayslipTrustConfirm(
     t("lohn.confirmReleaseReviewedDetail", {
       n: String(readyN),
       total: money,
       batches: String(batches.length),
     })
-    || `${readyN} geprüfte Abrechnung(en) · Summe ${money} · ${batches.length} Stapel an die Mitarbeiter-App senden?`;
+      || `${readyN} geprüfte Abrechnung(en) · Summe ${money} · ${batches.length} Stapel an die Mitarbeiter-App senden?`,
+    uniqueTrust.slice(0, 8),
+  );
   if (!window.confirm(detail)) return;
   if (payslipStudioState.releaseInFlight) {
     showActionToast(t("lohn.sending") || "Wird gesendet…");
@@ -2618,7 +2770,7 @@ function renderPayslipStudioList() {
       const stmts = Array.isArray(batch.statements) ? batch.statements : [];
       return {
         ...batch,
-        statements: archived ? filterPayslipArchiveStatements(stmts) : stmts,
+        statements: filterPayslipListStatements(stmts),
       };
     })
     .filter((batch) => (batch.statements || []).length);
@@ -2627,7 +2779,9 @@ function renderPayslipStudioList() {
       ? payslipStudioState.batches?.length
         ? t("lohn.archiveNoHits") || "Keine Treffer im Archiv."
         : t("lohn.payslipArchiveNone") || "Kein Archiv für diese Firma."
-      : t("lohn.payslipNone") || "Keine offenen Lohnabrechnungen.";
+      : payslipStudioState.batches?.length
+        ? t("lohn.openNoHits") || "Keine Treffer in Offen."
+        : t("lohn.payslipNone") || "Keine offenen Lohnabrechnungen.";
     host.innerHTML = `<div class="payslip-studio-empty">${escapeHtml(empty)}</div>`;
     updatePayslipStudioChrome();
     return;
@@ -2712,9 +2866,13 @@ async function renderPayslipIdentity(stmt) {
   if (!card || !actions || !stmt) return;
   const match = String(stmt.matchStatus || "matched");
   const locked = isPayslipLocked(stmt) || payslipStudioState.inbox === "archive";
-  const warnings = Array.isArray(stmt.stammdatenWarnings) ? stmt.stammdatenWarnings : [];
-  const warnHtml = warnings.length
-    ? `<ul class="payslip-warn">${warnings.map((w) => `<li>${escapeHtml(String(w))}</li>`).join("")}</ul>`
+  const trustWarnings = collectPayslipTrustWarnings(
+    stmt,
+    payslipStudioState.activeBatchId,
+    payslipStudioState.activeStmtId,
+  );
+  const warnHtml = trustWarnings.length
+    ? `<ul class="payslip-warn">${trustWarnings.map((w) => `<li>${escapeHtml(String(w))}</li>`).join("")}</ul>`
     : "";
   const lockNote = locked
     ? `<p class="muted small" style="margin:0.45rem 0 0">${escapeHtml(t("lohn.lockedHint") || "Nach dem Versand sind Stammdaten dieser Abrechnung gesperrt.")}</p>`
@@ -3393,9 +3551,17 @@ async function handlePayslipStudioClick(ev) {
     await switchPayslipInbox(inboxBtn.getAttribute("data-payslip-inbox"));
     return;
   }
-  const archiveStatus = ev.target?.closest?.("[data-payslip-archive-status]");
+  const archiveStatus = ev.target?.closest?.("[data-payslip-list-filter], [data-payslip-archive-status]");
   if (archiveStatus) {
-    payslipStudioState.archiveStatus = archiveStatus.getAttribute("data-payslip-archive-status") || "all";
+    const value =
+      archiveStatus.getAttribute("data-payslip-list-filter")
+      || archiveStatus.getAttribute("data-payslip-archive-status")
+      || "all";
+    if (payslipStudioState.inbox === "archive") {
+      payslipStudioState.archiveStatus = value;
+    } else {
+      payslipStudioState.openFilter = value;
+    }
     renderPayslipStudioList();
     return;
   }
@@ -3415,18 +3581,22 @@ async function handlePayslipStudioClick(ev) {
       const n = Number(batch?.releasableCount || 0);
       let amount = 0;
       let currency = "EUR";
+      const trust = [];
       for (const s of batch?.statements || []) {
         if (!s?.canRelease) continue;
         amount += Number(s.netAmount ?? s.grossAmount ?? 0) || 0;
         if (s.currency) currency = String(s.currency);
+        trust.push(...collectPayslipTrustWarnings(s, batchId, s.statementId || s.id));
       }
-      const detail =
+      const detail = formatPayslipTrustConfirm(
         t("lohn.confirmReleaseReviewedDetail", {
           n: String(n),
           total: formatPayslipMoney(amount, currency),
           batches: "1",
         })
-        || (t("lohn.confirmReleaseReviewed") || "Alle geprüften Abrechnungen an die Mitarbeiter-App senden?");
+          || (t("lohn.confirmReleaseReviewed") || "Alle geprüften Abrechnungen an die Mitarbeiter-App senden?"),
+        [...new Set(trust)].slice(0, 8),
+      );
       if (!window.confirm(detail)) {
         return;
       }
@@ -3563,12 +3733,18 @@ async function handlePayslipStudioClick(ev) {
       toast(t("lohn.pickWorker") || "Mitarbeiter wählen", "error");
       return;
     }
+    const prevWorker = String(stmtNow?.workerId || "").trim();
     try {
       showActionToast(t("lohn.saving") || "Speichern…");
       await api(
         `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/assign`,
         { method: "POST", body: JSON.stringify({ workerId }) },
       );
+      if (prevWorker && prevWorker !== workerId) {
+        markPayslipRematched(batchId, statementId);
+      } else if (!prevWorker) {
+        markPayslipRematched(batchId, statementId);
+      }
       toast(t("lohn.assignSaved") || "Zuordnung gespeichert", "ok");
       await refreshPayslipStudio({ keepSelection: true });
     } catch (err) {
@@ -3590,9 +3766,11 @@ async function handlePayslipStudioClick(ev) {
       showActionToast(t("lohn.sending") || "Wird gesendet…");
       return;
     }
-    const warns = Array.isArray(stmtNow?.stammdatenWarnings) ? stmtNow.stammdatenWarnings : [];
-    const extra = warns.length ? `\n\n${warns.join("\n")}` : "";
-    if (!window.confirm((t("lohn.confirmSendWorker") || "Diese Lohnabrechnung an die Mitarbeiter-App senden?") + extra)) {
+    const trust = collectPayslipTrustWarnings(stmtNow, batchId, statementId);
+    if (!window.confirm(formatPayslipTrustConfirm(
+      t("lohn.confirmSendWorker") || "Diese Lohnabrechnung an die Mitarbeiter-App senden?",
+      trust,
+    ))) {
       return;
     }
     payslipStudioState.releaseInFlight = true;
