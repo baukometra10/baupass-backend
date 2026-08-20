@@ -367,6 +367,7 @@ function humanizeUserError(err) {
     company_id_required: "common.selectCompany",
     forbidden: "error.forbidden",
     forbidden_company: "error.forbidden",
+    lohn_not_enabled: "lohn.notEnabled",
     not_found: "error.notFound",
     unauthorized: "login.sessionExpired",
     invalid_session: "login.sessionExpired",
@@ -375,7 +376,6 @@ function humanizeUserError(err) {
     feature_not_available: "error.featureUnavailable",
     database_not_ready: "error.dbNotReady",
     missing_fields: "error.missingFields",
-    feature_not_available: "error.featureUnavailable",
     push_failed: "inbox.pushNotDelivered",
     push_not_delivered: "inbox.pushNotDelivered",
     worker_not_found: "error.notFound",
@@ -393,6 +393,10 @@ function humanizeUserError(err) {
   }
   if (/api nicht erreichbar|unerwartete server-antwort|invalid_json/i.test(raw)) {
     return t("error.serverUnexpected");
+  }
+  // Prefer an explicit server message over a generic HTTP status label.
+  if (raw && rawLower !== "forbidden" && rawLower !== "error" && raw.length > 3) {
+    return raw;
   }
   if (status === 404 || status === 405) return t("error.notFound");
   if (status === 403) return t("error.forbidden");
@@ -1549,8 +1553,8 @@ async function syncLohnOpenButton({ force = false } = {}) {
 }
 
 async function openLohnSystem() {
-  if (!canAccessWorkpassLohnUi()) {
-    showActionToast(t("common.forbidden") || "Keine Berechtigung", true);
+  if (!canShowLohnNavEntry()) {
+    showActionToast(t("error.forbidden") || "Keine Berechtigung", true);
     return;
   }
   const cid = activeCompanyId();
@@ -1561,7 +1565,14 @@ async function openLohnSystem() {
   try {
     const res = await api(`/api/payroll/accounting/launch?company_id=${encodeURIComponent(cid)}`);
     if (!res?.ok || !res.url) {
-      showActionToast(res?.message || t("lohn.openFailed") || "Buchhaltung nicht erreichbar", true);
+      const msg =
+        res?.message
+        || (res?.error === "lohn_not_enabled"
+          ? (t("lohn.notEnabled") || "Buchhaltung ist für diese Firma nicht freigeschaltet.")
+          : "")
+        || t("lohn.openFailed")
+        || "Buchhaltung nicht erreichbar";
+      showActionToast(msg, true);
       return;
     }
     const url = String(res.url);
@@ -1577,7 +1588,16 @@ async function openLohnSystem() {
       showActionToast(t("lohn.ssoOpening") || "Buchhaltung — SSO-Anmeldung…");
     }
   } catch (e) {
-    showActionToast(e?.message || t("lohn.openFailed") || "Buchhaltung nicht erreichbar", true);
+    const code = String(e?.data?.error || e?.error || "").toLowerCase();
+    const msg =
+      e?.data?.message
+      || (code === "lohn_not_enabled"
+        ? (t("lohn.notEnabled") || "Buchhaltung ist für diese Firma nicht freigeschaltet.")
+        : "")
+      || humanizeUserError(e)
+      || t("lohn.openFailed")
+      || "Buchhaltung nicht erreichbar";
+    showActionToast(msg, true);
   }
 }
 
@@ -3709,8 +3729,14 @@ function wireLohnDrawer() {
     openLohnSystem().catch(() => {});
   });
   $("topbarLohnBtn")?.addEventListener("click", () => {
-    if (!canShowLohnNavEntry()) return;
-    openLohnDrawer().catch(() => openLohnSystem().catch(() => {}));
+    if (!canShowLohnNavEntry()) {
+      showActionToast(t("error.forbidden") || "Keine Berechtigung", true);
+      return;
+    }
+    // Drawer for inbox; launch SSO from «Buchhaltung öffnen» / Schnellnavigation.
+    openLohnDrawer().catch((err) => {
+      showActionToast(humanizeUserError(err), true);
+    });
   });
   applyLohnNavVisibility(true);
   $("lohnDrawerBody")?.addEventListener("click", (ev) => {
