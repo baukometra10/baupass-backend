@@ -4023,7 +4023,7 @@ html[dir="rtl"] .lohn-drawer-panel {
 .payslip-studio {
   position: fixed;
   inset: 0;
-  z-index: 12000;
+  z-index: 12100; /* above lohn-drawer (12000) so leftover drawer never steals clicks */
   display: flex;
   align-items: stretch;
   justify-content: center;
@@ -4065,10 +4065,19 @@ body.payslip-studio-open {
   border-bottom: 1px solid #d8dee6;
   background: #fff;
   flex: 0 0 auto;
+  position: relative;
+  z-index: 30;
 }
 .payslip-studio-head-copy {
   min-width: 0;
   flex: 1 1 14rem;
+  position: relative;
+  z-index: 0;
+  pointer-events: none;
+}
+.payslip-studio-head-copy h2,
+.payslip-studio-head-copy p {
+  pointer-events: none;
 }
 .payslip-studio-head-actions {
   display: flex;
@@ -4076,6 +4085,9 @@ body.payslip-studio-open {
   gap: 0.4rem;
   align-items: center;
   justify-content: flex-end;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
 }
 .payslip-studio-head-actions .primary:disabled {
   opacity: 0.45;
@@ -4111,6 +4123,9 @@ body.payslip-studio-open {
   align-items: center;
   padding: 0.45rem 0.7rem 0.35rem;
   flex: 0 0 auto;
+  position: relative;
+  z-index: 8;
+  pointer-events: auto;
 }
 .payslip-list-search-row .payslip-archive-search {
   flex: 1 1 auto;
@@ -4214,10 +4229,19 @@ body.payslip-studio-open {
   position: relative;
 }
 .payslip-studio-layout.is-list-collapsed {
-  grid-template-columns: 2.4rem minmax(0, 1fr);
+  grid-template-columns: 2.4rem minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
 }
 .payslip-studio-layout.is-list-collapsed .payslip-studio-list {
-  display: none;
+  display: none !important;
+}
+.payslip-studio-layout.is-list-collapsed .payslip-studio-main {
+  grid-column: 2;
+  grid-row: 1;
+}
+.payslip-studio-layout.is-list-collapsed .payslip-list-expand-rail {
+  grid-column: 1;
+  grid-row: 1;
 }
 .payslip-list-pane-head {
   display: flex;
@@ -4225,6 +4249,9 @@ body.payslip-studio-open {
   gap: 0.25rem;
   flex: 0 0 auto;
   padding-right: 0.35rem;
+  position: relative;
+  z-index: 8;
+  pointer-events: auto;
 }
 .payslip-list-pane-head .payslip-inbox-tabs {
   flex: 1 1 auto;
@@ -4234,6 +4261,17 @@ body.payslip-studio-open {
   flex: 0 0 auto;
   min-width: 2rem;
   padding: 0.35rem 0.45rem;
+  position: relative;
+  z-index: 5;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.payslip-studio-head-actions button,
+.payslip-filters-toggle {
+  position: relative;
+  z-index: 5;
+  cursor: pointer;
+  pointer-events: auto;
 }
 .payslip-list-expand-rail {
   display: none;
@@ -4474,6 +4512,9 @@ body.theme-black .payslip-list-expand-rail {
   flex-direction: column;
   justify-content: flex-start;
   align-items: stretch;
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
 }
 .payslip-studio-pdf-wrap.is-scrollable-preview,
 .payslip-studio-pdf-wrap.is-sheet-doc {
@@ -4604,16 +4645,24 @@ body.payslip-overlay-open { overflow: hidden; }
   border-left: 1px solid #d8dee6;
   background: #fff;
   padding: 0.9rem;
+  position: relative;
+  z-index: 6;
+  pointer-events: auto;
 }
 .payslip-studio-actions {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   margin-top: 0.75rem;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
 }
 .payslip-studio-actions button,
 .payslip-studio-actions select {
   width: 100%;
+  pointer-events: auto;
+  cursor: pointer;
 }
 .payslip-studio-actions .primary:disabled,
 .payslip-studio-actions .primary.is-blocked {
@@ -4804,10 +4853,14 @@ body.theme-black .payslip-studio-side button:not(.primary) {
     flex-wrap: nowrap;
   }
   .payslip-studio-head h2 { font-size: 1.02rem; }
-  .payslip-studio-layout {
+  .payslip-studio-layout:not(.is-list-collapsed) {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(120px, 24vh) minmax(0, 1fr);
     overflow: hidden;
+  }
+  .payslip-studio-layout.is-list-collapsed {
+    grid-template-columns: 2.4rem minmax(0, 1fr) !important;
+    grid-template-rows: minmax(0, 1fr) !important;
   }
   .payslip-studio-list {
     min-height: 0;

@@ -1,4 +1,4 @@
-import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260820lohnStudio8";
+import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260820lohnStudio12";
 import { ensureLeafletLoaded, mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -1688,12 +1688,17 @@ const payslipStudioState = {
   inboxSeq: 0,
   previewFitReady: false,
   previewObserver: null,
+  fitting: false,
+  fitTimer: 0,
+  fitRaf: 0,
   archiveQuery: "",
   archiveStatus: "all",
   openFilter: "all",
   docTypeFilter: "all",
   filtersExpanded: false,
   listCollapsed: false,
+  chromeLock: "",
+  chromeLockAt: 0,
   archivePeriod: "",
   rematchedKeys: Object.create(null),
   previewZoom: 1,
@@ -1795,105 +1800,132 @@ function unlockPayslipIframeChrome(iframe) {
 }
 
 function fitPayslipPreview() {
+  if (payslipStudioState.fitting) return;
   const iframe = $("payslipStudioPdf");
   const stage = $("payslipSheetStage") || iframe?.closest?.(".payslip-sheet-stage");
   const wrap = iframe?.closest?.(".payslip-studio-pdf-wrap");
   if (!iframe || !stage || !wrap) return;
+  if (!isPayslipStudioOpen()) return;
   const toolbar = $("payslipPreviewToolbar");
   const wrapW = wrap.clientWidth || 0;
   const wrapH = Math.max(80, (wrap.clientHeight || 0) - (toolbar?.offsetHeight || 0));
   if (wrapW < 40 || wrapH < 40) return;
 
-  // Original Lohn PDFs: fill the pane and keep native PDF scroll/zoom.
-  if (payslipStudioState.previewKind === "pdf" || wrap.classList.contains("is-pdf-doc")) {
-    wrap.classList.add("is-scrollable-preview");
-    stage.style.width = "100%";
-    stage.style.height = "100%";
-    stage.style.maxWidth = "100%";
-    stage.style.maxHeight = "100%";
-    stage.style.aspectRatio = "auto";
-    stage.style.pointerEvents = "auto";
-    stage.style.overflow = "hidden";
-    iframe.style.position = "absolute";
-    iframe.style.inset = "0";
-    iframe.style.width = "100%";
-    iframe.style.height = "100%";
-    iframe.style.minHeight = "100%";
-    iframe.style.maxHeight = "none";
-    iframe.style.transform = "none";
-    iframe.style.overflow = "auto";
-    iframe.style.pointerEvents = "auto";
-    iframe.style.background = "#fff";
-    return;
-  }
-
-  // HTML sheets (Verdienst/LStB/Datev): fit by width, keep full height, scroll the pane.
-  unlockPayslipIframeChrome(iframe);
-  wrap.classList.add("is-scrollable-preview");
-  const pad = 16;
-  const availW = Math.max(80, wrapW - pad);
-  const zoom = Math.max(0.6, Math.min(2.2, Number(payslipStudioState.previewZoom) || 1));
-  let nw = PAYSLIP_A4_PX_W;
-  let nh = PAYSLIP_A4_PX_H;
+  payslipStudioState.fitting = true;
   try {
-    const doc = iframe.contentDocument;
-    if (doc) {
-      resetPayslipInnerScale(doc);
-      const sheet =
-        doc.querySelector("#datevSheetA4") ||
-        doc.querySelector(".datev-sheet-a4") ||
-        doc.querySelector(".verdienst-document") ||
-        doc.querySelector(".lstb-document") ||
-        doc.querySelector(".verdienst-sheet") ||
-        doc.querySelector(".lstb-sheet") ||
-        doc.body;
-      nw = Math.max(1, sheet.scrollWidth || sheet.offsetWidth || PAYSLIP_A4_PX_W);
-      nh = Math.max(1, sheet.scrollHeight || sheet.offsetHeight || PAYSLIP_A4_PX_H);
-      const widthScale = availW / nw;
-      const scale = widthScale * zoom;
-      sheet.style.transformOrigin = "top left";
-      sheet.style.transform = `scale(${scale})`;
-      const stageW = Math.max(1, Math.ceil(nw * scale));
-      const stageH = Math.max(1, Math.ceil(nh * scale));
-      stage.style.width = `${stageW}px`;
-      stage.style.height = `${stageH}px`;
-      stage.style.maxWidth = "none";
-      stage.style.maxHeight = "none";
+    // Original Lohn PDFs: fill the pane and keep native PDF scroll/zoom.
+    if (payslipStudioState.previewKind === "pdf" || wrap.classList.contains("is-pdf-doc")) {
+      wrap.classList.add("is-scrollable-preview");
+      stage.style.width = "100%";
+      stage.style.height = "100%";
+      stage.style.maxWidth = "100%";
+      stage.style.maxHeight = "100%";
       stage.style.aspectRatio = "auto";
       stage.style.pointerEvents = "auto";
-      stage.style.overflow = "visible";
+      stage.style.overflow = "hidden";
       iframe.style.position = "absolute";
       iframe.style.inset = "0";
-      iframe.style.width = `${stageW}px`;
-      iframe.style.height = `${stageH}px`;
-      iframe.style.minHeight = `${stageH}px`;
+      iframe.style.width = "100%";
+      iframe.style.height = "100%";
+      iframe.style.minHeight = "100%";
       iframe.style.maxHeight = "none";
       iframe.style.transform = "none";
-      iframe.style.overflow = "hidden";
+      iframe.style.overflow = "auto";
       iframe.style.pointerEvents = "auto";
       iframe.style.background = "#fff";
+      return;
     }
-  } catch {
-    const boxScale = Math.min(availW / PAYSLIP_A4_PX_W, 1) * zoom;
-    const stageW = Math.max(1, Math.floor(PAYSLIP_A4_PX_W * boxScale));
-    const stageH = Math.max(1, Math.floor(PAYSLIP_A4_PX_H * boxScale));
-    stage.style.width = `${stageW}px`;
-    stage.style.height = `${stageH}px`;
-    stage.style.pointerEvents = "auto";
-    iframe.style.width = `${stageW}px`;
-    iframe.style.height = `${stageH}px`;
-    iframe.style.pointerEvents = "auto";
+
+    // HTML sheets (Verdienst/LStB/Datev): fit by width, keep full height, scroll the pane.
+    unlockPayslipIframeChrome(iframe);
+    wrap.classList.add("is-scrollable-preview");
+    const pad = 16;
+    const availW = Math.max(80, wrapW - pad);
+    const zoom = Math.max(0.5, Math.min(2.5, Number(payslipStudioState.previewZoom) || 1));
+    let nw = PAYSLIP_A4_PX_W;
+    let nh = PAYSLIP_A4_PX_H;
+    try {
+      const doc = iframe.contentDocument;
+      if (doc) {
+        resetPayslipInnerScale(doc);
+        const sheet =
+          doc.querySelector("#datevSheetA4") ||
+          doc.querySelector(".datev-sheet-a4") ||
+          doc.querySelector(".verdienst-document") ||
+          doc.querySelector(".lstb-document") ||
+          doc.querySelector(".verdienst-sheet") ||
+          doc.querySelector(".lstb-sheet") ||
+          doc.body;
+        nw = Math.max(1, sheet.scrollWidth || sheet.offsetWidth || PAYSLIP_A4_PX_W);
+        nh = Math.max(1, sheet.scrollHeight || sheet.offsetHeight || PAYSLIP_A4_PX_H);
+        const widthScale = availW / nw;
+        const scale = widthScale * zoom;
+        sheet.style.transformOrigin = "top left";
+        sheet.style.transform = `scale(${scale})`;
+        const stageW = Math.max(1, Math.ceil(nw * scale));
+        const stageH = Math.max(1, Math.ceil(nh * scale));
+        // Avoid ResizeObserver thrash: only write when size actually changes.
+        const nextW = `${stageW}px`;
+        const nextH = `${stageH}px`;
+        if (stage.style.width !== nextW) stage.style.width = nextW;
+        if (stage.style.height !== nextH) stage.style.height = nextH;
+        stage.style.maxWidth = "none";
+        stage.style.maxHeight = "none";
+        stage.style.aspectRatio = "auto";
+        stage.style.pointerEvents = "auto";
+        stage.style.overflow = "visible";
+        iframe.style.position = "absolute";
+        iframe.style.inset = "0";
+        if (iframe.style.width !== nextW) iframe.style.width = nextW;
+        if (iframe.style.height !== nextH) iframe.style.height = nextH;
+        iframe.style.minHeight = nextH;
+        iframe.style.maxHeight = "none";
+        iframe.style.transform = "none";
+        iframe.style.overflow = "hidden";
+        iframe.style.pointerEvents = "auto";
+        iframe.style.background = "#fff";
+      }
+    } catch {
+      const boxScale = Math.min(availW / PAYSLIP_A4_PX_W, 1) * zoom;
+      const stageW = Math.max(1, Math.floor(PAYSLIP_A4_PX_W * boxScale));
+      const stageH = Math.max(1, Math.floor(PAYSLIP_A4_PX_H * boxScale));
+      stage.style.width = `${stageW}px`;
+      stage.style.height = `${stageH}px`;
+      stage.style.pointerEvents = "auto";
+      iframe.style.width = `${stageW}px`;
+      iframe.style.height = `${stageH}px`;
+      iframe.style.pointerEvents = "auto";
+    }
+    const zoomLabel = $("payslipZoomLabel");
+    if (zoomLabel) zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
+  } finally {
+    payslipStudioState.fitting = false;
   }
-  const zoomLabel = $("payslipZoomLabel");
-  if (zoomLabel) zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
 }
 
-function schedulePayslipPreviewFit() {
+function schedulePayslipPreviewFit(delayMs = 0) {
   ensurePayslipPreviewFit();
-  requestAnimationFrame(() => {
-    fitPayslipPreview();
-    requestAnimationFrame(fitPayslipPreview);
-  });
+  if (payslipStudioState.fitTimer) {
+    clearTimeout(payslipStudioState.fitTimer);
+    payslipStudioState.fitTimer = 0;
+  }
+  if (payslipStudioState.fitRaf) {
+    cancelAnimationFrame(payslipStudioState.fitRaf);
+    payslipStudioState.fitRaf = 0;
+  }
+  const run = () => {
+    payslipStudioState.fitTimer = 0;
+    payslipStudioState.fitRaf = requestAnimationFrame(() => {
+      payslipStudioState.fitRaf = 0;
+      fitPayslipPreview();
+    });
+  };
+  const wait = Math.max(0, Number(delayMs) || 0);
+  if (wait > 0) {
+    payslipStudioState.fitTimer = setTimeout(run, wait);
+  } else {
+    run();
+  }
 }
 
 function ensurePayslipPreviewFit() {
@@ -1901,9 +1933,12 @@ function ensurePayslipPreviewFit() {
   const wrap = $("payslipStudioPdf")?.closest?.(".payslip-studio-pdf-wrap");
   if (!wrap) return;
   payslipStudioState.previewFitReady = true;
-  window.addEventListener("resize", fitPayslipPreview);
+  window.addEventListener("resize", () => schedulePayslipPreviewFit(80));
   if (typeof ResizeObserver !== "undefined") {
-    payslipStudioState.previewObserver = new ResizeObserver(() => fitPayslipPreview());
+    payslipStudioState.previewObserver = new ResizeObserver(() => {
+      // Collapse/expand changes wrap size; debounce to avoid main-thread freezes.
+      schedulePayslipPreviewFit(90);
+    });
     payslipStudioState.previewObserver.observe(wrap);
   }
 }
@@ -2060,7 +2095,7 @@ function syncPayslipListCollapseChrome() {
       ? (t("lohn.listExpand") || "Liste öffnen")
       : (t("lohn.listCollapse") || "Liste einklappen");
   }
-  schedulePayslipPreviewFit();
+  schedulePayslipPreviewFit(120);
 }
 
 function setPayslipListCollapsed(next) {
@@ -2112,10 +2147,28 @@ function pushPayslipSessionAudit(entry) {
   if (payslipStudioState.auditOpen) renderPayslipAuditPanel();
 }
 
+const PAYSLIP_ZOOM_STEP = 0.1;
+const PAYSLIP_ZOOM_MIN = 0.5;
+const PAYSLIP_ZOOM_MAX = 2.5;
+
+function snapPayslipZoom(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 1;
+  const snapped = Math.round(n / PAYSLIP_ZOOM_STEP) * PAYSLIP_ZOOM_STEP;
+  return Math.max(PAYSLIP_ZOOM_MIN, Math.min(PAYSLIP_ZOOM_MAX, Math.round(snapped * 10) / 10));
+}
+
 function setPayslipPreviewZoom(next) {
-  const zoom = Math.max(0.6, Math.min(2.2, Number(next) || 1));
-  payslipStudioState.previewZoom = Math.round(zoom * 100) / 100;
-  schedulePayslipPreviewFit();
+  const zoom = snapPayslipZoom(next);
+  if (zoom === payslipStudioState.previewZoom) {
+    const zoomLabel = $("payslipZoomLabel");
+    if (zoomLabel) zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
+    return;
+  }
+  payslipStudioState.previewZoom = zoom;
+  const zoomLabel = $("payslipZoomLabel");
+  if (zoomLabel) zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
+  schedulePayslipPreviewFit(16);
 }
 
 async function loadPayslipAuditRows() {
@@ -2221,6 +2274,15 @@ function closePayslipReviewStudio() {
   el?.classList.remove("is-sheet-focus");
   el?.setAttribute("aria-hidden", "true");
   document.body.classList.remove("payslip-studio-open", "payslip-sheet-focus");
+  if (payslipStudioState.fitTimer) {
+    clearTimeout(payslipStudioState.fitTimer);
+    payslipStudioState.fitTimer = 0;
+  }
+  if (payslipStudioState.fitRaf) {
+    cancelAnimationFrame(payslipStudioState.fitRaf);
+    payslipStudioState.fitRaf = 0;
+  }
+  payslipStudioState.fitting = false;
   closePayslipSheetOverlay();
   try {
     if (document.fullscreenElement) {
@@ -3804,6 +3866,8 @@ async function refreshPayslipStudio({ keepSelection = false } = {}) {
 
 async function openPayslipReviewStudio(opts = {}) {
   closeLohnDrawer();
+  wireLohnDrawer();
+  bindPayslipStudioChromeButtons();
   if (!canAccessWorkpassLohnUi()) {
     showActionToast(t("error.forbidden") || "Keine Berechtigung", true);
     return;
@@ -3922,12 +3986,12 @@ async function handlePayslipStudioKeydown(ev) {
   }
   if (key === "+" || key === "=") {
     ev.preventDefault();
-    setPayslipPreviewZoom((Number(payslipStudioState.previewZoom) || 1) + 0.15);
+    setPayslipPreviewZoom((Number(payslipStudioState.previewZoom) || 1) + PAYSLIP_ZOOM_STEP);
     return;
   }
   if (key === "-" || key === "_") {
     ev.preventDefault();
-    setPayslipPreviewZoom((Number(payslipStudioState.previewZoom) || 1) - 0.15);
+    setPayslipPreviewZoom((Number(payslipStudioState.previewZoom) || 1) - PAYSLIP_ZOOM_STEP);
     return;
   }
   if (key === "[" || key === "]" || lower === "l") {
@@ -3966,7 +4030,97 @@ async function switchPayslipInbox(next) {
   if (seq !== payslipStudioState.inboxSeq) return;
 }
 
+function handlePayslipChromeAction(ui) {
+  const action = String(ui || "").trim();
+  if (!action) return;
+  // Collapse/filter are toggles — ignore duplicate events within the same click (capture+bubble).
+  const now = Date.now();
+  if (
+    (action === "collapse-list" || action === "toggle-filters" || action === "expand-list" || action === "audit")
+    && payslipStudioState.chromeLock === action
+    && now - (payslipStudioState.chromeLockAt || 0) < 320
+  ) {
+    return;
+  }
+  payslipStudioState.chromeLock = action;
+  payslipStudioState.chromeLockAt = now;
+
+  if (action === "collapse-list") {
+    togglePayslipListCollapsed();
+    showActionToast(
+      payslipStudioState.listCollapsed
+        ? (t("lohn.listCollapsedHint") || "Liste eingeklappt")
+        : (t("lohn.listExpandedHint") || "Liste geöffnet"),
+    );
+    return;
+  }
+  if (action === "expand-list") {
+    setPayslipListCollapsed(false);
+    showActionToast(t("lohn.listExpandedHint") || "Liste geöffnet");
+    return;
+  }
+  if (action === "toggle-filters") {
+    payslipStudioState.filtersExpanded = !payslipStudioState.filtersExpanded;
+    syncPayslipFiltersChrome();
+    if (payslipStudioState.filtersExpanded) {
+      $("payslipArchiveTools")?.scrollIntoView?.({ block: "nearest" });
+    }
+    return;
+  }
+  if (action === "pull") {
+    pullPayslipsFromLohn().catch((err) => showActionToast(humanizeUserError?.(err) || err?.message || "error", true));
+    return;
+  }
+  if (action === "audit") {
+    togglePayslipAuditPanel()
+      .then(() => {
+        if (payslipStudioState.auditOpen) {
+          $("payslipStudioAudit")?.scrollIntoView?.({ block: "nearest" });
+        }
+      })
+      .catch(() => {});
+    return;
+  }
+  if (action === "release-all") {
+    releaseAllReviewedPayslips().catch((err) => showActionToast(humanizeUserError?.(err) || err?.message || "error", true));
+    return;
+  }
+  if (action === "close") {
+    closePayslipReviewStudio();
+  }
+}
+
+/** Idempotent: uses onclick assignment so open/boot never stacks duplicate listeners. */
+function bindPayslipStudioChromeButtons() {
+  const bind = (id, ui) => {
+    const el = $(id);
+    if (!el) return;
+    if (!el.getAttribute("data-payslip-ui")) el.setAttribute("data-payslip-ui", ui);
+    el.onclick = (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      handlePayslipChromeAction(ui);
+    };
+  };
+  bind("payslipListCollapseBtn", "collapse-list");
+  bind("payslipListCollapseBtnPane", "collapse-list");
+  bind("payslipListExpandRail", "expand-list");
+  bind("payslipFiltersToggle", "toggle-filters");
+  bind("payslipStudioPullBtn", "pull");
+  bind("payslipStudioAuditBtn", "audit");
+  bind("payslipStudioReleaseAll", "release-all");
+  bind("payslipStudioClose", "close");
+}
+
 async function handlePayslipStudioClick(ev) {
+  const chromeBtn = ev.target?.closest?.("[data-payslip-ui]");
+  if (chromeBtn) {
+    // Prefer direct onclick; this is a fallback when events bubble from nested nodes.
+    ev.preventDefault();
+    ev.stopPropagation();
+    handlePayslipChromeAction(chromeBtn.getAttribute("data-payslip-ui"));
+    return;
+  }
   const inboxBtn = ev.target?.closest?.("[data-payslip-inbox]");
   if (inboxBtn) {
     await switchPayslipInbox(inboxBtn.getAttribute("data-payslip-inbox"));
@@ -3994,10 +4148,12 @@ async function handlePayslipStudioClick(ev) {
   }
   const zoomBtn = ev.target?.closest?.("[data-payslip-zoom]");
   if (zoomBtn) {
+    ev.preventDefault();
+    ev.stopPropagation();
     const mode = zoomBtn.getAttribute("data-payslip-zoom");
     const cur = Number(payslipStudioState.previewZoom) || 1;
-    if (mode === "in") setPayslipPreviewZoom(cur + 0.15);
-    else if (mode === "out") setPayslipPreviewZoom(cur - 0.15);
+    if (mode === "in") setPayslipPreviewZoom(cur + PAYSLIP_ZOOM_STEP);
+    else if (mode === "out") setPayslipPreviewZoom(cur - PAYSLIP_ZOOM_STEP);
     else setPayslipPreviewZoom(1);
     return;
   }
@@ -4602,35 +4758,28 @@ async function handleLohnDrawerAction(ev) {
 }
 
 function wireLohnDrawer() {
+  // Boot + login both call this; duplicate listeners make toggles (Liste/Filter) cancel themselves.
+  if (window.__workpassLohnUiWired) {
+    payslipStudioState.listCollapsed = readPayslipListCollapsed();
+    syncPayslipListCollapseChrome();
+    applyLohnNavVisibility(true);
+    return;
+  }
+  window.__workpassLohnUiWired = true;
+
   $("lohnDrawerClose")?.addEventListener("click", closeLohnDrawer);
   $("lohnDrawerBackdrop")?.addEventListener("click", closeLohnDrawer);
   $("lohnDrawerRefresh")?.addEventListener("click", () => openLohnDrawer().catch(() => {}));
   $("lohnDrawerPayslips")?.addEventListener("click", () => openPayslipReviewStudio().catch(() => {}));
   $("lohnDrawerPullPayslips")?.addEventListener("click", () => pullPayslipsFromLohn().catch(() => {}));
-  $("payslipStudioClose")?.addEventListener("click", () => closePayslipReviewStudio());
   $("payslipStudioBackdrop")?.addEventListener("click", () => closePayslipReviewStudio());
-  $("payslipStudioReleaseAll")?.addEventListener("click", () => {
-    releaseAllReviewedPayslips().catch((err) => showActionToast(humanizeUserError(err), true));
-  });
-  $("payslipStudioPullBtn")?.addEventListener("click", () => {
-    pullPayslipsFromLohn().catch((err) => showActionToast(humanizeUserError(err), true));
-  });
-  $("payslipStudioAuditBtn")?.addEventListener("click", () => {
-    togglePayslipAuditPanel().catch(() => {});
-  });
-  $("payslipFiltersToggle")?.addEventListener("click", () => {
-    payslipStudioState.filtersExpanded = !payslipStudioState.filtersExpanded;
-    syncPayslipFiltersChrome();
-  });
-  const toggleList = () => togglePayslipListCollapsed();
-  $("payslipListCollapseBtn")?.addEventListener("click", toggleList);
-  $("payslipListCollapseBtnPane")?.addEventListener("click", toggleList);
-  $("payslipListExpandRail")?.addEventListener("click", () => setPayslipListCollapsed(false));
   $("payslipAutoAdvance")?.addEventListener("change", (ev) => {
     payslipStudioState.autoAdvanceAfterSend = Boolean(ev.target?.checked);
   });
   payslipStudioState.listCollapsed = readPayslipListCollapsed();
   syncPayslipListCollapseChrome();
+  bindPayslipStudioChromeButtons();
+  // Inbox tabs: pointerdown for snappy switch; click still handled via studio delegation.
   $("payslipInboxTabs")?.addEventListener("pointerdown", (ev) => {
     const btn = ev.target?.closest?.("[data-payslip-inbox]");
     if (!btn) return;
@@ -4639,7 +4788,9 @@ function wireLohnDrawer() {
     switchPayslipInbox(btn.getAttribute("data-payslip-inbox")).catch((err) => toast(err?.message || "error", "error"));
   });
   $("payslipReviewStudio")?.addEventListener("click", (ev) => {
-    handlePayslipStudioClick(ev).catch((err) => toast(err?.message || "error", "error"));
+    handlePayslipStudioClick(ev).catch((err) => {
+      showActionToast(humanizeUserError?.(err) || err?.message || "error", true);
+    });
   });
   $("payslipReviewStudio")?.addEventListener("input", (ev) => {
     const q = ev.target?.closest?.("[data-payslip-archive-q]");
