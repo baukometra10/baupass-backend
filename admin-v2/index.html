@@ -34,7 +34,7 @@
   <link rel="shortcut icon" href="/branding/suppix-icon-192.png" id="adminAppFavicon" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
-  <link rel="stylesheet" href="styles.css?v=20260820lohnStudio5" />
+  <link rel="stylesheet" href="styles.css?v=20260820lohnStudio6" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" media="print" onload="this.media='all'" />
   <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" /></noscript>
   <!-- Leaflet JS loaded on demand in Tools/Geofencing — not on every Betrieb boot -->
@@ -581,13 +581,13 @@
         <div class="payslip-studio-head-copy">
           <h2 id="payslipStudioTitle" data-i18n="lohn.payslipReviewTitle">Lohnabrechnungen — Freigabe</h2>
           <p id="payslipStudioProgress" class="payslip-studio-progress muted small" aria-live="polite"></p>
-          <p id="payslipStudioMonthStats" class="muted small payslip-studio-month-stats" aria-live="polite"></p>
-          <p id="payslipStudioSyncStatus" class="muted small payslip-studio-sync" aria-live="polite"></p>
-          <p class="muted small payslip-studio-keys" data-i18n="lohn.payslipKeysHint">↑↓ navigieren · F Vollbild · Enter senden · R ablehnen · Esc schließen</p>
+          <p id="payslipStudioMetaLine" class="muted small payslip-studio-meta-line" aria-live="polite"></p>
         </div>
         <div class="payslip-studio-head-actions">
-          <button type="button" id="payslipStudioPullBtn" data-i18n="lohn.pullPayslips">Abrechnungen von Lohn holen</button>
-          <button type="button" id="payslipStudioAuditBtn" data-i18n="lohn.auditToggle">Protokoll</button>
+          <div class="payslip-studio-head-secondary">
+            <button type="button" id="payslipStudioPullBtn" class="ghost" data-i18n="lohn.pullPayslipsShort">Von Lohn holen</button>
+            <button type="button" id="payslipStudioAuditBtn" class="ghost" data-i18n="lohn.auditToggle">Protokoll</button>
+          </div>
           <button type="button" id="payslipStudioReleaseAll" class="primary" disabled data-i18n="lohn.releaseReviewed">Alle geprüften senden</button>
           <button type="button" id="payslipStudioClose" class="ghost" data-i18n="common.close">Schließen</button>
         </div>
@@ -598,12 +598,16 @@
             <button type="button" class="is-active" data-payslip-inbox="open" data-i18n="lohn.inboxOpen">Offen</button>
             <button type="button" data-payslip-inbox="archive" data-i18n="lohn.inboxArchive">Archiv</button>
           </div>
-          <div id="payslipArchiveTools" class="payslip-archive-tools">
-            <div class="payslip-archive-stats" id="payslipArchiveStats"></div>
+          <div class="payslip-list-search-row">
             <input type="search" id="payslipArchiveSearch" class="payslip-archive-search" data-payslip-archive-q autocomplete="off" />
+            <button type="button" id="payslipFiltersToggle" class="ghost payslip-filters-toggle" aria-expanded="false" data-i18n="lohn.filtersToggle">Filter</button>
+          </div>
+          <div id="payslipArchiveTools" class="payslip-archive-tools is-collapsed">
+            <div class="payslip-archive-stats" id="payslipArchiveStats"></div>
             <div class="payslip-archive-filters" id="payslipArchiveFilters"></div>
             <div class="payslip-archive-filters payslip-doctype-filters" id="payslipDocTypeFilters"></div>
             <select id="payslipArchivePeriod" class="payslip-archive-period" data-payslip-archive-period></select>
+            <p class="muted small payslip-studio-keys" data-i18n="lohn.payslipKeysHint">↑↓ · F · Enter · R · Esc</p>
           </div>
           <div id="payslipStudioList" class="payslip-list-scroll"></div>
         </aside>
@@ -640,7 +644,7 @@
   <script src="/embed-helpers.js?v=20260819embed18"></script>
   <script src="/control-pass-theme.js?v=20260705a"></script>
   <script src="/sector-copy.js?v=20260818opsSector3"></script>
-  <script src="app.js?v=20260820lohnStudio5" type="module"></script>
+  <script src="app.js?v=20260820lohnStudio6" type="module"></script>
   <script>
     // Realtime/chat/voice CDNs must not block Geofencing / Tools first paint.
     (function deferAdminRealtime() {

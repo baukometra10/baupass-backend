@@ -26,6 +26,9 @@ def test_normalize_doc_type_tax_aliases():
     assert normalize_doc_type("payslip") == "lohnabrechnung"
     assert normalize_doc_type("vordienstbescheinigung") == "vordienstbescheinigung"
     assert normalize_doc_type("jahresabrechnung") == "jahresabrechnung"
+    assert normalize_doc_type("jahreskonto") == "jahresabrechnung"
+    assert normalize_doc_type("annual_account_statement") == "jahresabrechnung"
+    assert normalize_doc_type("Kontoauszug") == "jahresabrechnung"
 
 
 def test_infer_payroll_doc_type_from_title():
@@ -34,9 +37,11 @@ def test_infer_payroll_doc_type_from_title():
     assert infer_payroll_doc_type_from_title("Vordienstbescheinigung Max Mustermann") == "vordienstbescheinigung"
     assert infer_payroll_doc_type_from_title("Verdienstbescheinigung") == "verdienstbescheinigung"
     assert infer_payroll_doc_type_from_title("Jahresabrechnung 2025") == "jahresabrechnung"
+    assert infer_payroll_doc_type_from_title("Jahreskonto 2025") == "jahresabrechnung"
+    assert infer_payroll_doc_type_from_title("Kontoauszug 2025") == "jahresabrechnung"
     assert infer_payroll_doc_type_from_title("Monatsabrechnung März 2026") == "lohnabrechnung"
     assert infer_payroll_doc_type_from_title("كشف حساب سنوي") == "jahresabrechnung"
-
+    assert infer_payroll_doc_type_from_title("كشف الحساب السنوي") == "jahresabrechnung"
 
 def test_resolve_preserves_exact_title():
     from backend.app.platform.worker_documents import display_document_label, resolve_document_title

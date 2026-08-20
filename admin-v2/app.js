@@ -1,4 +1,4 @@
-import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260820lohnStudio5";
+import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260820lohnStudio6";
 import { ensureLeafletLoaded, mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -1692,6 +1692,7 @@ const payslipStudioState = {
   archiveStatus: "all",
   openFilter: "all",
   docTypeFilter: "all",
+  filtersExpanded: false,
   archivePeriod: "",
   rematchedKeys: Object.create(null),
   previewZoom: 1,
@@ -1945,26 +1946,27 @@ function readPayslipPullResult() {
 }
 
 function updatePayslipSyncChrome() {
-  const el = $("payslipStudioSyncStatus");
-  if (!el) return;
-  const last = readPayslipPullResult();
-  const cid = String(activeCompanyId() || "");
-  if (!last || (last.companyId && cid && last.companyId !== cid)) {
-    el.textContent = t("lohn.syncNever") || "Noch nicht von WorkPass Lohn geholt in dieser Sitzung.";
-    return;
+  // Sync text is merged into the compact meta line by updatePayslipStudioChrome.
+  return;
+}
+
+function syncPayslipFiltersChrome() {
+  const tools = $("payslipArchiveTools");
+  const toggle = $("payslipFiltersToggle");
+  const expanded = Boolean(payslipStudioState.filtersExpanded);
+  tools?.classList.toggle("is-collapsed", !expanded);
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+    toggle.classList.toggle("is-active", expanded);
+    const active =
+      (payslipStudioState.openFilter && payslipStudioState.openFilter !== "all")
+      || (payslipStudioState.archiveStatus && payslipStudioState.archiveStatus !== "all")
+      || (payslipStudioState.docTypeFilter && payslipStudioState.docTypeFilter !== "all")
+      || Boolean(payslipStudioState.archivePeriod);
+    const base = t("lohn.filtersToggle") || "Filter";
+    toggle.textContent = active ? `${base} ·` : base;
+    toggle.classList.toggle("has-active-filters", Boolean(active));
   }
-  const mins = Math.max(0, Math.round((Date.now() - Number(last.at || 0)) / 60000));
-  const when =
-    mins <= 0
-      ? (t("lohn.syncJustNow") || "gerade eben")
-      : (t("lohn.syncMinutesAgo", { n: String(mins) }) || `vor ${mins} Min.`);
-  el.textContent =
-    t("lohn.syncStatus", {
-      when,
-      created: String(last.created || 0),
-      pending: String(last.pending || 0),
-    })
-    || `Letzter Abruf ${when} · neu ${last.created || 0} · offen ${last.pending || 0}`;
 }
 
 function normalizePayslipDocKind(stmt) {
@@ -1978,6 +1980,9 @@ function normalizePayslipDocKind(stmt) {
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
+  if (/jahreskonto|jahresabrechnung|jahresabschluss|jahresverdienst|kontoauszug|annual.?account|annual.?statement|year.?end|yearend|سنوي/.test(raw)) {
+    return "jahres";
+  }
   if (/verdienst|earnings.?cert|certificate.?of.?earnings/.test(raw)) return "verdienst";
   if (/lstb|lohnsteuer|steuerbescheinigung|tax.?certificate/.test(raw)) return "lstb";
   if (/lohnabrechnung|gehaltsabrechnung|payslip|abrechnung|lohnblatt/.test(raw)) return "payslip";
@@ -1986,6 +1991,7 @@ function normalizePayslipDocKind(stmt) {
 }
 
 function payslipDocKindLabel(kind) {
+  if (kind === "jahres") return t("lohn.docJahres") || "Jahreskonto";
   if (kind === "verdienst") return t("lohn.docVerdienst") || "Verdienstbescheinigung";
   if (kind === "lstb") return t("lohn.docLstb") || "Lohnsteuerbescheinigung";
   if (kind === "other") return t("lohn.docOther") || "Sonstige";
@@ -2852,6 +2858,7 @@ function renderPayslipDocTypeFilters(batches) {
     ["all", t("lohn.docFilterAll") || "Alle Typen"],
     ["payslip", t("lohn.docPayslip") || "Lohnabrechnung"],
     ["verdienst", t("lohn.docVerdienst") || "Verdienst"],
+    ["jahres", t("lohn.docJahres") || "Jahreskonto"],
     ["lstb", t("lohn.docLstb") || "LStB"],
     ["other", t("lohn.docOther") || "Sonstige"],
   ].filter(([id]) => id === "all" || counts[id]);
@@ -2933,31 +2940,41 @@ function updatePayslipStudioChrome() {
         ? (t("lohn.releaseReviewedN", { n: String(readyN) }) || `Alle geprüften senden (${readyN})`)
         : (t("lohn.releaseReviewed") || "Alle geprüften senden");
   }
-  const monthEl = $("payslipStudioMonthStats");
+  const monthEl = $("payslipStudioMetaLine");
   if (monthEl) {
-    if (payslipStudioState.inbox === "archive") {
-      monthEl.textContent = "";
-    } else {
+    const parts = [];
+    if (payslipStudioState.inbox !== "archive") {
       const { byPeriod, periods, weak } = computePayslipMonthStats();
-      if (!periods.length) {
-        monthEl.textContent = "";
-      } else {
-        const parts = periods.map((p) => {
-          const row = byPeriod[p];
-          return t("lohn.monthStatRow", {
+      for (const p of periods.slice(0, 2)) {
+        const row = byPeriod[p];
+        parts.push(
+          t("lohn.monthStatRow", {
             period: p,
             total: String(row.total),
             ready: String(row.ready),
-          }) || `${p}: ${row.total} offen · ${row.ready} bereit`;
-        });
-        if (weak > 0) {
-          parts.push(t("lohn.monthStatHints", { n: String(weak) }) || `${weak} Hinweise`);
-        }
-        monthEl.textContent = parts.join(" · ");
+          }) || `${p}: ${row.total}/${row.ready}`,
+        );
+      }
+      if (weak > 0) {
+        parts.push(t("lohn.monthStatHints", { n: String(weak) }) || `${weak} Hinweise`);
       }
     }
+    const last = readPayslipPullResult();
+    const cid = String(activeCompanyId() || "");
+    if (last && (!last.companyId || !cid || last.companyId === cid)) {
+      const mins = Math.max(0, Math.round((Date.now() - Number(last.at || 0)) / 60000));
+      const when =
+        mins <= 0
+          ? (t("lohn.syncJustNow") || "gerade eben")
+          : (t("lohn.syncMinutesAgo", { n: String(mins) }) || `vor ${mins} Min.`);
+      parts.push(
+        t("lohn.syncStatusShort", { when, created: String(last.created || 0) })
+          || `Abruf ${when}`,
+      );
+    }
+    monthEl.textContent = parts.join(" · ");
   }
-  updatePayslipSyncChrome();
+  syncPayslipFiltersChrome();
   const auto = $("payslipAutoAdvance");
   if (auto) auto.checked = payslipStudioState.autoAdvanceAfterSend !== false;
 }
@@ -3055,7 +3072,7 @@ function renderPayslipStudioList() {
       const bid = String(batch.id || "");
       const stmts = Array.isArray(batch.statements) ? batch.statements : [];
       const releasable = Number(batch.releasableCount || 0);
-      const kindOrder = ["payslip", "verdienst", "lstb", "other"];
+      const kindOrder = ["payslip", "verdienst", "jahres", "lstb", "other"];
       const byKind = Object.create(null);
       for (const s of stmts) {
         const kind = normalizePayslipDocKind(s);
@@ -3409,6 +3426,7 @@ function statementPrefersPdfPreview(stmt) {
     "verdienstabrechnung",
     "vordienstbescheinigung",
     "lohnsteuerbescheinigung",
+    "jahresabrechnung",
   ]);
   // Stubs / platform-rebuilt Form VB+LStB → HTML sheet matching WorkPass Lohn print.
   if (
@@ -3548,6 +3566,7 @@ async function selectPayslipStatement(batchId, statementId) {
       "verdienstabrechnung",
       "vordienstbescheinigung",
       "lohnsteuerbescheinigung",
+      "jahresabrechnung",
     ]);
     const preferCertSheet =
       certTypes.has(docType)
@@ -4479,6 +4498,10 @@ function wireLohnDrawer() {
   });
   $("payslipStudioAuditBtn")?.addEventListener("click", () => {
     togglePayslipAuditPanel().catch(() => {});
+  });
+  $("payslipFiltersToggle")?.addEventListener("click", () => {
+    payslipStudioState.filtersExpanded = !payslipStudioState.filtersExpanded;
+    syncPayslipFiltersChrome();
   });
   $("payslipAutoAdvance")?.addEventListener("change", (ev) => {
     payslipStudioState.autoAdvanceAfterSend = Boolean(ev.target?.checked);
