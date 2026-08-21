@@ -158,6 +158,7 @@ def partner_readiness_summary(db, company_id: str) -> dict[str, Any]:
         tech_score += 5
     return {
         "ok": True,
+        "companyId": str(company_id),
         "technicalPercent": min(100, tech_score),
         "officiallyCertified": False,
         "programs": by_program,

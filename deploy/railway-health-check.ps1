@@ -62,6 +62,20 @@ $dr = Test-Endpoint "/api/health/dr"
 if ($dr -and -not $dr.ok) {
     Write-Host "  WARNING: DR posture degraded (backup age / postgres / replica)" -ForegroundColor Yellow
 }
+$caps = Test-Endpoint "/api/platform/capabilities"
+if ($caps) {
+    $ha = $caps.ha
+    if (-not $ha -and $caps.platform) { $ha = $caps.platform.ha }
+    if ($ha) {
+        $score = [int]($ha.score)
+        $color = if ($score -ge 95) { "Green" } elseif ($score -ge 70) { "Yellow" } else { "Red" }
+        Write-Host ("  HA score: {0} level={1}" -f $score, $ha.level) -ForegroundColor $color
+        if ($score -lt 95) {
+            Write-Host "  HINT: run python backend/ops/railway_ha_verify.py --base-url $BaseUrl" -ForegroundColor Cyan
+            Write-Host "        See docs/ops/railway-ha-cutover.md" -ForegroundColor Cyan
+        }
+    }
+}
 Test-Endpoint "/api/v1/public/health" | Out-Null
 Test-Endpoint "/worker-build.json" | Out-Null
 

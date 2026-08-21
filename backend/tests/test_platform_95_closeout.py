@@ -267,6 +267,52 @@ class PersonioZapierPartnerTests(unittest.TestCase):
             self.assertEqual(fe.decrypt_text(enc), "secret-token")
             fe._fernet = False
 
+    def test_personio_webhook_handler_maps_absence(self):
+        from backend.app.platform.enterprise.personio import handle_personio_webhook
+
+        tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        tmp.close()
+        db = sqlite3.connect(tmp.name)
+        db.row_factory = sqlite3.Row
+        db.executescript(
+            """
+            CREATE TABLE workers (
+                id TEXT PRIMARY KEY, company_id TEXT, first_name TEXT, last_name TEXT,
+                contact_email TEXT, status TEXT, role TEXT, site TEXT, valid_until TEXT,
+                photo_data TEXT, badge_id TEXT, deleted_at TEXT
+            );
+            CREATE TABLE leave_requests (
+                id TEXT PRIMARY KEY, worker_id TEXT, company_id TEXT, type TEXT,
+                start_date TEXT, end_date TEXT, days_count INTEGER, note TEXT,
+                status TEXT, created_at TEXT
+            );
+            INSERT INTO workers VALUES ('w1','c1','A','B','a@b.c','aktiv','worker','','','','PN-42',NULL);
+            """
+        )
+        db.commit()
+        result = handle_personio_webhook(
+            db,
+            "c1",
+            {
+                "data": [
+                    {
+                        "type": "TimeOff",
+                        "id": "abs-9",
+                        "attributes": {
+                            "start_date": {"value": "2026-09-01"},
+                            "end_date": {"value": "2026-09-03"},
+                            "status": {"value": "approved"},
+                            "employee": {"id": "42"},
+                        },
+                    }
+                ]
+            },
+        )
+        self.assertTrue(result.get("ok"))
+        self.assertEqual((result.get("absences") or {}).get("created"), 1)
+        db.close()
+        Path(tmp.name).unlink(missing_ok=True)
+
     def test_ipaas_catalog_and_sign(self):
         from backend.app.platform.enterprise.zapier_make import ipaas_catalog, sign_payload
 

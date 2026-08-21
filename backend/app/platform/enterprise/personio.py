@@ -404,4 +404,69 @@ def personio_status(config: dict[str, Any] | None = None) -> dict[str, Any]:
         "connected": bool((config or {}).get("oauth", {}).get("token") or (config or {}).get("token")),
         "live": bool(personio_feature_enabled() and personio_env_configured()),
         "writeback": True,
+        "webhookConfigured": bool(
+            (os.getenv("PERSONIO_WEBHOOK_SECRET") or "").strip()
+            or (config or {}).get("webhook_secret")
+        ),
+    }
+
+
+def verify_personio_webhook(*, secret: str, body: bytes, signature_header: str) -> bool:
+    """Constant-time compare of shared secret or HMAC-SHA256 hex of body."""
+    import hashlib
+    import hmac
+
+    expected = str(secret or "").strip()
+    provided = str(signature_header or "").strip()
+    if not expected or not provided:
+        return False
+    if hmac.compare_digest(provided, expected):
+        return True
+    digest = hmac.new(expected.encode("utf-8"), body or b"", hashlib.sha256).hexdigest()
+    variants = {digest, f"sha256={digest}", digest.upper(), f"sha256={digest.upper()}"}
+    return any(hmac.compare_digest(provided, v) for v in variants)
+
+
+def handle_personio_webhook(db, company_id: str, payload: dict[str, Any] | list[Any]) -> dict[str, Any]:
+    """Apply Personio webhook payload (employees / time-offs) to local tables."""
+    items: list[Any]
+    if isinstance(payload, list):
+        items = payload
+    elif isinstance(payload, dict):
+        data = payload.get("data")
+        if isinstance(data, list):
+            items = data
+        elif isinstance(data, dict):
+            items = [data]
+        else:
+            items = [payload]
+    else:
+        return {"ok": False, "error": "invalid_payload"}
+
+    employees: list[dict[str, Any]] = []
+    absences: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        type_hint = str(item.get("type") or item.get("event") or "").lower()
+        attrs = item.get("attributes") if isinstance(item.get("attributes"), dict) else {}
+        looks_absence = (
+            "time-off" in type_hint
+            or "absence" in type_hint
+            or "time_off" in type_hint
+            or "start_date" in attrs
+            or item.get("startDate")
+        )
+        if looks_absence:
+            absences.append(map_personio_absence(item))
+        else:
+            employees.append(map_personio_employee(item))
+
+    emp_write = upsert_personio_workers(db, company_id, employees) if employees else {"ok": True, "created": 0, "updated": 0, "skipped": 0}
+    abs_write = upsert_personio_absences(db, company_id, absences) if absences else {"ok": True, "created": 0, "updated": 0, "skipped": 0, "conflicts": []}
+    return {
+        "ok": True,
+        "employees": emp_write,
+        "absences": abs_write,
+        "conflictCount": len(abs_write.get("conflicts") or []),
     }

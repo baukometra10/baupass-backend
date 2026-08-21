@@ -96,6 +96,7 @@ class SamlSignatureTest(unittest.TestCase):
     def setUp(self):
         os.environ.pop("BAUPASS_SAML_ALLOW_UNSIGNED", None)
         os.environ.pop("BAUPASS_SAML_SKIP_SIGNATURE_VERIFY", None)
+        os.environ.pop("BAUPASS_SAML_USE_SIGNXML", None)
         os.environ.pop("BAUPASS_ENV", None)
         self.key, self.cert, self.pem = _idp_material()
         self.cfg = {
@@ -196,6 +197,30 @@ class SamlSignatureTest(unittest.TestCase):
         # Sign only the good assertion — evil sibling remains unsigned → wrapping reject.
         signed = sign_saml_xml_for_tests(xml, self.key, self.cert)
         self.assertEqual(verify_saml_xml_signature(signed, self.pem), "assertion_wrapping_rejected")
+
+    def test_signxml_flag_reports_missing_package(self):
+        old = os.environ.get("BAUPASS_SAML_USE_SIGNXML")
+        os.environ["BAUPASS_SAML_USE_SIGNXML"] = "1"
+        try:
+            import importlib.util
+
+            xml = _unsigned_response(
+                req_id="_req1",
+                assertion_id="_a1",
+                entity=self.cfg["entity_id"],
+                acs=self.cfg["acs_url"],
+            )
+            signed = sign_saml_xml_for_tests(xml, self.key, self.cert)
+            result = verify_saml_xml_signature(signed, self.pem)
+            if importlib.util.find_spec("signxml") is None:
+                self.assertEqual(result, "signxml_not_installed")
+            else:
+                self.assertIsNone(result)
+        finally:
+            if old is None:
+                os.environ.pop("BAUPASS_SAML_USE_SIGNXML", None)
+            else:
+                os.environ["BAUPASS_SAML_USE_SIGNXML"] = old
 
 
 class SamlRoutesTest(unittest.TestCase):

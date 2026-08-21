@@ -37,13 +37,24 @@ Goal: remove SQLite/`/data` single-node risk and reach dual-replica safe HA.
    - `GET /api/health/queues`
    - `GET /api/health/dr`
    - `GET /api/platform/capabilities` → `ha.score` ≥ 95 when all checks pass
+   - Or one-shot:
+     ```bash
+     python backend/ops/railway_ha_verify.py --base-url https://YOUR.up.railway.app
+     ```
 8. Optional scheduled dumps: `BAUPASS_PG_DR_SNAPSHOT_SCHEDULE=1`
 9. Off-volume DR dump upload (recommended with S3):
    - `BAUPASS_PG_DR_UPLOAD_S3=1`
    - same `S3_*` credentials as media storage
 10. Optional SAML SignXML: `pip install -r backend/requirements-optional.txt` + `BAUPASS_SAML_USE_SIGNXML=1`
+    (fail-closed: do not enable the flag until SignXML is installed in the image)
+11. Personio live webhook (optional):
+    - `BAUPASS_PERSONIO_ENABLED=1`
+    - `PERSONIO_WEBHOOK_SECRET=…`
+    - Point Personio to `POST /api/integrations/personio/webhook?company_id=…`
+      with header `X-Personio-Signature` = shared secret or HMAC-SHA256 hex of body
 
 ## Never
 
 - Do not set web replicas > 1 while runtime is still SQLite.
 - Do not delete `/data` until `SUPPIX_PG_REQUIRED=1` and backups are verified.
+- Do not set `BAUPASS_SAML_USE_SIGNXML=1` without installing `signxml` (login will fail closed).

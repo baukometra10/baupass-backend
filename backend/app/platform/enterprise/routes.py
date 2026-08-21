@@ -1255,6 +1255,41 @@ def register_enterprise_routes(flask_app):
         result = sync_personio_to_workers(get_db(), _company_id(), data)
         return jsonify(result), (200 if result.get("ok") else 400)
 
+    @enterprise_bp.post("/integrations/personio/webhook")
+    def personio_webhook_route():
+        """Inbound Personio webhook — HMAC or shared secret; no session auth."""
+        from backend.server import get_db
+        from .personio import (
+            handle_personio_webhook,
+            personio_feature_enabled,
+            verify_personio_webhook,
+        )
+
+        if not personio_feature_enabled():
+            return jsonify({"error": "personio_disabled"}), 403
+        cid = str(request.args.get("company_id") or request.headers.get("X-Company-Id") or "").strip()
+        if not cid:
+            return jsonify({"error": "missing_company"}), 400
+        secret = (os.getenv("PERSONIO_WEBHOOK_SECRET") or "").strip()
+        if not secret:
+            return jsonify({"error": "webhook_secret_missing", "hint": "Set PERSONIO_WEBHOOK_SECRET"}), 503
+        raw = request.get_data() or b""
+        sig = (
+            request.headers.get("X-Personio-Signature")
+            or request.headers.get("X-Baupass-Signature")
+            or request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        )
+        if not verify_personio_webhook(secret=secret, body=raw, signature_header=sig):
+            return jsonify({"error": "invalid_signature"}), 401
+        payload = request.get_json(silent=True)
+        if payload is None:
+            try:
+                payload = json.loads(raw.decode("utf-8") or "{}")
+            except Exception:
+                return jsonify({"error": "invalid_json"}), 400
+        result = handle_personio_webhook(get_db(), cid, payload)
+        return jsonify(result), (200 if result.get("ok") else 400)
+
     @enterprise_bp.get("/integrations/ipaas/catalog")
     @require_auth
     @require_roles("superadmin", "company-admin")

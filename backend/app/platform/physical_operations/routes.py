@@ -1115,12 +1115,16 @@ def register_physical_operations(flask_app) -> None:
         from backend.app.platform.physical_operations.camera_legal import set_camera_legal
 
         data = request.get_json(silent=True) or {}
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "missing_company"}), 400
+        # Never trust body companyId (IDOR); scope is always the auth company / preview.
         scope = data.get("scopeJson")
         if not isinstance(scope, str):
             scope = json.dumps(data.get("scope") or [], ensure_ascii=False)
         result = set_camera_legal(
             get_db(),
-            _cid() or str(data.get("companyId") or ""),
+            cid,
             recording_enabled=bool(data.get("recordingEnabled")),
             legal_ack=bool(data.get("legalAck")),
             actor=str(g.current_user.get("id") or g.current_user.get("email") or ""),
