@@ -359,6 +359,35 @@
         <p class="muted cw-msg" id="cwSettingsMsg"></p>
 
         <details class="cw-acc" open>
+          <summary>Kamera-Aufzeichnung — Rechtsgrundlage (DSGVO)</summary>
+          <p class="muted" id="cwCameraLegalStatus">Lade Rechtsstatus…</p>
+          <form id="cwCameraLegalForm" class="cw-fields">
+            <label><span>Aufzeichnung freigeben</span>
+              <select name="recordingEnabled">
+                <option value="0">Nein</option>
+                <option value="1">Ja</option>
+              </select>
+            </label>
+            <label class="full"><span>Rechtsgrundlage (Text)</span>
+              <input name="legalBasisText" placeholder="z. B. §26 BDSG / Betriebsvereinbarung Nr. …" required />
+            </label>
+            <label><span>Gültig bis (ISO, optional)</span>
+              <input name="validUntil" placeholder="2027-12-31T23:59:59Z" />
+            </label>
+            <label class="full">
+              <span class="cw-check">
+                <input type="checkbox" name="legalAck" value="1" />
+                Ich bestätige als Geschäftsführung / Datenschutzbeauftragter die Rechtsgrundlage für Kamera-Aufzeichnung und Evidenzspeicherung.
+              </span>
+            </label>
+          </form>
+          <div class="cw-actions">
+            <button type="button" class="primary" id="cwSaveCameraLegal">Rechtsgrundlage speichern</button>
+          </div>
+          <p class="muted cw-msg" id="cwCameraLegalMsg"></p>
+        </details>
+
+        <details class="cw-acc" open>
           <summary>Webhook-Wizard (Teams / Slack / Wachdienst)</summary>
           <ol class="muted cw-wizard-list">
             <li>Incoming-Webhook in Teams/Slack erstellen (URL kopieren).</li>
@@ -421,6 +450,6 @@
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="/workpass-storage.js?v=20260818wp8"></script>
   <script src="/control-pass-theme.js?v=20260705a"></script>
-  <script src="/admin-v2/camera-watch-app.js?v=20260817close1"></script>
+  <script src="/admin-v2/camera-watch-app.js?v=20260821p95"></script>
 </body>
 </html>

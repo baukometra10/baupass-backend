@@ -113,29 +113,42 @@ def refresh_datev_token(refresh_token: str) -> dict[str, Any]:
 
 def ensure_datev_access_token(config: dict[str, Any]) -> dict[str, Any]:
     """Return a usable access token, refreshing when expired."""
-    oauth = dict((config or {}).get("oauth") or {})
+    from backend.app.platform.enterprise.integration_oauth import extract_oauth_config, merge_oauth_config
+
+    oauth = extract_oauth_config(config or {})
     access = str(oauth.get("access_token") or "").strip()
     refresh = str(oauth.get("refresh_token") or "").strip()
-    obtained = int(oauth.get("obtained_at") or 0)
+    obtained_raw = oauth.get("obtained_at") or oauth.get("updated_at") or 0
+    try:
+        obtained = int(obtained_raw)
+    except (TypeError, ValueError):
+        obtained = 0
     expires_in = int(oauth.get("expires_in") or 3600)
     now = int(time.time())
     if access and obtained and (obtained + max(60, expires_in - 120)) > now:
-        return {"ok": True, "access_token": access, "refreshed": False, "oauth": oauth}
+        return {"ok": True, "access_token": access, "refreshed": False, "oauth": (config or {}).get("oauth") or {}}
     if not refresh:
         if access:
-            return {"ok": True, "access_token": access, "refreshed": False, "oauth": oauth}
+            return {"ok": True, "access_token": access, "refreshed": False, "oauth": (config or {}).get("oauth") or {}}
         return {"ok": False, "error": "datev_not_connected"}
     refreshed = refresh_datev_token(refresh)
     if not refreshed.get("ok"):
         return refreshed
     tokens = dict(refreshed.get("tokens") or {})
-    oauth.update(tokens)
-    oauth["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    return {"ok": True, "access_token": tokens.get("access_token"), "refreshed": True, "oauth": oauth}
+    merged = merge_oauth_config(config or {}, tokens)
+    plain = extract_oauth_config(merged)
+    return {
+        "ok": True,
+        "access_token": plain.get("access_token"),
+        "refreshed": True,
+        "oauth": merged.get("oauth") or {},
+    }
 
 
 def datev_status_from_config(config: dict[str, Any]) -> dict[str, Any]:
-    oauth = dict((config or {}).get("oauth") or {})
+    from backend.app.platform.enterprise.integration_oauth import extract_oauth_config
+
+    oauth = extract_oauth_config(config or {})
     connected = bool(oauth.get("access_token") or oauth.get("refresh_token"))
     return {
         "provider": "datev",

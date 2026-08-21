@@ -1,0 +1,3 @@
+# Optional extras (not required for core platform boot)
+# SAML SignXML hardening — see docs/ops/saml-signxml.md
+signxml>=4.0.3

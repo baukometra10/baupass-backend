@@ -207,6 +207,66 @@ class PersonioZapierPartnerTests(unittest.TestCase):
         db.close()
         Path(tmp.name).unlink(missing_ok=True)
 
+    def test_personio_absence_conflict_keeps_local(self):
+        from backend.app.platform.enterprise.personio import upsert_personio_absences
+
+        tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        tmp.close()
+        db = sqlite3.connect(tmp.name)
+        db.row_factory = sqlite3.Row
+        db.executescript(
+            """
+            CREATE TABLE workers (
+                id TEXT PRIMARY KEY, company_id TEXT, first_name TEXT, last_name TEXT,
+                contact_email TEXT, status TEXT, role TEXT, site TEXT, valid_until TEXT,
+                photo_data TEXT, badge_id TEXT, deleted_at TEXT
+            );
+            CREATE TABLE leave_requests (
+                id TEXT PRIMARY KEY, worker_id TEXT, company_id TEXT, type TEXT,
+                start_date TEXT, end_date TEXT, days_count INTEGER, note TEXT,
+                status TEXT, created_at TEXT
+            );
+            INSERT INTO workers VALUES ('w1','c1','A','B','a@b.c','aktiv','worker','','','','PN-9',NULL);
+            INSERT INTO leave_requests VALUES (
+                'lr1','w1','c1','urlaub','2026-08-01','2026-08-05',5,'personio:abs1','genehmigt','2026-01-01T00:00:00Z'
+            );
+            """
+        )
+        db.commit()
+        result = upsert_personio_absences(
+            db,
+            "c1",
+            [
+                {
+                    "externalId": "abs1",
+                    "employeeExternalId": "9",
+                    "startDate": "2026-08-01",
+                    "endDate": "2026-08-05",
+                    "status": "abgelehnt",
+                    "type": "urlaub",
+                }
+            ],
+        )
+        self.assertEqual(len(result.get("conflicts") or []), 1)
+        status = db.execute("SELECT status FROM leave_requests WHERE id = 'lr1'").fetchone()["status"]
+        self.assertEqual(status, "genehmigt")
+        db.close()
+        Path(tmp.name).unlink(missing_ok=True)
+
+    def test_encrypt_text_aliases_roundtrip(self):
+        from cryptography.fernet import Fernet
+
+        key = Fernet.generate_key().decode("ascii")
+        with mock.patch.dict(os.environ, {"BAUPASS_FIELD_ENCRYPTION_KEY": key}, clear=False):
+            # Reset cached fernet
+            import backend.app.platform.security.field_encryption as fe
+
+            fe._fernet = False
+            enc = fe.encrypt_text("secret-token")
+            self.assertTrue(str(enc).startswith("enc:v1:"))
+            self.assertEqual(fe.decrypt_text(enc), "secret-token")
+            fe._fernet = False
+
     def test_ipaas_catalog_and_sign(self):
         from backend.app.platform.enterprise.zapier_make import ipaas_catalog, sign_payload
 

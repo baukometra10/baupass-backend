@@ -67,7 +67,19 @@ def _pg_dump(output_dir: Path) -> dict:
         if url:
             err = err.replace(url, "postgresql://***")
         return {"ok": False, "error": err[:2000], "command": "pg_dump <redacted>"}
-    return {"ok": True, "path": str(out_file), "sizeBytes": out_file.stat().st_size if out_file.exists() else 0}
+    result = {"ok": True, "path": str(out_file), "sizeBytes": out_file.stat().st_size if out_file.exists() else 0}
+    upload_flag = (os.getenv("BAUPASS_PG_DR_UPLOAD_S3") or "").strip().lower() in {"1", "true", "yes"}
+    if upload_flag and os.getenv("S3_BUCKET"):
+        try:
+            from backend.app.platform.storage.object_store import S3ObjectStore
+
+            key = f"dr/postgres/{out_file.name}"
+            uri = S3ObjectStore().put(key, out_file.read_bytes(), content_type="application/sql")
+            result["objectUri"] = uri
+            result["objectKey"] = key
+        except Exception as exc:
+            result["objectUploadError"] = str(exc)[:500]
+    return result
 
 
 def run_dr_snapshot(*, do_dump: bool = False, output_dir: str | Path | None = None) -> dict:

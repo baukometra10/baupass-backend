@@ -8851,6 +8851,16 @@ async function loadTools() {
       <div class="panel-block">
         <h3>${t("tools.integrations")}</h3>
         <div class="layer-grid" id="integrationCards"></div>
+      </div>
+      <div class="panel-block">
+        <h3>Partner-Zertifizierung (DATEV LODAS / ELSTER)</h3>
+        <p class="muted" id="partnerReadinessHint">Sandbox-Pakete und Readiness — keine offizielle Zertifizierung.</p>
+        <div class="cw-actions" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin:0.5rem 0;">
+          <button type="button" class="btn-link" id="partnerRefreshBtn">Status laden</button>
+          <button type="button" class="btn-link" id="partnerLodasBtn">LODAS-Paket</button>
+          <button type="button" class="btn-link" id="partnerElsterBtn">ELSTER-Paket</button>
+        </div>
+        <pre class="muted" id="partnerReadinessOut" style="white-space:pre-wrap;font-size:0.75rem;max-height:12rem;overflow:auto;"></pre>
       </div>`;
     const zoneKindLabel = (value) => {
       const kind = String(value || "site").trim().toLowerCase();
@@ -9086,6 +9096,31 @@ async function loadTools() {
           showActionToast(humanizeUserError(e), true);
         }
       });
+    });
+    const partnerOut = $("partnerReadinessOut");
+    const showPartner = (obj) => {
+      if (partnerOut) partnerOut.textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+    };
+    $("partnerRefreshBtn")?.addEventListener("click", async () => {
+      try {
+        showPartner(await api(`/api/integrations/partner/readiness${q}`));
+      } catch (e) {
+        showPartner(e?.message || "error");
+      }
+    });
+    $("partnerLodasBtn")?.addEventListener("click", async () => {
+      try {
+        showPartner(await api(`/api/integrations/partner/datev-lodas/package${q}`, { method: "POST", body: "{}" }));
+      } catch (e) {
+        showPartner(e?.message || "error");
+      }
+    });
+    $("partnerElsterBtn")?.addEventListener("click", async () => {
+      try {
+        showPartner(await api(`/api/integrations/partner/elster/package${q}`, { method: "POST", body: "{}" }));
+      } catch (e) {
+        showPartner(e?.message || "error");
+      }
     });
     panel.querySelectorAll("[data-export-preview]").forEach((btn) => {
       btn.addEventListener("click", async () => {

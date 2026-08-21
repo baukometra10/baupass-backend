@@ -210,14 +210,190 @@ def upsert_personio_workers(db, company_id: str, employees: list[dict[str, Any]]
     return {"ok": True, "created": created, "updated": updated, "skipped": skipped}
 
 
+def map_personio_absence(item: dict[str, Any]) -> dict[str, Any]:
+    attrs = dict((item or {}).get("attributes") or item or {})
+    def _val(key: str) -> Any:
+        raw = attrs.get(key)
+        if isinstance(raw, dict) and "value" in raw:
+            return raw.get("value")
+        return raw
+
+    start = str(_val("start_date") or _val("start") or "")[:10]
+    end = str(_val("end_date") or _val("end") or start)[:10]
+    status_raw = str(_val("status") or "approved").lower()
+    if status_raw in {"approved", "granted", "accepted"}:
+        status = "genehmigt"
+    elif status_raw in {"declined", "rejected", "denied"}:
+        status = "abgelehnt"
+    else:
+        status = "ausstehend"
+    employee = _val("employee") or {}
+    emp_id = ""
+    if isinstance(employee, dict):
+        emp_id = str(employee.get("id") or (employee.get("attributes") or {}).get("id") or "")
+    elif employee:
+        emp_id = str(employee)
+    return {
+        "externalId": str((item or {}).get("id") or _val("id") or ""),
+        "employeeExternalId": emp_id,
+        "startDate": start,
+        "endDate": end,
+        "type": str(_val("time_off_type") or _val("type") or "urlaub")[:64] or "urlaub",
+        "status": status,
+        "note": f"personio:{str((item or {}).get('id') or '')}",
+        "raw": item,
+    }
+
+
+def upsert_personio_absences(db, company_id: str, absences: list[dict[str, Any]]) -> dict[str, Any]:
+    """Write Personio time-offs into leave_requests; skip conflicting local approvals."""
+    import secrets
+    import time
+
+    cid = str(company_id or "").strip()
+    if not cid:
+        return {"ok": False, "error": "missing_company"}
+    created = 0
+    updated = 0
+    skipped = 0
+    conflicts: list[dict[str, Any]] = []
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    for abs_item in absences or []:
+        mapped = abs_item if abs_item.get("startDate") else map_personio_absence(abs_item if isinstance(abs_item, dict) else {})
+        start = str(mapped.get("startDate") or "")[:10]
+        end = str(mapped.get("endDate") or start)[:10]
+        external = str(mapped.get("externalId") or "").strip()
+        emp_ext = str(mapped.get("employeeExternalId") or "").strip()
+        note_marker = f"personio:{external}" if external else ""
+        if not start or not (external or emp_ext):
+            skipped += 1
+            continue
+        worker = None
+        if emp_ext:
+            try:
+                worker = db.execute(
+                    """
+                    SELECT id FROM workers
+                    WHERE company_id = ? AND (badge_id = ? OR badge_id = ?) AND deleted_at IS NULL
+                    LIMIT 1
+                    """,
+                    (cid, f"PN-{emp_ext}", emp_ext),
+                ).fetchone()
+            except Exception:
+                worker = None
+        if not worker:
+            skipped += 1
+            continue
+        wid = str(worker["id"])
+        existing = None
+        if note_marker:
+            try:
+                existing = db.execute(
+                    """
+                    SELECT id, status, start_date, end_date FROM leave_requests
+                    WHERE company_id = ? AND worker_id = ? AND note LIKE ?
+                    LIMIT 1
+                    """,
+                    (cid, wid, f"%{note_marker}%"),
+                ).fetchone()
+            except Exception:
+                existing = None
+        if not existing:
+            try:
+                existing = db.execute(
+                    """
+                    SELECT id, status, start_date, end_date FROM leave_requests
+                    WHERE company_id = ? AND worker_id = ? AND start_date = ? AND end_date = ?
+                    LIMIT 1
+                    """,
+                    (cid, wid, start, end),
+                ).fetchone()
+            except Exception:
+                existing = None
+        if existing:
+            local_status = str(existing["status"] or "")
+            remote_status = str(mapped.get("status") or "ausstehend")
+            if local_status in {"genehmigt", "abgelehnt"} and remote_status != local_status:
+                conflicts.append(
+                    {
+                        "leaveId": str(existing["id"]),
+                        "workerId": wid,
+                        "localStatus": local_status,
+                        "remoteStatus": remote_status,
+                        "startDate": start,
+                        "endDate": end,
+                        "resolution": "keep_local",
+                    }
+                )
+                skipped += 1
+                continue
+            try:
+                db.execute(
+                    """
+                    UPDATE leave_requests
+                    SET type = ?, status = ?, note = ?, end_date = ?
+                    WHERE id = ? AND company_id = ?
+                    """,
+                    (
+                        str(mapped.get("type") or "urlaub")[:64],
+                        remote_status,
+                        note_marker or str(existing["id"]),
+                        end,
+                        str(existing["id"]),
+                        cid,
+                    ),
+                )
+                updated += 1
+            except Exception:
+                skipped += 1
+            continue
+        lid = f"lr-personio-{secrets.token_hex(6)}"
+        try:
+            db.execute(
+                """
+                INSERT INTO leave_requests (
+                    id, worker_id, company_id, type, start_date, end_date, days_count, note, status, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+                """,
+                (
+                    lid,
+                    wid,
+                    cid,
+                    str(mapped.get("type") or "urlaub")[:64],
+                    start,
+                    end,
+                    note_marker or "personio-import",
+                    str(mapped.get("status") or "ausstehend"),
+                    now,
+                ),
+            )
+            created += 1
+        except Exception:
+            skipped += 1
+    try:
+        db.commit()
+    except Exception:
+        pass
+    return {"ok": True, "created": created, "updated": updated, "skipped": skipped, "conflicts": conflicts}
+
+
 def sync_personio_to_workers(db, company_id: str, config: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Fetch Personio employees (or dry sample) and upsert into workers."""
+    """Fetch Personio employees/absences and upsert into workers + leave_requests."""
     preview = sync_personio_preview(config)
     if not preview.get("ok"):
         return preview
     employees = list(preview.get("employees") or [])
     write = upsert_personio_workers(db, company_id, employees)
-    return {**preview, **write, "synced": True}
+    abs_raw = list(preview.get("absences") or [])
+    mapped_abs = [map_personio_absence(x if isinstance(x, dict) else {}) for x in abs_raw]
+    abs_write = upsert_personio_absences(db, company_id, mapped_abs)
+    return {
+        **preview,
+        **write,
+        "absencesWrite": abs_write,
+        "synced": True,
+        "conflictCount": len(abs_write.get("conflicts") or []),
+    }
 
 
 def personio_status(config: dict[str, Any] | None = None) -> dict[str, Any]:

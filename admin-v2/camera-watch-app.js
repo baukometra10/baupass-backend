@@ -638,6 +638,34 @@
     }
   }
 
+  function fillCameraLegal(data) {
+    const form = $("cwCameraLegalForm");
+    const status = $("cwCameraLegalStatus");
+    if (!data) return;
+    if (status) {
+      const allowed = Boolean(data.recordingAllowed);
+      const reason = data.reason ? ` · ${data.reason}` : "";
+      status.textContent = allowed
+        ? `Aufzeichnung freigegeben${reason}`
+        : `Aufzeichnung gesperrt${reason}`;
+      status.classList.toggle("is-ok", allowed);
+    }
+    if (!form) return;
+    const set = (name, value) => {
+      const el = form.elements.namedItem(name);
+      if (!el) return;
+      if ("checked" in el && el.type === "checkbox") {
+        el.checked = Boolean(value);
+        return;
+      }
+      el.value = value == null ? "" : String(value);
+    };
+    set("recordingEnabled", data.recordingEnabled ? "1" : "0");
+    set("legalBasisText", data.legalBasisText || "");
+    set("validUntil", data.validUntil || "");
+    set("legalAck", data.legalAck);
+  }
+
   async function refresh({ silent = false } = {}) {
     if (!token) {
       $("cwStatusLine").textContent = "Bitte zuerst im Admin einloggen.";
@@ -659,9 +687,10 @@
       devices.rel = "noopener";
     }
     try {
-      const [data, cams] = await Promise.all([
+      const [data, cams, legal] = await Promise.all([
         api("/api/integrations/cameras/watch"),
         api("/api/integrations/cameras").catch(() => ({ cameras: [] })),
+        api("/api/ops-os/camera-legal").catch(() => null),
       ]);
       state.watch = data.watch || {};
       state.sites = Array.isArray(data.sites) ? data.sites : [];
@@ -669,6 +698,7 @@
       state.escalations = Array.isArray(data.escalations) ? data.escalations : [];
       state.cameras = Array.isArray(cams.cameras) ? cams.cameras : [];
       fillForm($("cwCompanyForm"), state.watch);
+      if (legal) fillCameraLegal(legal);
       renderPrivacyAndWebhookHelp();
       renderKpis();
       $("cwStatusLine").textContent = `Aktualisiert ${new Date().toLocaleTimeString()} · ${state.escalations.length} Esc · ${state.cameras.length} Kameras`;
@@ -731,6 +761,28 @@
             : err.data?.message || err.message || "Fehler";
         setMsg("cwSettingsMsg", msg, false);
         setMsg("cwCompanyMsg", msg, false);
+      }
+    });
+
+    $("cwSaveCameraLegal")?.addEventListener("click", async () => {
+      const form = $("cwCameraLegalForm");
+      if (!form) return;
+      const fd = new FormData(form);
+      const get = (k) => String(fd.get(k) || "").trim();
+      try {
+        const data = await api("/api/ops-os/camera-legal", {
+          method: "POST",
+          body: JSON.stringify({
+            recordingEnabled: get("recordingEnabled") === "1",
+            legalAck: get("legalAck") === "1" || get("legalAck") === "on",
+            legalBasisText: get("legalBasisText"),
+            validUntil: get("validUntil"),
+          }),
+        });
+        fillCameraLegal(data);
+        setMsg("cwCameraLegalMsg", data.recordingAllowed ? "Freigabe aktiv." : "Gespeichert (noch nicht freigegeben).", true);
+      } catch (err) {
+        setMsg("cwCameraLegalMsg", err.data?.error || err.message || "Fehler", false);
       }
     });
 

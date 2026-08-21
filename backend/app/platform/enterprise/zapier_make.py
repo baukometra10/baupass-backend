@@ -71,13 +71,19 @@ def create_subscription(
     sub_id = f"ipaas-{secrets.token_hex(8)}"
     secret = secrets.token_urlsafe(24)
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    try:
+        from backend.app.platform.security.field_encryption import encrypt_text
+
+        secret_stored = encrypt_text(secret, company_id=cid)
+    except Exception:
+        secret_stored = secret
     db.execute(
         """
         INSERT INTO ipaas_subscriptions
         (id, company_id, provider, event_type, target_url, secret, active, created_at)
         VALUES (?, ?, ?, ?, ?, ?, 1, ?)
         """,
-        (sub_id, cid, str(provider or "zapier"), event, url, secret, now),
+        (sub_id, cid, str(provider or "zapier"), event, url, secret_stored, now),
     )
     db.commit()
     return {"ok": True, "id": sub_id, "secret": secret, "eventType": event, "targetUrl": url}
@@ -110,7 +116,13 @@ def deliver_event(db, *, company_id: str, event_type: str, payload: dict[str, An
         if not safe.get("ok"):
             errors.append(f"{row['id']}:unsafe_url")
             continue
-        sig = sign_payload(str(row["secret"]), body)
+        try:
+            from backend.app.platform.security.field_encryption import decrypt_text
+
+            secret_plain = decrypt_text(str(row["secret"]), company_id=str(company_id))
+        except Exception:
+            secret_plain = str(row["secret"])
+        sig = sign_payload(secret_plain, body)
         req = urlrequest.Request(
             target,
             data=body,

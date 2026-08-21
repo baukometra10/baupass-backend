@@ -129,3 +129,12 @@ def decrypt_chat_field(company_id: str, stored: str) -> str:
     except Exception as exc:
         logger.warning("Failed to decrypt chat field: %s", exc)
         return text
+
+
+# Aliases used by integration_oauth and other callers
+def encrypt_text(value: str, *, company_id: str = "") -> str:
+    return maybe_encrypt_field(str(value or ""), company_id=company_id)
+
+
+def decrypt_text(value: str, *, company_id: str = "") -> str:
+    return maybe_decrypt_field(str(value or ""), company_id=company_id)

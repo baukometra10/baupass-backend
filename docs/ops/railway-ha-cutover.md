@@ -38,6 +38,10 @@ Goal: remove SQLite/`/data` single-node risk and reach dual-replica safe HA.
    - `GET /api/health/dr`
    - `GET /api/platform/capabilities` → `ha.score` ≥ 95 when all checks pass
 8. Optional scheduled dumps: `BAUPASS_PG_DR_SNAPSHOT_SCHEDULE=1`
+9. Off-volume DR dump upload (recommended with S3):
+   - `BAUPASS_PG_DR_UPLOAD_S3=1`
+   - same `S3_*` credentials as media storage
+10. Optional SAML SignXML: `pip install -r backend/requirements-optional.txt` + `BAUPASS_SAML_USE_SIGNXML=1`
 
 ## Never
 
