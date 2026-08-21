@@ -457,6 +457,20 @@ def touch_camera_heartbeat(
     clear_snap = ""
     if snap:
         try:
+            from .camera_legal import allow_camera_evidence
+
+            allowed, _reason = allow_camera_evidence(db, company_id)
+            if not allowed:
+                snap = ""
+                public_snap = ""
+                clear_snap = ""
+        except Exception:
+            # Fail closed: never persist media when legal gate cannot be evaluated.
+            snap = ""
+            public_snap = ""
+            clear_snap = ""
+    if snap:
+        try:
             from .face_privacy import protect_camera_image
 
             protected = protect_camera_image(db, company_id, snap)

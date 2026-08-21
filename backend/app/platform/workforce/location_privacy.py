@@ -181,9 +181,20 @@ def erase_worker_location_data(db, *, company_id: str, worker_id: str) -> dict[s
         "cameraEventsUnlinked": 0,
         "cameraMediaCleared": 0,
         "chatLocationsRedacted": 0,
+        "blockedByLegalHold": False,
     }
     if not cid or not wid:
         return out
+    try:
+        from backend.app.platform.governance.legal_hold import company_has_active_legal_hold
+
+        if company_has_active_legal_hold(db, cid) or company_has_active_legal_hold(
+            db, cid, target_type="worker", target_id=wid
+        ):
+            out["blockedByLegalHold"] = True
+            return out
+    except Exception:
+        pass
     try:
         cur = db.execute(
             "DELETE FROM worker_location_samples WHERE worker_id = ? AND company_id = ?",

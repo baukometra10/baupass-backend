@@ -1100,4 +1100,37 @@ def register_physical_operations(flask_app) -> None:
         get_db().commit()
         return jsonify({"id": hid}), 201
 
+    @ops_os_bp.get("/ops-os/camera-legal")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def get_camera_legal_route():
+        from backend.app.platform.physical_operations.camera_legal import get_camera_legal
+
+        return jsonify(get_camera_legal(get_db(), _cid()))
+
+    @ops_os_bp.post("/ops-os/camera-legal")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def set_camera_legal_route():
+        from backend.app.platform.physical_operations.camera_legal import set_camera_legal
+
+        data = request.get_json(silent=True) or {}
+        scope = data.get("scopeJson")
+        if not isinstance(scope, str):
+            scope = json.dumps(data.get("scope") or [], ensure_ascii=False)
+        result = set_camera_legal(
+            get_db(),
+            _cid() or str(data.get("companyId") or ""),
+            recording_enabled=bool(data.get("recordingEnabled")),
+            legal_ack=bool(data.get("legalAck")),
+            actor=str(g.current_user.get("id") or g.current_user.get("email") or ""),
+            legal_basis_text=str(data.get("legalBasisText") or ""),
+            legal_basis_version=str(data.get("legalBasisVersion") or "1"),
+            scope_json=str(scope or "[]"),
+            valid_until=str(data.get("validUntil") or ""),
+        )
+        if result.get("error"):
+            return jsonify(result), 400
+        return jsonify(result)
+
     flask_app.register_blueprint(ops_os_bp, url_prefix="/api")

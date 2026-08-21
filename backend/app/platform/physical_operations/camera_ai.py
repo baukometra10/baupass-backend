@@ -88,6 +88,18 @@ def ingest_camera_event(db, company_id: Any, payload: dict[str, Any]) -> dict[st
         payload.get("image_base64") or payload.get("snapshot_base64") or payload.get("photo_base64") or ""
     )
     clip_b64 = str(payload.get("clip_base64") or payload.get("clipBase64") or payload.get("video_base64") or "")
+    try:
+        from .camera_legal import allow_camera_evidence
+
+        allowed, deny_reason = allow_camera_evidence(db, company_id_str)
+        if not allowed:
+            snapshot_b64 = ""
+            clip_b64 = ""
+            payload = {**payload, "mediaBlocked": True, "mediaBlockReason": deny_reason}
+    except Exception:
+        snapshot_b64 = ""
+        clip_b64 = ""
+        payload = {**payload, "mediaBlocked": True, "mediaBlockReason": "camera_legal_check_failed"}
 
     touch_camera_heartbeat(
         db,

@@ -481,7 +481,7 @@ def register_enterprise_routes(flask_app):
     def integrations_connect(provider: str):
         from backend.server import get_db
 
-        if provider not in ("microsoft365", "google_workspace", "payroll", "sap", "oracle", "datev"):
+        if provider not in ("microsoft365", "google_workspace", "payroll", "sap", "oracle", "datev", "personio"):
             return jsonify({"error": "unknown_provider"}), 400
         data = request.get_json(silent=True) or {}
         from .integration_oauth import merge_oauth_config
@@ -524,7 +524,7 @@ def register_enterprise_routes(flask_app):
         from .integrations import provider_connectivity
         from backend.server import get_db
 
-        if provider not in ("microsoft365", "google_workspace", "payroll", "sap", "oracle", "datev"):
+        if provider not in ("microsoft365", "google_workspace", "payroll", "sap", "oracle", "datev", "personio"):
             return jsonify({"error": "unknown_provider"}), 400
         cid = _company_id()
 
@@ -1223,5 +1223,181 @@ def register_enterprise_routes(flask_app):
                 "recent_events": events,
             }
         )
+
+    # ── Platform 95 closeout: Personio / iPaaS / partner cert / ERP delta ─────
+    @enterprise_bp.get("/integrations/personio/status")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def personio_status_route():
+        from .personio import personio_status
+
+        return jsonify(personio_status())
+
+    @enterprise_bp.post("/integrations/personio/sync-preview")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def personio_sync_preview_route():
+        from .personio import sync_personio_preview
+
+        data = request.get_json(silent=True) or {}
+        return jsonify(sync_personio_preview(data))
+
+    @enterprise_bp.post("/integrations/personio/sync")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def personio_sync_route():
+        from backend.server import get_db
+        from .personio import personio_feature_enabled, sync_personio_to_workers
+
+        if not personio_feature_enabled():
+            return jsonify({"error": "personio_disabled", "hint": "Set BAUPASS_PERSONIO_ENABLED=1"}), 403
+        data = request.get_json(silent=True) or {}
+        result = sync_personio_to_workers(get_db(), _company_id(), data)
+        return jsonify(result), (200 if result.get("ok") else 400)
+
+    @enterprise_bp.get("/integrations/ipaas/catalog")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ipaas_catalog_route():
+        from .zapier_make import ipaas_catalog
+
+        return jsonify(ipaas_catalog())
+
+    @enterprise_bp.post("/integrations/ipaas/subscriptions")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ipaas_create_subscription():
+        from backend.server import get_db
+        from .zapier_make import create_subscription, zapier_feature_enabled
+
+        if not zapier_feature_enabled():
+            return jsonify({"error": "zapier_disabled", "hint": "Set BAUPASS_ZAPIER_ENABLED=1"}), 403
+        data = request.get_json(silent=True) or {}
+        result = create_subscription(
+            get_db(),
+            company_id=_company_id() or str(data.get("companyId") or ""),
+            provider=str(data.get("provider") or "zapier"),
+            event_type=str(data.get("eventType") or ""),
+            target_url=str(data.get("targetUrl") or ""),
+        )
+        code = 200 if result.get("ok") else 400
+        return jsonify(result), code
+
+    @enterprise_bp.post("/integrations/sap/sync-delta")
+    @enterprise_bp.post("/integrations/oracle/sync-delta")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def erp_sync_delta_route():
+        from backend.server import get_db
+        from .erp_adapters import sync_erp_delta
+
+        provider = "sap" if "/sap/" in (request.path or "") else "oracle"
+        data = request.get_json(silent=True) or {}
+        cid = _company_id()
+        db = get_db()
+        row = db.execute(
+            "SELECT config_json FROM integration_connections WHERE company_id = ? AND provider = ?",
+            (cid, provider),
+        ).fetchone()
+        cfg = json.loads((row["config_json"] if row else "{}") or "{}")
+        if data.get("fieldMapping"):
+            cfg = {**cfg, "field_mapping": data.get("fieldMapping")}
+        if data.get("dryRun"):
+            cfg = {**cfg, "dry_run": True}
+        result = sync_erp_delta(
+            db,
+            cid,
+            provider,
+            cfg or {},
+            period=str(data.get("period") or ""),
+            since=str(data.get("since") or ""),
+            idempotency_key=str(data.get("idempotencyKey") or request.headers.get("Idempotency-Key") or ""),
+        )
+        return jsonify(result), (200 if result.get("ok") else 400)
+
+    @enterprise_bp.post("/integrations/datev/token/refresh")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def datev_token_refresh_route():
+        from backend.server import get_db
+        from .datev_client import ensure_datev_access_token
+
+        cid = _company_id()
+        db = get_db()
+        row = db.execute(
+            "SELECT config_json, status FROM integration_connections WHERE company_id = ? AND provider = ?",
+            (cid, "datev"),
+        ).fetchone()
+        cfg = json.loads((row["config_json"] if row else "{}") or "{}")
+        result = ensure_datev_access_token(cfg or {})
+        if result.get("ok") and result.get("refreshed") and cid:
+            cfg = dict(cfg or {})
+            cfg["oauth"] = result.get("oauth") or cfg.get("oauth")
+            if row:
+                db.execute(
+                    "UPDATE integration_connections SET config_json = ?, updated_at = ? WHERE company_id = ? AND provider = ?",
+                    (json.dumps(cfg, ensure_ascii=False), _now_iso(), cid, "datev"),
+                )
+            else:
+                db.execute(
+                    """
+                    INSERT INTO integration_connections (company_id, provider, status, config_json, updated_at)
+                    VALUES (?, 'datev', 'connected', ?, ?)
+                    """,
+                    (cid, json.dumps(cfg, ensure_ascii=False), _now_iso()),
+                )
+            db.commit()
+        return jsonify(result), (200 if result.get("ok") else 400)
+
+    @enterprise_bp.get("/integrations/partner/readiness")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def partner_readiness_route():
+        from backend.server import get_db
+        from .partner_cert import partner_readiness_summary
+
+        return jsonify(partner_readiness_summary(get_db(), _company_id()))
+
+    @enterprise_bp.post("/integrations/partner/datev-lodas/package")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def partner_datev_lodas_package():
+        from backend.server import get_db
+        from .partner_cert import build_datev_lodas_package, save_partner_pipeline
+
+        data = request.get_json(silent=True) or {}
+        cid = _company_id()
+        db = get_db()
+        pkg = build_datev_lodas_package(db, cid, period=str(data.get("period") or ""))
+        save_partner_pipeline(
+            db,
+            company_id=cid,
+            program="datev_lodas",
+            state=str(data.get("state") or "sandbox"),
+            package=pkg.get("package") or {},
+            validation=pkg.get("validation") or {},
+        )
+        return jsonify(pkg)
+
+    @enterprise_bp.post("/integrations/partner/elster/package")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def partner_elster_package():
+        from backend.server import get_db
+        from .partner_cert import build_elster_package, save_partner_pipeline
+
+        data = request.get_json(silent=True) or {}
+        cid = _company_id()
+        db = get_db()
+        pkg = build_elster_package(db, cid, tax_year=str(data.get("taxYear") or ""))
+        save_partner_pipeline(
+            db,
+            company_id=cid,
+            program="elster",
+            state=str(data.get("state") or "sandbox"),
+            package=pkg.get("package") or {},
+            validation=pkg.get("validation") or {},
+        )
+        return jsonify(pkg)
 
     flask_app.register_blueprint(enterprise_bp, url_prefix="/api")

@@ -45,6 +45,15 @@ def run_camera_evidence_retention(db) -> dict[str, Any]:
             continue
         companies += 1
         try:
+            from backend.app.platform.governance.legal_hold import company_has_active_legal_hold
+
+            if company_has_active_legal_hold(db, cid, target_type="camera_evidence"):
+                continue
+            if company_has_active_legal_hold(db, cid):
+                continue
+        except Exception:
+            pass
+        try:
             cfg = get_watch_settings(db, cid)
             days = int(cfg.get("evidenceRetentionDays") or DEFAULT_EVIDENCE_RETENTION_DAYS)
             days = max(1, min(3650, days))

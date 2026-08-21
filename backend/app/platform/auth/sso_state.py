@@ -134,6 +134,24 @@ def consume_saml_relay(state: str) -> str | None:
     return str(payload.get("req_id") or "") or None
 
 
+def issue_datev_state(company_id: str) -> str:
+    """CSRF-safe DATEV OAuth state (one-time)."""
+    cid = str(company_id or "").strip()
+    nonce = secrets.token_urlsafe(18)
+    state = f"{cid}:{nonce}"
+    store_state(state, {"kind": "datev", "company_id": cid})
+    return state
+
+
+def consume_datev_state(state: str) -> str | None:
+    """Validate and consume DATEV OAuth state. Returns company_id or None."""
+    payload = consume_state(str(state or "").strip())
+    if not payload or payload.get("kind") != "datev":
+        return None
+    cid = str(payload.get("company_id") or "").strip()
+    return cid or None
+
+
 def remember_saml_assertion(assertion_id: str) -> bool:
     """One-time assertion ID. Returns False if this assertion was already consumed."""
     aid = str(assertion_id or "").strip()

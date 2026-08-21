@@ -164,6 +164,39 @@ class SamlSignatureTest(unittest.TestCase):
             "assertion_replay",
         )
 
+    def test_wrapping_unsigned_sibling_rejected(self):
+        now = datetime.now(timezone.utc)
+        instant = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        later = (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        earlier = (now - timedelta(minutes=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        xml = f"""<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"
+          xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion"
+          ID="_rwrap" Version="2.0" IssueInstant="{instant}"
+          Destination="{self.cfg['acs_url']}" InResponseTo="_reqw">
+          <saml:Assertion ID="_a-evil" Version="2.0" IssueInstant="{instant}">
+            <saml:Issuer>https://idp.example</saml:Issuer>
+            <saml:Subject><saml:NameID>attacker@evil</saml:NameID></saml:Subject>
+            <saml:Conditions NotBefore="{earlier}" NotOnOrAfter="{later}">
+              <saml:AudienceRestriction><saml:Audience>{self.cfg['entity_id']}</saml:Audience></saml:AudienceRestriction>
+            </saml:Conditions>
+          </saml:Assertion>
+          <saml:Assertion ID="_a-good" Version="2.0" IssueInstant="{instant}">
+            <saml:Issuer>https://idp.example</saml:Issuer>
+            <saml:Subject>
+              <saml:NameID>admin@example.com</saml:NameID>
+              <saml:SubjectConfirmation Method="urn:oasis:names:tc:SAML:2.0:cm:bearer">
+                <saml:SubjectConfirmationData Recipient="{self.cfg['acs_url']}" NotOnOrAfter="{later}" InResponseTo="_reqw"/>
+              </saml:SubjectConfirmation>
+            </saml:Subject>
+            <saml:Conditions NotBefore="{earlier}" NotOnOrAfter="{later}">
+              <saml:AudienceRestriction><saml:Audience>{self.cfg['entity_id']}</saml:Audience></saml:AudienceRestriction>
+            </saml:Conditions>
+          </saml:Assertion>
+        </samlp:Response>""".encode("utf-8")
+        # Sign only the good assertion — evil sibling remains unsigned → wrapping reject.
+        signed = sign_saml_xml_for_tests(xml, self.key, self.cert)
+        self.assertEqual(verify_saml_xml_signature(signed, self.pem), "assertion_wrapping_rejected")
+
 
 class SamlRoutesTest(unittest.TestCase):
     def test_saml_status_unconfigured(self):

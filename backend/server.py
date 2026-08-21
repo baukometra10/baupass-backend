@@ -8458,6 +8458,7 @@ def run_daily_jobs_cycle_once():
             check_doc_expiry_warnings()
         monthly_result = {}
         channel_alerts = {}
+        dr_snapshot = {}
         with app.app_context():
             db = get_db()
             lock_workers_with_expired_documents(db)
@@ -8474,6 +8475,12 @@ def run_daily_jobs_cycle_once():
                 channel_alerts = alert_critical_channels_if_needed(db)
             except Exception as channel_exc:
                 channel_alerts = {"ok": False, "error": str(channel_exc)}
+            try:
+                from backend.app.platform.ha.dr_scheduler import maybe_run_scheduled_dr_snapshot
+
+                dr_snapshot = maybe_run_scheduled_dr_snapshot()
+            except Exception as dr_exc:
+                dr_snapshot = {"ok": False, "error": str(dr_exc)}
             if monthly_result.get("failed", 0) > 0:
                 create_system_alert(
                     db,
@@ -8566,6 +8573,7 @@ def run_daily_jobs_cycle_once():
             "ok": True,
             "monthly": monthly_result,
             "channelAlerts": channel_alerts,
+            "drSnapshot": dr_snapshot,
             "autopilot": autopilot_result,
             "databaseBackup": backup_result,
             "cameraDigest": camera_digest_result,
@@ -28520,14 +28528,16 @@ def datev_oauth_callback():
     """DATEV OAuth redirect — stores tokens on integration_connections."""
     code = (request.args.get("code") or "").strip()
     state = (request.args.get("state") or "").strip()
-    if not code or not state or ":" not in state:
+    if not code or not state:
         return jsonify({"error": "invalid_callback"}), 400
-    company_id = state.split(":", 1)[0].strip()
-    if not company_id:
-        return jsonify({"error": "invalid_state"}), 400
 
+    from backend.app.platform.auth.sso_state import consume_datev_state
     from backend.app.platform.enterprise.datev_client import exchange_datev_code
     from backend.app.platform.enterprise.integration_oauth import merge_oauth_config
+
+    company_id = consume_datev_state(state)
+    if not company_id:
+        return jsonify({"error": "invalid_or_expired_state"}), 400
 
     token_result = exchange_datev_code(code)
     if not token_result.get("ok"):

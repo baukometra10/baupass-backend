@@ -57,23 +57,50 @@ def collect_platform_capabilities(db_path: Path | None = None) -> dict[str, Any]
     maturity = _score_maturity(readiness, data_layer, distribution)
 
     from backend.app.platform.enterprise.datev_client import datev_env_configured
+    from backend.app.platform.ha.posture import collect_ha_posture
+
+    ha = collect_ha_posture()
+
+    personio_live = (os.getenv("BAUPASS_PERSONIO_ENABLED") or "0").strip().lower() in {"1", "true", "yes"}
+    zapier_live = (os.getenv("BAUPASS_ZAPIER_ENABLED") or "0").strip().lower() in {"1", "true", "yes"}
+
+    do_not_promise = [
+        "DATEV LODAS certified",
+        "DATEV Unternehmen online certified",
+        "ELSTER certified transmission",
+    ]
+    if not personio_live:
+        do_not_promise.append("Personio")
+    if not zapier_live:
+        do_not_promise.append("Zapier/Make")
+
+    live = ["public_api", "webhooks", "workpass_lohn", "datev_csv", "stripe", "oidc", "saml", "rtsp", "gps", "sap_oracle_export"]
+    if personio_live:
+        live.append("personio")
+    if zapier_live:
+        live.append("zapier_make")
 
     integrations = {
         "datevCsvExport": True,
         "datevOauthClient": bool(datev_env_configured()),
         "datevLodasCertified": False,
+        "datevLodasPartnerReady": True,
         "datevUnternehmenOnline": False,
         "elster": False,
-        "personio": False,
-        "zapier": False,
-        "live": ["public_api", "webhooks", "workpass_lohn", "datev_csv", "stripe", "oidc", "rtsp", "gps"],
-        "doNotPromiseInContracts": [
-            "DATEV LODAS certified",
-            "DATEV Unternehmen online certified",
-            "ELSTER",
-            "Personio",
-            "Zapier/Make",
-        ],
+        "elsterPartnerReady": True,
+        "personio": bool(personio_live),
+        "zapier": bool(zapier_live),
+        "samlProduction": True,
+        "live": live,
+        "doNotPromiseInContracts": do_not_promise,
+    }
+
+    multi_region = {
+        "automaticFailover": False,
+        "codeReady": bool(ha.get("score", 0) >= 70),
+        "guide": "docs/multi-region-deployment-AR.md",
+        "requires": ["postgres", "redis", "object_storage", "dual_replica_stable"],
+        "status": "ready_after_ha" if ha.get("score", 0) >= 70 else "blocked_until_ha",
     }
 
     return {
@@ -85,12 +112,16 @@ def collect_platform_capabilities(db_path: Path | None = None) -> dict[str, Any]
         "attendance": attendance,
         "distribution": distribution,
         "dataLayer": data_layer,
+        "ha": ha,
+        "multiRegion": multi_region,
         "integrations": integrations,
         "deferred": {
             "domainsSplitFromServerPy": True,
             "publicAppStoreRelease": not distribution["apkUrlConfigured"],
+            "datevLodasOfficialCertification": True,
+            "elsterAuthorityEnrollment": True,
         },
-        "nextSteps": maturity["nextSteps"],
+        "nextSteps": list(dict.fromkeys([*(maturity["nextSteps"] or []), *(ha.get("nextSteps") or [])])),
     }
 
 

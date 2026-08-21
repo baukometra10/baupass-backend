@@ -122,6 +122,17 @@ def push_erp_export(
             "preview": preview,
             "hint": "Set base_url in integration config",
         }
+    from backend.app.platform.security.outbound_url import assert_safe_outbound_url
+
+    safe = assert_safe_outbound_url(base, require_https=True)
+    if not safe.get("ok"):
+        return {
+            "ok": False,
+            "error": "unsafe_base_url",
+            "detail": safe.get("error"),
+            "provider": provider,
+            "preview": preview,
+        }
     if dry_run:
         return {
             "ok": True,
@@ -165,3 +176,118 @@ def push_erp_export(
             "error": str(exc),
             "preview": preview,
         }
+
+
+def sync_erp_delta(
+    db,
+    company_id: int,
+    provider: str,
+    config: dict[str, Any],
+    *,
+    period: str = "",
+    since: str = "",
+    idempotency_key: str = "",
+) -> dict[str, Any]:
+    """Delta-oriented ERP sync with idempotency and field-map overrides."""
+    import hashlib
+    import json
+    import time
+
+    provider = str(provider or "").strip().lower()
+    mapping = dict(config.get("field_mapping") or {})
+    if provider == "sap":
+        preview = sap_export_preview(db, company_id, period=period)
+        default_map = {"workerId": "PERNR", "access_events": "CATS_QUANTITY"}
+    elif provider == "oracle":
+        preview = oracle_export_preview(db, company_id, period=period)
+        default_map = {"workerId": "PERSON_ID", "access_events": "HOURS"}
+    else:
+        return {"ok": False, "error": "unknown_provider"}
+    field_map = {**default_map, **mapping}
+    rows = list(preview.get("rows") or [])
+    if since:
+        rows = [r for r in rows if str(r.get("updatedAt") or r.get("day") or "") >= since]
+
+    key = str(idempotency_key or "").strip()
+    if not key:
+        # Hash row *content* so identical payloads replay; changed rows get a new key.
+        try:
+            canonical = json.dumps(rows, ensure_ascii=False, sort_keys=True, default=str)
+        except Exception:
+            canonical = str(rows)
+        digest = hashlib.sha256(
+            f"{provider}:{company_id}:{period}:{since}:{canonical}".encode("utf-8")
+        ).hexdigest()[:32]
+        key = f"erp-{provider}-{digest}"
+
+    try:
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS erp_sync_runs (
+                idempotency_key TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                status TEXT NOT NULL,
+                row_count INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                detail_json TEXT NOT NULL DEFAULT '{}'
+            )
+            """
+        )
+        existing = db.execute(
+            "SELECT status, row_count FROM erp_sync_runs WHERE idempotency_key = ?",
+            (key,),
+        ).fetchone()
+        if existing:
+            return {
+                "ok": True,
+                "idempotentReplay": True,
+                "idempotencyKey": key,
+                "status": existing["status"],
+                "rowCount": existing["row_count"],
+            }
+    except Exception:
+        pass
+
+    push = push_erp_export(
+        db,
+        company_id,
+        provider,
+        {**config, "field_mapping": field_map},
+        period=period,
+        dry_run=bool(config.get("dry_run")),
+    )
+    status = "ok" if push.get("ok") else "error"
+    try:
+        db.execute(
+            """
+            INSERT INTO erp_sync_runs (idempotency_key, company_id, provider, status, row_count, created_at, detail_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                key,
+                str(company_id),
+                provider,
+                status,
+                int(push.get("rowCount") or len(rows)),
+                time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                json.dumps(
+                    {
+                        "fieldMap": field_map,
+                        "push": {k: push.get(k) for k in ("ok", "error", "status", "targetUrl")},
+                    },
+                    ensure_ascii=False,
+                ),
+            ),
+        )
+        db.commit()
+    except Exception:
+        pass
+    return {
+        "ok": bool(push.get("ok")),
+        "idempotencyKey": key,
+        "provider": provider,
+        "fieldMap": field_map,
+        "rowCount": len(rows),
+        "push": push,
+    }

@@ -295,16 +295,31 @@ def create_critical_escalation(
     public_clip = str(clip_b64 or "")
     clear_clip = ""
     try:
+        from .camera_legal import allow_camera_evidence
+
+        allowed, deny_reason = allow_camera_evidence(db, str(company_id))
+        if not allowed:
+            # Metadata-only escalation: never persist media without legal readiness.
+            public_snap = ""
+            public_clip = ""
+            clear_snap = ""
+            clear_clip = ""
+            details["mediaBlocked"] = True
+            details["mediaBlockReason"] = deny_reason
+    except Exception:
+        pass
+    try:
         from .face_privacy import protect_camera_image
         from .camera_watch import get_watch_settings as _gws
 
-        protected = protect_camera_image(db, company_id, public_snap)
-        public_snap = str(protected.get("public") or public_snap)
-        clear_snap = str(protected.get("clear") or "")
-        blur_on = bool((_gws(db, company_id) or {}).get("faceBlurEnabled", True))
-        if blur_on and public_clip:
-            clear_clip = public_clip
-            public_clip = ""
+        if public_snap:
+            protected = protect_camera_image(db, company_id, public_snap)
+            public_snap = str(protected.get("public") or public_snap)
+            clear_snap = str(protected.get("clear") or "")
+            blur_on = bool((_gws(db, company_id) or {}).get("faceBlurEnabled", True))
+            if blur_on and public_clip:
+                clear_clip = public_clip
+                public_clip = ""
     except Exception:
         pass
     try:

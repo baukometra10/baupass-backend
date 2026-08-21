@@ -22,9 +22,15 @@ def build_infrastructure_layer(db_path: Path) -> dict[str, Any]:
         replica_n = int(replica_raw)
     except ValueError:
         replica_n = 1
+
+    from backend.app.platform.ha.posture import collect_ha_posture, object_storage_status
+
+    ha = collect_ha_posture()
+    storage = object_storage_status()
+
     return {
         "layer": "hyper_scale_infrastructure",
-        "status": "active" if postgres else "single_node",
+        "status": "ha_production" if ha.get("score", 0) >= 95 else ("active" if postgres else "single_node"),
         "kubernetes": {
             "configured": False,
             "manifests": None,
@@ -38,12 +44,14 @@ def build_infrastructure_layer(db_path: Path) -> dict[str, Any]:
             "current_region": cloud.get("region"),
             "guide": "docs/multi-region-deployment-AR.md",
             "automaticFailover": False,
+            "codeReady": True,
+            "status": "ready_after_ha" if ha.get("score", 0) >= 70 else "blocked_until_ha",
         },
         "cdn": {
             "edge_headers": True,
             "cache_seconds": int(os.getenv("BAUPASS_CDN_CACHE_SECONDS", "86400")),
         },
-        "object_storage": os.getenv("BAUPASS_OBJECT_STORAGE", "local"),
+        "object_storage": storage,
         "high_availability": {
             "postgres": postgres,
             "redis_configured": redis_url,
@@ -51,10 +59,13 @@ def build_infrastructure_layer(db_path: Path) -> dict[str, Any]:
             "sqliteReplicaUnsafe": not postgres,
             "recommendedWebReplicas": 2 if postgres and redis_url else 1,
             "configuredWebReplicas": replica_n,
+            "posture": ha,
             "note": "Never run more than one web replica against SQLite on /data.",
+            "cutoverGuide": "docs/ops/railway-ha-cutover.md",
             "postgresBackup": {
                 "script": "backend/ops/postgres_dr_snapshot.py --dump",
                 "bootFlag": "BAUPASS_PG_DR_SNAPSHOT_ON_BOOT",
+                "scheduleFlag": "BAUPASS_PG_DR_SNAPSHOT_SCHEDULE",
                 "ready": postgres,
             },
         },

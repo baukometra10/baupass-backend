@@ -1817,13 +1817,24 @@ ALL_MIGRATIONS: list[Migration] = [
     ),
 
     Migration(
-        version="056",
-        name="camera_face_match_legal_ack",
+        version="057",
+        name="camera_recording_legal_readiness",
         up_sql="""
-            ALTER TABLE camera_watch_settings ADD COLUMN IF NOT EXISTS face_match_enabled INTEGER NOT NULL DEFAULT 0;
+            CREATE TABLE IF NOT EXISTS company_camera_legal (
+                company_id TEXT PRIMARY KEY,
+                recording_enabled INTEGER NOT NULL DEFAULT 0,
+                legal_ack INTEGER NOT NULL DEFAULT 0,
+                legal_basis_text TEXT NOT NULL DEFAULT '',
+                legal_basis_version TEXT NOT NULL DEFAULT '1',
+                scope_json TEXT NOT NULL DEFAULT '[]',
+                acknowledged_by TEXT NOT NULL DEFAULT '',
+                acknowledged_at TEXT NOT NULL DEFAULT '',
+                valid_until TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT ''
+            );
         """,
         down_sql="""
-            -- SQLite cannot DROP COLUMN portably.
+            DROP TABLE IF EXISTS company_camera_legal;
         """,
     ),
 

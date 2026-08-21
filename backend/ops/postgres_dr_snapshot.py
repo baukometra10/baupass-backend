@@ -62,8 +62,28 @@ def _pg_dump(output_dir: Path) -> dict:
     cmd = ["pg_dump", url, "-f", str(out_file), "--no-owner", "--no-acl"]
     proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
-        return {"ok": False, "error": proc.stderr.strip() or proc.stdout.strip(), "command": " ".join(cmd[:2])}
+        err = (proc.stderr or proc.stdout or "").strip()
+        # Never echo DATABASE_URL (may appear in stderr/command).
+        if url:
+            err = err.replace(url, "postgresql://***")
+        return {"ok": False, "error": err[:2000], "command": "pg_dump <redacted>"}
     return {"ok": True, "path": str(out_file), "sizeBytes": out_file.stat().st_size if out_file.exists() else 0}
+
+
+def run_dr_snapshot(*, do_dump: bool = False, output_dir: str | Path | None = None) -> dict:
+    """Programmatic entry for scheduled DR snapshots."""
+    counts = table_counts()
+    payload = {
+        "ok": True,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "tableCounts": counts,
+    }
+    if do_dump:
+        out = Path(output_dir or (ROOT / "backend" / "backups" / "postgres"))
+        payload["dump"] = _pg_dump(out)
+        if not payload["dump"].get("ok"):
+            payload["ok"] = False
+    return payload
 
 
 def main() -> int:
@@ -75,16 +95,7 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        counts = table_counts()
-        payload = {
-            "ok": True,
-            "createdAt": datetime.now(timezone.utc).isoformat(),
-            "tableCounts": counts,
-        }
-        if args.dump:
-            payload["dump"] = _pg_dump(Path(args.output_dir))
-            if not payload["dump"].get("ok"):
-                payload["ok"] = False
+        payload = run_dr_snapshot(do_dump=bool(args.dump), output_dir=args.output_dir)
         print(json.dumps(payload, ensure_ascii=False, indent=2))
         return 0 if payload.get("ok") else 2
     except Exception as exc:
