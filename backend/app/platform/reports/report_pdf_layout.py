@@ -135,7 +135,7 @@ def _header_flowables(
         meta_html = f"<font size='8' color='#64748b'>{_escape(sector)}</font><br/>{meta_html}"
     meta_html += f"<br/><font size='7' color='#94a3b8'>{stamp}</font>"
 
-    logo_img = logo_image_flowable(str(branding.get("logoData") or ""), max_height_mm=22.0)
+    logo_img = logo_image_flowable(str(branding.get("logoData") or ""), max_height_mm=22.0, max_width_mm=24.0)
     title_para = Paragraph(
         f"<font size='14'><b>{_escape(display_name)}</b></font><br/>{meta_html}",
         meta_style,
@@ -143,15 +143,15 @@ def _header_flowables(
     if logo_img:
         header_table = Table(
             [[logo_img, title_para]],
-            colWidths=[26 * mm, doc_width - 26 * mm],
+            colWidths=[30 * mm, doc_width - 30 * mm],
         )
         header_table.setStyle(
             TableStyle(
                 [
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
                     ("LEFTPADDING", (0, 0), (0, 0), 0),
                     ("RIGHTPADDING", (0, 0), (0, 0), 10),
-                    ("LEFTPADDING", (1, 0), (1, 0), 4),
+                    ("LEFTPADDING", (1, 0), (1, 0), 8),
                     ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
                 ]
             )

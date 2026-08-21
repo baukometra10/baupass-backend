@@ -338,7 +338,7 @@ def build_editor_pdf_bytes(
         try:
             from backend.app.platform.workforce.deployment_branding import logo_image_flowable
 
-            logo_img = logo_image_flowable(str(brand.get("logoData") or ""), max_height_mm=16.0)
+            logo_img = logo_image_flowable(str(brand.get("logoData") or ""), max_height_mm=16.0, max_width_mm=28.0)
             if logo_img or company_name:
                 name_para = Paragraph(
                     _escape(company_name or "Dokument"),
@@ -354,7 +354,12 @@ def build_editor_pdf_bytes(
                 )
                 addr_para = Paragraph(_escape(addr), meta) if addr else Spacer(1, 1)
                 if logo_img:
-                    story.append(Table([[logo_img, [name_para, addr_para]]], colWidths=[32 * mm, max(40 * mm, content_w - 32 * mm)]))
+                    story.append(
+                        Table(
+                            [[logo_img, [name_para, addr_para]]],
+                            colWidths=[34 * mm, max(40 * mm, content_w - 34 * mm)],
+                        )
+                    )
                 else:
                     story.append(name_para)
                     if addr:

@@ -111,8 +111,17 @@ def resolve_company_pdf_branding(
     }
 
 
-def logo_image_flowable(logo_data: str, *, max_height_mm: float = 18.0):
-    """Reportlab Image from data-URL or None."""
+def logo_image_flowable(
+    logo_data: str,
+    *,
+    max_height_mm: float = 18.0,
+    max_width_mm: float | None = 24.0,
+):
+    """Reportlab Image from data-URL, scaled to fit both max height and max width.
+
+    Width must be capped: otherwise wide logos overflow the header cell and
+    paint over the company name in the adjacent column.
+    """
     raw = str(logo_data or "").strip()
     if not raw.lower().startswith("data:image/"):
         return None
@@ -126,11 +135,18 @@ def logo_image_flowable(logo_data: str, *, max_height_mm: float = 18.0):
             return None
         bio = io.BytesIO(blob)
         img = Image(bio)
-        max_h = max_height_mm * mm
-        if img.imageHeight > max_h:
-            ratio = max_h / float(img.imageHeight)
-            img.drawWidth = img.imageWidth * ratio
-            img.drawHeight = max_h
+        src_w = float(img.imageWidth or 0)
+        src_h = float(img.imageHeight or 0)
+        if src_w <= 0 or src_h <= 0:
+            return None
+        max_h = max(1.0, float(max_height_mm)) * mm
+        max_w = max(1.0, float(max_width_mm)) * mm if max_width_mm else None
+        scale = min(max_h / src_h, 1.0)
+        if max_w is not None:
+            scale = min(scale, max_w / src_w)
+        img.drawWidth = src_w * scale
+        img.drawHeight = src_h * scale
+        img.hAlign = "LEFT"
         return img
     except Exception:
         return None

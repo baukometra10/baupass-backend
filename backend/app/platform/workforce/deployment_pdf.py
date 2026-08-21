@@ -179,23 +179,32 @@ def build_deployment_plan_pdf(
         f"{datetime.now(timezone.utc).strftime('%d.%m.%Y %H:%M')} UTC</font>"
     )
 
-    logo_img = logo_image_flowable(str(brand.get("logoData") or ""), max_height_mm=20.0)
+    logo_col_mm = 30.0
+    logo_max_w_mm = 26.0
+    logo_img = logo_image_flowable(
+        str(brand.get("logoData") or ""),
+        max_height_mm=18.0,
+        max_width_mm=logo_max_w_mm,
+    )
     meta_para = Paragraph(
         f"<font size='12'><b>{_escape(display_company)}</b></font><br/>{meta_html}",
         sub_style,
     )
     if logo_img:
+        logo_col = logo_col_mm * mm
+        meta_col = max(doc.width - logo_col, 40 * mm)
         header_table = Table(
             [[logo_img, meta_para]],
-            colWidths=[24 * mm, doc.width - 24 * mm],
+            colWidths=[logo_col, meta_col],
         )
         header_table.setStyle(
             TableStyle(
                 [
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
                     ("LEFTPADDING", (0, 0), (0, 0), 0),
-                    ("RIGHTPADDING", (0, 0), (0, 0), 8),
-                    ("LEFTPADDING", (1, 0), (1, 0), 4),
+                    ("RIGHTPADDING", (0, 0), (0, 0), 10),
+                    ("LEFTPADDING", (1, 0), (1, 0), 8),
+                    ("RIGHTPADDING", (1, 0), (1, 0), 0),
                     ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                     ("TOPPADDING", (0, 0), (-1, -1), 2),
                 ]
