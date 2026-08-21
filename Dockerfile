@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY backend/requirements.txt backend/requirements.txt
+COPY backend/requirements.txt backend/requirements-optional.txt backend/
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     curl \
