@@ -1,4 +1,4 @@
-import { STRINGS as BASE_STRINGS } from "./i18n-strings.js?v=20260820accHub4";
+import { STRINGS as BASE_STRINGS } from "./i18n-strings.js?v=20260821fab20";
 import { EXT_STRINGS } from "./i18n-strings-ext.js";
 import { EXTRA_LANG_STRINGS } from "./i18n-strings-langs.js";
 import { FEATURE_STRINGS } from "./i18n-features.js";

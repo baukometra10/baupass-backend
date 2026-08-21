@@ -16,7 +16,7 @@ import re
 from flask import Flask, Response, request
 
 # Bump when shipping FAB stability / voice prep fixes (cache bust for all pages).
-FAB_SCRIPT_VERSION = os.getenv("BAUPASS_AI_OPERATOR_FAB_VERSION", "20260820fab19").strip() or "20260820fab19"
+FAB_SCRIPT_VERSION = os.getenv("BAUPASS_AI_OPERATOR_FAB_VERSION", "20260821fab20").strip() or "20260821fab20"
 VOICE_UI_VERSION = os.getenv("BAUPASS_AI_VOICE_UI_VERSION", "20260820voice17").strip() or "20260820voice17"
 
 _SCRIPT_MARKER = "ai-operator-fab.js"
@@ -33,12 +33,13 @@ def _voice_inject_enabled() -> bool:
 
 
 def _welcome_inject_enabled() -> bool:
-    """On by default — speak a short greeting once per company/day for admins."""
-    return os.getenv("BAUPASS_AI_OPERATOR_WELCOME", "1").strip().lower() not in {
+    """Off by default — no auto greeting TTS on page entry (set BAUPASS_AI_OPERATOR_WELCOME=1 for manual API)."""
+    return os.getenv("BAUPASS_AI_OPERATOR_WELCOME", "0").strip().lower() not in {
         "0",
         "false",
         "no",
         "off",
+        "",
     }
 
 
@@ -49,7 +50,7 @@ def _build_inject_snippet(*, include_voice: bool) -> str:
             f'<link rel="stylesheet" href="/ai-voice-ui.css?v={VOICE_UI_VERSION}" />'
             f'<script src="/ai-voice-ui.js?v={VOICE_UI_VERSION}" defer></script>'
         )
-    # Expose welcome flag before FAB boots (default on; set BAUPASS_AI_OPERATOR_WELCOME=0 to disable).
+    # Expose welcome flag before FAB boots (default off; no auto-TTS on page entry).
     welcome_js = "true" if _welcome_inject_enabled() else "false"
     parts.append(f"<script>window.BAUPASS_AI_OPERATOR_WELCOME={welcome_js};</script>")
     parts.append(

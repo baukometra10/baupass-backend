@@ -2762,7 +2762,8 @@
       appendMsg("user", q);
       lastUserQuestion = String(q || "").trim();
       const log = document.getElementById("chatLog");
-      const voiceReplyOn = window.BaupassAiUi?.isVoiceReplyEnabled?.() !== false;
+      // Speak only for mic turns, or typed turns that explicitly opt into voice reply.
+      const voiceReplyOn = options.voiceReply === true && window.BaupassAiUi?.isVoiceReplyEnabled?.() !== false;
       const isVoiceTurn = Boolean(options.spoken) || voiceReplyOn;
       const botDiv = document.createElement("div");
       botDiv.className = "msg-bot";
@@ -3136,7 +3137,7 @@
       const spoken = window.BaupassAiUi?.consumeVoiceInputFlag?.(input) || false;
       q = window.BaupassAiUi?.cleanQuestionText?.(q) || q;
       input.value = "";
-      submitQuestion(q, { spoken });
+      submitQuestion(q, { spoken, voiceReply: true });
     };
     document.getElementById("briefingBtn").onclick = runBriefing;
     document.getElementById("decisionBtn").onclick = runDecision;

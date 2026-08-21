@@ -1,4 +1,4 @@
-import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260820accHub4";
+import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260821fab20";
 import { ensureLeafletLoaded, mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 import {
@@ -8290,7 +8290,7 @@ function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, fe
           <span>${t("aiOperator.voiceEnabled")}</span>
         </label>
         <label class="autopilot-toggle" style="display:flex;gap:0.6rem;align-items:center;margin:0.5rem 0">
-          <input type="checkbox" id="aiOperatorWelcomeToggle" checked />
+          <input type="checkbox" id="aiOperatorWelcomeToggle" />
           <span>${t("aiOperator.welcomeEnabled")}</span>
         </label>
         <hr style="border:none;border-top:1px solid var(--border, #334155);margin:1rem 0" />
@@ -8419,7 +8419,7 @@ async function bindAiOperatorSettingsPanel(cid) {
       voiceToggle.disabled = !planAllowed;
     }
     if (welcomeToggle) {
-      welcomeToggle.checked = settings.welcomeEnabled !== false;
+      welcomeToggle.checked = settings.welcomeEnabled === true;
       welcomeToggle.disabled = !planAllowed;
     }
     if (briefingToggle) {
@@ -8524,7 +8524,7 @@ async function bindAiOperatorSettingsPanel(cid) {
     try {
       const enabled = Boolean(toggle.checked);
       const voiceEnabled = voiceToggle ? Boolean(voiceToggle.checked) : true;
-      const welcomeEnabled = welcomeToggle ? Boolean(welcomeToggle.checked) : true;
+      const welcomeEnabled = welcomeToggle ? Boolean(welcomeToggle.checked) : false;
       const briefingEnabled = briefingToggle ? Boolean(briefingToggle.checked) : true;
       const hoursRaw = String(hoursInput?.value || "auto").trim();
       const briefingHours = !hoursRaw || /^auto/i.test(hoursRaw) ? "auto" : hoursRaw;

@@ -20,8 +20,8 @@ def test_inject_before_body_close():
     # Voice stack is preloaded with FAB when BAUPASS_AI_OPERATOR_VOICE is on (default).
     assert b"ai-voice-ui.js" in out
     assert b"ai-operator-fab.css" in out
-    # Welcome TTS is on by default (once per company/day for admins).
-    assert b"BAUPASS_AI_OPERATOR_WELCOME=true" in out
+    # Welcome TTS is off by default (no auto greeting on page entry).
+    assert b"BAUPASS_AI_OPERATOR_WELCOME=false" in out
 
 
 def test_inject_does_not_duplicate_existing_voice_ui():

@@ -10,7 +10,7 @@
     return;
   }
 
-  const VERSION = "20260820fab19";
+  const VERSION = "20260821fab20";
   const VOICE_UI_VERSION = "20260820voice17";
   const HANDS_FREE_KEY = "baupass-ai-hands-free";
   const SESSION_STORE_KEY = "baupass-aio-session-id";
@@ -31,7 +31,7 @@
   /** Company preference: when false, FAB is hidden everywhere for this company. */
   let companyOperatorEnabled = true;
   let companyVoiceEnabled = true;
-  let companyWelcomeEnabled = true;
+  let companyWelcomeEnabled = false;
   let companySettingsLoaded = false;
   let _lastSettingsProbe = 0;
   /** Transcript waiting for operator to verify before send. */
@@ -1144,10 +1144,7 @@
     const ready = isAdminSurfaceReady();
     const companyOn = companyOperatorEnabled !== false;
     setFabVisible(ready && companyOn);
-    // Greeting only once after login — not on every Operations section / poll tick.
-    if (ready && companyOn && !welcomeDoneThisLogin) {
-      maybeSpeakWelcome().catch(() => {});
-    }
+    // Never auto-speak on page entry / poll — voice only after the user asks.
     if (ready && companyOn) {
       void probeOpsPulse();
     } else if (els.fab) {
@@ -1245,7 +1242,8 @@
     if (els.verifySendBtn) els.verifySendBtn.textContent = t("voiceVerifySend");
     if (els.verifyRetryBtn) els.verifyRetryBtn.textContent = t("voiceVerifyRetry");
     if (els.empty && !els.log?.querySelector(".aio-msg, .aio-turn")) {
-      els.empty.textContent = t("idle");
+      // Keep greeting as on-screen text only — never auto-TTS when browsing pages.
+      els.empty.textContent = t("welcomeSpeak") || t("idle");
     }
     syncHandsFreeBtn();
     renderChips();
@@ -1532,7 +1530,7 @@
       ? Boolean(data.enabled)
       : (companyOn && planOk);
     companyVoiceEnabled = settings.voiceEnabled !== false;
-    companyWelcomeEnabled = settings.welcomeEnabled !== false;
+    companyWelcomeEnabled = settings.welcomeEnabled === true;
     cacheCompanyEnabled(Boolean(enabled));
     return companyOperatorEnabled;
   }
@@ -1598,7 +1596,7 @@
     return true;
   }
 
-  /** Speak a short greeting once per login when admin surface is ready (default on). */
+  /** Manual welcome TTS only (API / settings). Never called on page entry. */
   function welcomeVoiceEnabled() {
     if (companyWelcomeEnabled === false) return false;
     try {
@@ -3887,7 +3885,7 @@
     /** Prefetch Whisper/TTS stack without opening the drawer. */
     prepareVoice: () => ensureVoiceStack().then(() => { voiceReady = true; return true; }),
     isVoiceReady: () => Boolean(voiceReady && global.BaupassAiUi?.bindVoiceInput),
-    /** Opt-in welcome TTS (requires BAUPASS_AI_OPERATOR_WELCOME=1). */
+    /** Manual welcome TTS only — not triggered on page navigation. */
     welcome: () => maybeSpeakWelcome(),
   };
 

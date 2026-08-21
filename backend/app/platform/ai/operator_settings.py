@@ -10,7 +10,7 @@ from typing import Any
 DEFAULTS: dict[str, Any] = {
     "enabled": True,
     "voiceEnabled": True,
-    "welcomeEnabled": True,
+    "welcomeEnabled": False,
     # Morning pulse dispatch (Slack/email) — per company schedule
     "briefingEnabled": True,
     # auto = from company work_start + shift starts; manual = briefingHours list
