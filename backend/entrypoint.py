@@ -372,8 +372,12 @@ def main(mode: str = "auto") -> None:
         or ""
     ).strip().lower()
     if role in {"worker", "rq"}:
+        import sys as _sys
+
         from backend.app.tasks.worker import main as worker_main
 
+        # railway.json starts with `--mode prod`; RQ worker argparse rejects that.
+        _sys.argv = [_sys.argv[0]]
         print("[baupass] Process role=worker — starting RQ worker", flush=True)
         raise SystemExit(worker_main())
 
