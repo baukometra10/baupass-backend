@@ -1,4 +1,4 @@
-﻿const BUILD = "20260621contrast1";
+﻿const BUILD = "20260821healthCard2";
 const SHELL_CACHE = `baupass-control-shell-${BUILD}`;
 const RUNTIME_CACHE = `baupass-control-runtime-${BUILD}`;
 const SHELL_ASSETS = [

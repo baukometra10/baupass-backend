@@ -10,7 +10,7 @@
 
 .platform-health-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 0.55rem;
 }
 
@@ -19,6 +19,8 @@
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(15, 23, 32, 0.65);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .platform-health-card.is-ok {
@@ -39,7 +41,11 @@
   font-size: 0.72rem;
   color: #94a3b8;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 100%;
 }
 
 .platform-health-value {
@@ -50,6 +56,8 @@
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .platform-health-detail {
@@ -57,6 +65,8 @@
   font-size: 0.72rem;
   color: var(--ph-detail);
   line-height: 1.3;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .platform-health-foot {

@@ -1436,6 +1436,15 @@ const UI_TRANSLATIONS = {
     platformHealthProbeAdminV2: "Betrieb",
     platformHealthProbeHub: "Enterprise Hub",
     platformHealthProbeOps: "Ops-Zentrale",
+    platformHealthProbeWorkerApp: "Mitarbeiter-App",
+    platformHealthProbeApiCompanies: "Firmen-API",
+    platformHealthProbeApiOps: "Ops-API",
+    platformHealthProbeApiBrief: "Tagesbrief-API",
+    platformHealthProbeApiMap: "Live-Karte-API",
+    platformHealthProbeApiDocs: "Dokumente-API",
+    platformHealthProbeApiAdminOverview: "Admin-Übersicht",
+    platformHealthProbeApiBilling: "Billing-API",
+    platformHealthProbeApiRoutes: "API-Routen",
     platformHealthProbeWorkers: "Hintergrund-Worker",
     platformHealthProbeDeadLetter: "Dead-Letter-Queue",
     platformHealthProbeInvoiceRetry: "Rechnungs-Retry",
@@ -2640,6 +2649,15 @@ const UI_TRANSLATIONS = {
     platformHealthProbeAdminV2: "Operations",
     platformHealthProbeHub: "Features & plans",
     platformHealthProbeOps: "Ops center",
+    platformHealthProbeWorkerApp: "Worker app",
+    platformHealthProbeApiCompanies: "Companies API",
+    platformHealthProbeApiOps: "Ops API",
+    platformHealthProbeApiBrief: "Daily brief API",
+    platformHealthProbeApiMap: "Live map API",
+    platformHealthProbeApiDocs: "Documents API",
+    platformHealthProbeApiAdminOverview: "Admin overview",
+    platformHealthProbeApiBilling: "Billing API",
+    platformHealthProbeApiRoutes: "API routes",
     platformHealthProbeWorkers: "Background workers",
     platformHealthProbeDeadLetter: "Dead-letter queue",
     platformHealthProbeInvoiceRetry: "Invoice retry",
@@ -4642,6 +4660,15 @@ const UI_TRANSLATIONS = {
     platformHealthProbeAdminV2: "التشغيل",
     platformHealthProbeHub: "الميزات والخطط",
     platformHealthProbeOps: "مركز العمليات",
+    platformHealthProbeWorkerApp: "تطبيق الموظف",
+    platformHealthProbeApiCompanies: "API الشركات",
+    platformHealthProbeApiOps: "API العمليات",
+    platformHealthProbeApiBrief: "API الملخص اليومي",
+    platformHealthProbeApiMap: "API الخريطة",
+    platformHealthProbeApiDocs: "API المستندات",
+    platformHealthProbeApiAdminOverview: "نظرة الإدارة",
+    platformHealthProbeApiBilling: "API الفوترة",
+    platformHealthProbeApiRoutes: "مسارات API",
     platformHealthProbeWorkers: "عاملات الخلفية",
     platformHealthProbeDeadLetter: "طابور dead-letter",
     platformHealthProbeInvoiceRetry: "إعادة محاولة الفواتير",
@@ -20093,7 +20120,31 @@ const PLATFORM_HEALTH_PROBE_LABELS = {
   admin_v2: "platformHealthProbeAdminV2",
   enterprise_hub: "platformHealthProbeHub",
   ops_center: "platformHealthProbeOps",
+  worker_app: "platformHealthProbeWorkerApp",
+  api_companies: "platformHealthProbeApiCompanies",
+  api_ops_command: "platformHealthProbeApiOps",
+  api_daily_brief: "platformHealthProbeApiBrief",
+  api_live_map: "platformHealthProbeApiMap",
+  api_docs_inbox: "platformHealthProbeApiDocs",
+  api_admin_overview: "platformHealthProbeApiAdminOverview",
+  api_billing_pricing: "platformHealthProbeApiBilling",
+  api_route_registry: "platformHealthProbeApiRoutes",
 };
+
+function platformHealthProbeLabel(probeId) {
+  const key = String(probeId || "").trim();
+  const labelKey = PLATFORM_HEALTH_PROBE_LABELS[key];
+  if (labelKey) {
+    const translated = uiT(labelKey);
+    if (translated && translated !== labelKey) return translated;
+  }
+  // Fallback: readable title from id (never spill raw SCREAMING_SNAKE across the card).
+  return key
+    .replace(/^api_/, "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (ch) => ch.toUpperCase())
+    .trim() || key;
+}
 
 function canViewPlatformHealth() {
   const role = String(getEffectiveUiRole() || "").toLowerCase();
@@ -20158,8 +20209,7 @@ function renderPlatformHealthPanel(payload, errorMessage, opsExtras = null) {
 
   (payload?.probes || []).forEach((probe) => {
     const key = String(probe.id || "");
-    const labelKey = PLATFORM_HEALTH_PROBE_LABELS[key];
-    const label = labelKey ? uiT(labelKey) : key;
+    const label = platformHealthProbeLabel(key);
     const ok = Boolean(probe.ok);
     cards.push(`
       <div class="platform-health-card ${ok ? "is-ok" : "is-fail"}">
