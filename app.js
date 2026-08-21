@@ -10257,6 +10257,7 @@ const PLAN_FEATURES = {
   ops_command_center: "enterprise",
   cmd_center: "enterprise",
   enterprise_integrations: "enterprise",
+  system_transfer: "enterprise",
 };
 
 const state = {
@@ -24248,17 +24249,27 @@ function updateTopbarActionsState(loggedIn) {
   }
 
   if (elements.exportButton) {
-    const canExport = role === "superadmin" && canWrite;
+    const canTransfer =
+      role === "superadmin" ||
+      (role === "company-admin" && hasCompanyFeature("system_transfer"));
+    const canExport = canTransfer && canWrite;
     elements.exportButton.style.display = loggedIn && canExport ? "inline-flex" : "none";
     elements.exportButton.disabled = !canExport;
-    elements.exportButton.title = canExport ? "" : runtimeText("adminOnlyTooltip");
+    elements.exportButton.title = canExport
+      ? (role === "company-admin" ? "Enterprise: System als ZIP exportieren" : "")
+      : runtimeText("adminOnlyTooltip");
   }
 
   if (elements.importButton) {
-    const canImport = role === "superadmin" && canWrite;
+    const canTransfer =
+      role === "superadmin" ||
+      (role === "company-admin" && hasCompanyFeature("system_transfer"));
+    const canImport = canTransfer && canWrite;
     elements.importButton.style.display = loggedIn && canImport ? "inline-flex" : "none";
     elements.importButton.disabled = !canImport;
-    elements.importButton.title = canImport ? "" : runtimeText("adminOnlyTooltip");
+    elements.importButton.title = canImport
+      ? (role === "company-admin" ? "Enterprise: Altes System wiederherstellen" : "")
+      : runtimeText("adminOnlyTooltip");
   }
 
   if (elements.logoutButton) {
@@ -38618,6 +38629,65 @@ async function handleTopbarExport() {
     showToast(runtimeText("loginFirst"));
     return;
   }
+
+  const role = String(state.currentUser?.role || "");
+  const canEnterpriseTransfer = role === "company-admin" && hasCompanyFeature("system_transfer");
+
+  if (role === "superadmin" || canEnterpriseTransfer) {
+    const wantTransfer =
+      canEnterpriseTransfer
+        ? true
+        : await showConfirmDialog(
+            "Vollständigen Firmen-Transfer als ZIP exportieren? (Empfohlen für System-Umzug). Nein = klassischer JSON-Export."
+          );
+    if (wantTransfer) {
+      let companyId = String(
+        state.currentUser?.company_id || state.currentUser?.companyId || getEffectiveUiCompanyId() || ""
+      ).trim();
+      if (role === "superadmin") {
+        const companies = Array.isArray(state.companies) ? state.companies : [];
+        if (!companyId && companies.length === 1) {
+          companyId = companies[0].id;
+        }
+        if (!companyId && companies.length > 1) {
+          const names = companies.slice(0, 12).map((c, i) => `${i + 1}. ${c.name}`).join("\n");
+          const pick = window.prompt(`Firmen-ID eingeben:\n${names}`, companies[0]?.id || "");
+          companyId = String(pick || "").trim();
+        }
+      }
+      if (!companyId) {
+        showToast("Keine Firma für Transfer-Export gewählt.");
+        return;
+      }
+      const response = await fetch(`${API_BASE}/api/transfer/export?companyId=${encodeURIComponent(companyId)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        if (err.error === "feature_not_available") {
+          showToast("System-Transfer ist nur im Enterprise-Paket verfügbar.");
+          return;
+        }
+        showToast(uiT("alertDemoLoadFailed").replace("{error}", err.error || response.statusText));
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `workpass-transfer-${companyId}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("Transfer-ZIP heruntergeladen.");
+      return;
+    }
+  }
+
+  if (role !== "superadmin") {
+    showToast("Klassischer JSON-Export ist nur für Superadmin verfügbar.");
+    return;
+  }
+
   const exportCompanyId = state.currentUser?.company_id || state.currentUser?.companyId || "";
   const exportCompany = state.companies.find((entry) => entry.id === exportCompanyId);
   const exportScopeLabel = exportCompany
@@ -38662,6 +38732,7 @@ function showImportDryRunDialog(summary) {
     const skipped = summary?.skipped || {};
     const unchanged = summary?.unchanged || {};
     const importOnlyChanges = Boolean(summary?.importOnlyChanges);
+    const isTransfer = Boolean(summary?.transfer);
     const unchangedCount = Number(unchanged.companies || 0)
       + Number(unchanged.subcompanies || 0)
       + Number(unchanged.workers || 0)
@@ -38692,6 +38763,27 @@ function showImportDryRunDialog(summary) {
       return `<span style="display:inline-flex; min-width:38px; justify-content:center; padding:2px 8px; border-radius:999px; background:${bg}; color:${color}; font-weight:700;">${text}</span>`;
     };
 
+    const transferRows = isTransfer
+      ? [
+          ["Firmen", "companies"],
+          ["Subunternehmen", "subcompanies"],
+          ["Mitarbeiter", "workers"],
+          ["Vertragsvorlagen", "contract_templates"],
+          ["Arbeitsverträge", "employment_contracts"],
+          ["Dokumente", "worker_documents"],
+          ["Zutrittsprotokolle", "access_logs"],
+          ["Rechnungen", "invoices"],
+          ["Einsatzplan", "deployment_days"],
+          ["Urlaub", "leave_requests"],
+        ]
+          .filter(([_, key]) => Number(accepted[key] || 0) + Number(conflicts[key] || 0) + Number(unchanged[key] || 0) > 0)
+          .map(
+            ([label, key]) =>
+              `<tr><td style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(label)}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted[key], "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts[key], "conflict")}</td></tr>`
+          )
+          .join("")
+      : "";
+
     const overlay = document.createElement("div");
     overlay.style.position = "fixed";
     overlay.style.inset = "0";
@@ -38711,8 +38803,8 @@ function showImportDryRunDialog(summary) {
 
     panel.innerHTML = `
       <h3 style="margin:0 0 8px;">${escapeHtml(runtimeText("importPreviewTitle"))}</h3>
-      <p class="helper-text" style="margin:0 0 12px;">${escapeHtml(runtimeText("importPreviewCheckHint"))}</p>
-      <p class="helper-text" style="margin:0 0 12px; color:var(--muted,#475569);">${escapeHtml(runtimeTextTemplate("importPreviewModeLine", { mode: importOnlyChanges ? runtimeText("importPreviewModeChanges") : runtimeText("importPreviewModeAll"), count: unchangedCount }))}</p>
+      <p class="helper-text" style="margin:0 0 12px;">${escapeHtml(isTransfer ? "System-Import Vorschau (vollständiger Firmen-Transfer)" : runtimeText("importPreviewCheckHint"))}</p>
+      ${isTransfer ? "" : `<p class="helper-text" style="margin:0 0 12px; color:var(--muted,#475569);">${escapeHtml(runtimeTextTemplate("importPreviewModeLine", { mode: importOnlyChanges ? runtimeText("importPreviewModeChanges") : runtimeText("importPreviewModeAll"), count: unchangedCount }))}</p>`}
       
       <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:14px; padding:10px; background:var(--bg-secondary,#f9fafb); border-radius:8px; border:1px solid var(--line,#e5e7eb);">
         <div style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
@@ -38738,13 +38830,29 @@ function showImportDryRunDialog(summary) {
           </tr>
         </thead>
         <tbody>
+          ${isTransfer ? transferRows : `
           <tr><td style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewSubcompanies"))}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.subcompanies, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.subcompanies, "conflict")}</td></tr>
           <tr><td style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewWorkers"))}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.workers, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.workers, "conflict")}</td></tr>
           <tr><td style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewAccessLogs"))}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.accessLogs, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.accessLogs, "conflict")}</td></tr>
           <tr><td style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewInvoices"))}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.invoices, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.invoices, "conflict")}</td></tr>
+          `}
         </tbody>
       </table>
 
+      ${isTransfer ? `
+      <div style="padding:8px 10px; background:var(--bg-secondary,#f1f5f9); border-radius:6px; margin-bottom:14px; font-size:0.9rem;">
+        Dateien im Paket: <strong>${escapeHtml(String(summary?.fileCount || 0))}</strong>
+        ${summary?.skippedInvalid ? ` · Ungültig übersprungen: <strong>${escapeHtml(String(summary.skippedInvalid))}</strong>` : ""}
+      </div>
+      <label style="display:block;margin:0 0 14px;font-size:0.92rem;">
+        Konfliktmodus
+        <select data-xfer-merge style="display:block;width:100%;margin-top:6px;padding:8px;border-radius:8px;border:1px solid var(--line,#d8dee8);">
+          <option value="skip">Bestehende behalten (sicher)</option>
+          <option value="replace">Paket überschreibt bestehende</option>
+          <option value="fail">Bei Konflikt abbrechen</option>
+        </select>
+      </label>
+      ` : `
       <div style="padding:8px 10px; background:var(--warn-surface,#fef3c7); border-radius:6px; border-left:4px solid var(--warn-border,#b45309); margin-bottom:14px;">
         <p style="margin:0 0 6px; font-weight:600; color:var(--warn-text,#92400e); font-size:0.9rem;">⚠ ${escapeHtml(runtimeText("importPreviewSkippedTitle"))}</p>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.85rem; color:var(--warn-accent,#78350f);">
@@ -38752,6 +38860,7 @@ function showImportDryRunDialog(summary) {
           <div><strong>${escapeHtml(runtimeText("importPreviewSkippedInvalid"))}</strong> ${formatBadge(skipped.invalid, "skip")}</div>
         </div>
       </div>
+      `}
 
       <div style="display:flex; gap:10px; justify-content:flex-end;">
         <button type="button" class="ghost-button" data-import-preview="cancel">${escapeHtml(runtimeText("importPreviewCancel"))}</button>
@@ -38774,8 +38883,110 @@ function showImportDryRunDialog(summary) {
     });
 
     panel.querySelector('[data-import-preview="cancel"]')?.addEventListener("click", () => cleanup(false));
-    panel.querySelector('[data-import-preview="apply"]')?.addEventListener("click", () => cleanup(true));
+    panel.querySelector('[data-import-preview="apply"]')?.addEventListener("click", () => {
+      if (isTransfer) {
+        const mergeMode = panel.querySelector("[data-xfer-merge]")?.value || "skip";
+        cleanup({ proceed: true, mergeMode });
+        return;
+      }
+      cleanup(true);
+    });
   });
+}
+
+function showTransferImportProgressDialog() {
+  const overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(10,16,26,0.52);display:grid;place-items:center;z-index:9999;";
+  const panel = document.createElement("div");
+  panel.style.cssText = "width:min(520px,94vw);background:var(--panel,#fff);border-radius:14px;padding:20px;box-shadow:0 12px 38px rgba(0,0,0,0.22);";
+  panel.innerHTML = `
+    <h3 style="margin:0 0 10px;">System wird importiert…</h3>
+    <p data-xfer-msg class="helper-text" style="margin:0 0 12px;">Paket wird verarbeitet</p>
+    <div style="height:12px;background:var(--bg-secondary,#e5e7eb);border-radius:999px;overflow:hidden;">
+      <div data-xfer-bar style="height:100%;width:0%;background:var(--accent,#2563eb);transition:width .25s ease;"></div>
+    </div>
+    <p data-xfer-pct style="margin:10px 0 0;font-weight:700;font-size:1.25rem;">0%</p>
+  `;
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  return {
+    update(percent, message) {
+      const pct = Math.max(0, Math.min(100, Number(percent) || 0));
+      panel.querySelector("[data-xfer-bar]").style.width = `${pct}%`;
+      panel.querySelector("[data-xfer-pct]").textContent = `${pct}%`;
+      if (message) panel.querySelector("[data-xfer-msg]").textContent = message;
+    },
+    close() {
+      overlay.remove();
+    },
+  };
+}
+
+function showTransferImportResultDialog(result) {
+  return new Promise((resolve) => {
+    const verification = result?.verification || {};
+    const pct = Number(result?.completionPercent ?? verification?.completionPercent ?? 0);
+    const status = verification?.status || (pct >= 100 ? "complete" : "partial");
+    const accepted = result?.summary?.accepted || {};
+    const conflicts = result?.summary?.conflicts || {};
+    const unchanged = result?.summary?.unchanged || {};
+    const rows = Object.keys({ ...accepted, ...conflicts, ...unchanged })
+      .filter((k) => Number(accepted[k] || 0) + Number(conflicts[k] || 0) + Number(unchanged[k] || 0) > 0)
+      .map((k) => `<tr>
+        <td style="padding:6px 8px;border:1px solid #d8dee8;">${escapeHtml(k)}</td>
+        <td style="padding:6px 8px;border:1px solid #d8dee8;text-align:right;">${escapeHtml(String(accepted[k] || 0))}</td>
+        <td style="padding:6px 8px;border:1px solid #d8dee8;text-align:right;">${escapeHtml(String(unchanged[k] || 0))}</td>
+        <td style="padding:6px 8px;border:1px solid #d8dee8;text-align:right;">${escapeHtml(String(conflicts[k] || 0))}</td>
+      </tr>`)
+      .join("");
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(10,16,26,0.52);display:grid;place-items:center;z-index:9999;";
+    const panel = document.createElement("div");
+    panel.style.cssText = "width:min(640px,94vw);max-height:80vh;overflow:auto;background:var(--panel,#fff);border-radius:14px;padding:20px;box-shadow:0 12px 38px rgba(0,0,0,0.22);";
+    const tone = pct >= 100 ? "#166534" : pct >= 90 ? "#92400e" : "#991b1b";
+    const backup = result?.summary?.backupPath ? `<p class="helper-text">Rollback-Backup: <code style="font-size:0.8rem;">${escapeHtml(String(result.summary.backupPath))}</code></p>` : "";
+    panel.innerHTML = `
+      <h3 style="margin:0 0 8px;">Import-Ergebnis</h3>
+      <p style="margin:0 0 12px;font-size:2rem;font-weight:800;color:${tone};">${escapeHtml(String(pct))}%</p>
+      <p class="helper-text" style="margin:0 0 12px;">${escapeHtml(verification?.message || status)}</p>
+      ${backup}
+      <table style="width:100%;border-collapse:collapse;margin-bottom:14px;font-size:0.92rem;">
+        <thead><tr style="background:var(--bg-secondary,#f5f7fa);">
+          <th style="padding:6px 8px;border:1px solid #d8dee8;text-align:left;">Bereich</th>
+          <th style="padding:6px 8px;border:1px solid #d8dee8;text-align:right;">Neu</th>
+          <th style="padding:6px 8px;border:1px solid #d8dee8;text-align:right;">Gleich</th>
+          <th style="padding:6px 8px;border:1px solid #d8dee8;text-align:right;">Konflikt</th>
+        </tr></thead>
+        <tbody>${rows || `<tr><td colspan="4" style="padding:8px;border:1px solid #d8dee8;">Keine Daten</td></tr>`}</tbody>
+      </table>
+      <div style="display:flex;justify-content:flex-end;">
+        <button type="button" class="primary-button" data-xfer-ok>OK</button>
+      </div>
+    `;
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    const done = () => {
+      overlay.remove();
+      resolve();
+    };
+    panel.querySelector("[data-xfer-ok]")?.addEventListener("click", done);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) done();
+    });
+  });
+}
+
+async function pollTransferImportJob(jobId, progressUi) {
+  const started = Date.now();
+  while (Date.now() - started < 10 * 60 * 1000) {
+    const job = await apiRequest(`${API_BASE}/api/transfer/import/${encodeURIComponent(jobId)}`);
+    progressUi.update(job?.percent || 0, job?.message || job?.phase || "…");
+    if (job?.status === "done" || job?.status === "error") {
+      return job;
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  throw new Error("import_timeout");
 }
 
 async function handleTopbarImport() {
@@ -38786,7 +38997,7 @@ async function handleTopbarImport() {
 
   const input = document.createElement("input");
   input.type = "file";
-  input.accept = "application/json,.json";
+  input.accept = "application/json,.json,application/zip,.zip";
 
   input.onchange = async () => {
     const file = input.files?.[0];
@@ -38794,7 +39005,116 @@ async function handleTopbarImport() {
       return;
     }
 
+    const name = String(file.name || "").toLowerCase();
+    const role = String(state.currentUser?.role || "");
+    const canTransfer =
+      role === "superadmin" || (role === "company-admin" && hasCompanyFeature("system_transfer"));
+
     try {
+      if (canTransfer && (name.endsWith(".zip") || name.endsWith(".json"))) {
+        let parsed = null;
+        if (name.endsWith(".json")) {
+          parsed = JSON.parse(await file.text());
+        }
+        const looksTransfer =
+          name.endsWith(".zip") ||
+          parsed?.schemaVersion === "2026-08-transfer-v1" ||
+          parsed?.manifest?.schemaVersion === "2026-08-transfer-v1" ||
+          parsed?.domains ||
+          parsed?.employmentContracts ||
+          parsed?.workerDocuments ||
+          parsed?.deploymentDays;
+
+        if (looksTransfer) {
+          const dryForm = new FormData();
+          dryForm.append("file", file, file.name);
+          dryForm.append("dryRun", "1");
+          dryForm.append("mergeMode", "skip");
+          const dryRes = await fetch(`${API_BASE}/api/transfer/import/start?sync=1`, {
+            method: "POST",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: dryForm,
+          });
+          const dryJson = await dryRes.json().catch(() => ({}));
+          if (!dryRes.ok) {
+            throw new Error(dryJson.error || dryRes.statusText || "validate_failed");
+          }
+          const summary = {
+            transfer: true,
+            accepted: dryJson?.summary?.accepted || {},
+            conflicts: dryJson?.summary?.conflicts || {},
+            unchanged: dryJson?.summary?.unchanged || {},
+            fileCount: dryJson?.summary?.fileCount || 0,
+            skippedInvalid: dryJson?.summary?.skippedInvalid || 0,
+          };
+          const decision = await showImportDryRunDialog(summary);
+          if (!decision || decision === false) return;
+          const mergeMode = decision?.mergeMode || "skip";
+
+          const progress = showTransferImportProgressDialog();
+          progress.update(2, "Import-Job startet…");
+          const applyForm = new FormData();
+          applyForm.append("file", file, file.name);
+          applyForm.append("dryRun", "0");
+          applyForm.append("mergeMode", mergeMode);
+          const startRes = await fetch(`${API_BASE}/api/transfer/import/start`, {
+            method: "POST",
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: applyForm,
+          });
+          const startJson = await startRes.json().catch(() => ({}));
+          if (!startRes.ok) {
+            progress.close();
+            throw new Error(startJson.error || startRes.statusText || "import_failed");
+          }
+          let applyJson = startJson;
+          if (startJson.jobId) {
+            const job = await pollTransferImportJob(startJson.jobId, progress);
+            if (job?.status === "error") {
+              progress.close();
+              throw new Error(job.error || job.message || "import_failed");
+            }
+            applyJson = job?.result || job;
+          } else {
+            progress.update(Number(applyJson?.completionPercent || 100), applyJson?.verification?.message || "Fertig");
+            await new Promise((r) => setTimeout(r, 250));
+          }
+          progress.close();
+          await showTransferImportResultDialog(applyJson);
+          await loadAllData();
+          refreshAll();
+          showToast(uiT("alertImportSuccess"));
+          return;
+        }
+
+        if (parsed) {
+          const payloadData = parsed?.data && typeof parsed.data === "object" ? parsed.data : parsed;
+          const importOnlyChanges = await showConfirmDialog(uiT("confirmImportChangesOnly"));
+          const dryRunResult = await apiRequest(`${API_BASE}/api/import`, {
+            method: "POST",
+            body: {
+              data: payloadData,
+              dryRun: 1,
+              importOnlyChanges: importOnlyChanges ? 1 : 0,
+            },
+          });
+          const proceed = await showImportDryRunDialog(dryRunResult?.summary || {});
+          if (!proceed) return;
+          await apiRequest(`${API_BASE}/api/import`, {
+            method: "POST",
+            body: {
+              data: payloadData,
+              dryRun: 0,
+              importOnlyChanges: importOnlyChanges ? 1 : 0,
+            },
+          });
+          await loadAllData();
+          refreshAll();
+          showToast(uiT("alertImportSuccess"));
+          return;
+        }
+      }
+
       const text = await file.text();
       const parsed = JSON.parse(text);
       const payloadData = parsed?.data && typeof parsed.data === "object" ? parsed.data : parsed;

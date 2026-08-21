@@ -534,6 +534,7 @@ def _build_plan_features():
         "realtime_operations": "professional",
         "automation_suite": "professional",
         "enterprise_hub": "starter",
+        "system_transfer": "enterprise",
     }
     try:
         from backend.app.platform.plan_entitlements import catalog_keys_for_server_plan_features

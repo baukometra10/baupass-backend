@@ -45,6 +45,7 @@ CATALOG_MIN_PLAN: dict[str, str] = {
     "multi_tenant": "enterprise",
     "multi_branch": "enterprise",
     "tenant_isolation": "enterprise",
+    "system_transfer": "enterprise",
     "company_work_rules": "professional",
     "site_work_rules": "professional",
     "workforce_compliance": "professional",
@@ -405,4 +406,5 @@ def catalog_keys_for_server_plan_features() -> dict[str, str]:
         "worker_chat": "starter",
     "e2e_chat": "starter",
         "employment_contracts": "professional",
+        "system_transfer": "enterprise",
     }
