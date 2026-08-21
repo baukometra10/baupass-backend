@@ -366,6 +366,17 @@ def _serve_prod() -> None:
 
 
 def main(mode: str = "auto") -> None:
+    role = (
+        os.getenv("SUPPIX_PROCESS_ROLE")
+        or os.getenv("BAUPASS_PROCESS_ROLE")
+        or ""
+    ).strip().lower()
+    if role in {"worker", "rq"}:
+        from backend.app.tasks.worker import main as worker_main
+
+        print("[baupass] Process role=worker — starting RQ worker", flush=True)
+        raise SystemExit(worker_main())
+
     selected_mode = str(mode or "auto").strip().lower()
     if selected_mode == "auto":
         selected_mode = _default_mode()
