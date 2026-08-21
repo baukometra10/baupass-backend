@@ -415,9 +415,18 @@ html.embed-document body.ops-app.embed-mode .event-feed {
 
   .sidebar {
     height: auto !important;
-    max-height: min(42vh, 320px);
-    overflow-y: auto;
+    max-height: min(48vh, 380px) !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
     overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+
+  .sidebar .nav {
+    flex: 0 0 auto;
+    overflow: visible;
+    max-height: none;
   }
 
   .content {

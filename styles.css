@@ -338,6 +338,7 @@ select {
   z-index: 1;
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -345,8 +346,8 @@ select {
   position: sticky !important;
   left: 0;
   top: 0;
-  height: 100vh !important;
-  max-height: 100dvh !important;
+  height: 100% !important;
+  max-height: 100% !important;
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -360,7 +361,6 @@ select {
     linear-gradient(178deg, rgba(13, 19, 26, 0.98), rgba(21, 26, 32, 0.95)),
     conic-gradient(from 150deg at 0% 0%, rgba(202, 90, 45, 0.28), rgba(42, 113, 119, 0.18), rgba(202, 90, 45, 0.24));
   border-right: 1px solid rgba(255, 255, 255, 0.08);
-  min-height: 0;
 }
 
 .sidebar > div:first-child {
@@ -439,6 +439,9 @@ select {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   padding-right: 4px;
   align-content: start;
   scrollbar-width: thin;
@@ -7350,9 +7353,10 @@ body.theme-black [style*="background:#fef3c7"] {
     min-height: 100dvh;
   }
 
-  /* Sidebar füllt die gesamte Fensterhöhe inkl. Titelleistenbereich */
+  /* Sidebar füllt die Shell-Höhe inkl. Titelleistenbereich */
   .sidebar {
-    height: 100dvh !important;
+    height: 100% !important;
+    max-height: 100% !important;
     padding-top: calc(32px + env(titlebar-area-height, 0px));
   }
 
@@ -9744,10 +9748,22 @@ body.theme-black .invoice-toolbar-refresh:active {
     padding-bottom: 4.5rem;
   }
 
+  /* Must stay a bounded scrollport: body/shell are overflow:hidden on narrow viewports */
   .sidebar {
     position: static !important;
     height: auto !important;
-    max-height: none !important;
+    max-height: min(48vh, 380px) !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+
+  /* Avoid nested scroll traps — the sidebar itself scrolls */
+  .sidebar .nav {
+    flex: 0 0 auto;
+    max-height: none;
     overflow: visible;
   }
 

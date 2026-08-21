@@ -268,16 +268,25 @@ body[data-active-view="ops-center"] .topbar-actions .primary-button {
   margin-bottom: 0.5rem;
 }
 
-/* Mobile: Sidebar oben, Inhalt darunter — nicht volle Viewport-Höhe blockieren */
+/* Mobile: Sidebar oben, Inhalt darunter — begrenzter Scrollbereich */
 @media (max-width: 960px) {
   body:not(.auth-locked) .shell {
     grid-template-rows: auto minmax(0, 1fr);
   }
 
   body:not(.auth-locked) .sidebar {
-    max-height: min(42vh, 320px);
-    overflow-y: auto;
+    max-height: min(48vh, 380px) !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
     overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+
+  body:not(.auth-locked) .sidebar .nav {
+    flex: 0 0 auto;
+    overflow: visible;
+    max-height: none;
   }
 
   body:not(.auth-locked) .content {
