@@ -291,10 +291,17 @@ body[data-active-view="ops-center"] .topbar-actions .primary-button {
 
   body:not(.auth-locked) .content {
     min-height: 0;
+    height: 100%;
+    max-height: 100%;
   }
 
   body:not(.auth-locked) .content.has-embed-view .view.view-embed.active {
-    min-height: 58vh;
+    min-height: 0 !important;
+  }
+
+  /* Shrink parent nav when Betrieb/embed is open so iframe can scroll */
+  body:not(.auth-locked):has(.content.has-embed-view) .sidebar {
+    max-height: min(28vh, 220px) !important;
   }
 
   body:not(.auth-locked) .mobile-shell-nav {

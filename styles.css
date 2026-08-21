@@ -9767,6 +9767,10 @@ body.theme-black .invoice-toolbar-refresh:active {
     overflow: visible;
   }
 
+  .shell:has(.content.has-embed-view) .sidebar {
+    max-height: min(28vh, 220px) !important;
+  }
+
   .mobile-shell-nav {
     display: flex;
     position: fixed;

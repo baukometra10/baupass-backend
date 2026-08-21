@@ -431,8 +431,8 @@ html.embed-document body.ops-app.embed-mode .event-feed {
 
   .content {
     min-height: 0;
-    height: auto;
-    max-height: none;
+    height: 100%;
+    max-height: 100%;
     overflow: hidden;
     padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)) !important;
   }
@@ -442,13 +442,29 @@ html.embed-document body.ops-app.embed-mode .event-feed {
   }
 
   .content .view.view-embed.active {
-    min-height: 0;
-    flex: 1;
+    min-height: 0 !important;
+    flex: 1 1 auto;
+    height: auto !important;
+    overflow: hidden;
   }
 
-  .enterprise-embed-shell {
+  .content.has-embed-view .enterprise-embed-shell {
     min-height: 0;
-    flex: 1;
+    flex: 1 1 auto;
+    height: auto;
+  }
+
+  .content.has-embed-view .enterprise-embed-frame {
+    min-height: 0;
+    flex: 1 1 auto;
+    height: 100%;
+  }
+
+  /* Give Betrieb/embed more room than the parent sidebar on small screens */
+  body:not(.auth-locked).has-embed-view .sidebar,
+  body:not(.auth-locked) .content.has-embed-view ~ .sidebar,
+  .shell:has(.content.has-embed-view) .sidebar {
+    max-height: min(28vh, 220px) !important;
   }
 }
 
