@@ -19613,7 +19613,7 @@ function buildEnterpriseEmbedUrl(item) {
   const params = [];
   if (item.embed) {
     params.push("embed=1");
-    params.push("v=20260820accHub3");
+    params.push("v=20260821betrieb3");
   } else if (item.version) {
     params.push("v=20260601hubupgrade1");
   }

@@ -5895,10 +5895,8 @@ html[dir="rtl"] .app-sidebar {
 }
 
 body.embed-mode.admin-v2-embed {
-  min-height: 100%;
-  height: 100%;
-  max-height: 100%;
-  overflow: hidden;
+  /* scrollport owned by embed-shell.css on html.embed-document body */
+  min-height: 0;
 }
 
 html:has(body.embed-mode.admin-v2-embed) {
@@ -5906,30 +5904,43 @@ html:has(body.embed-mode.admin-v2-embed) {
   overflow: hidden;
 }
 
+body.embed-mode.admin-v2-embed #app {
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  display: block !important;
+  overflow: visible !important;
+}
+
 body.embed-mode.admin-v2-embed #dashboardView {
   min-height: 0 !important;
-  height: 100% !important;
-  max-height: 100% !important;
-  overflow: hidden !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  display: block !important;
 }
 
 body.embed-mode.admin-v2-embed #dashboardView .app-shell,
 body.embed-mode.admin-v2-embed .app-shell {
   flex-direction: column;
   min-height: 0 !important;
-  height: 100% !important;
-  max-height: 100% !important;
-  overflow: hidden !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 body.embed-mode.admin-v2-embed .app-main {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   width: 100%;
-  max-height: none;
-  overflow: hidden;
+  max-height: none !important;
+  overflow: visible !important;
 }
 
 body.embed-mode.admin-v2-embed .app-sidebar {
@@ -5978,16 +5989,18 @@ body.embed-mode.admin-v2-embed .app-content {
   flex: 1 1 auto !important;
   min-height: 0 !important;
   max-height: none !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-  padding: 0.75rem 1rem 1rem;
+  height: auto !important;
+  overflow: visible !important;
+  padding: 0.75rem 1rem 1.5rem;
 }
 
 body.embed-mode.admin-v2-embed .topbar-compact {
   flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 20;
   padding: 0.45rem 0.75rem;
 }
 

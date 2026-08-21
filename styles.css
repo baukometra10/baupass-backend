@@ -9768,7 +9768,7 @@ body.theme-black .invoice-toolbar-refresh:active {
   }
 
   .shell:has(.content.has-embed-view) .sidebar {
-    max-height: min(28vh, 220px) !important;
+    max-height: min(22vh, 180px) !important;
   }
 
   .mobile-shell-nav {

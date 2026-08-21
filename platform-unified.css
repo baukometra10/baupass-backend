@@ -301,7 +301,7 @@ body[data-active-view="ops-center"] .topbar-actions .primary-button {
 
   /* Shrink parent nav when Betrieb/embed is open so iframe can scroll */
   body:not(.auth-locked):has(.content.has-embed-view) .sidebar {
-    max-height: min(28vh, 220px) !important;
+    max-height: min(22vh, 180px) !important;
   }
 
   body:not(.auth-locked) .mobile-shell-nav {

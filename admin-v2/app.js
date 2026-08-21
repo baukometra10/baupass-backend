@@ -53,6 +53,28 @@ function isEmbedMode() {
   return new URLSearchParams(location.search).get("embed") === "1";
 }
 
+/** Prefer .app-content when it actually scrolls; otherwise document (embed body scrollport). */
+function getMainScrollHost() {
+  const content = document.querySelector(".app-content");
+  if (content && content.scrollHeight > content.clientHeight + 2) {
+    return content;
+  }
+  return document.scrollingElement || document.documentElement;
+}
+
+function scrollMainTo(top, behavior) {
+  const host = getMainScrollHost();
+  if (host === document.scrollingElement || host === document.documentElement || host === document.body) {
+    window.scrollTo({ top: Math.max(0, top), behavior: behavior || "auto" });
+    return;
+  }
+  if (typeof host.scrollTo === "function") {
+    host.scrollTo({ top: Math.max(0, top), behavior: behavior || "auto" });
+  } else {
+    host.scrollTop = Math.max(0, top);
+  }
+}
+
 if (isEmbedMode()) {
   document.documentElement.classList.add("embed-document");
   document.body.classList.add("embed-mode", "admin-v2-embed");
@@ -152,12 +174,15 @@ async function focusDeploymentSection() {
   }
   bar.classList.remove("hidden");
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-  const scrollHost = document.querySelector(".app-content");
+  const scrollHost = getMainScrollHost();
   if (scrollHost) {
-    const hostRect = scrollHost.getBoundingClientRect();
+    const hostRect = scrollHost.getBoundingClientRect
+      ? scrollHost.getBoundingClientRect()
+      : { top: 0 };
     const barRect = bar.getBoundingClientRect();
-    const delta = barRect.top - hostRect.top + scrollHost.scrollTop - 16;
-    scrollHost.scrollTo({ top: Math.max(0, delta), behavior: "smooth" });
+    const currentTop = scrollHost.scrollTop ?? window.scrollY ?? 0;
+    const delta = barRect.top - hostRect.top + currentTop - 16;
+    scrollMainTo(delta, "smooth");
   } else {
     bar.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -5217,9 +5242,7 @@ function switchToTab(tabId, options) {
     titleEl.setAttribute("data-i18n", titleKey);
   }
   $("overviewQuickBar")?.classList.toggle("hidden", tabId !== "overview");
-  const content = document.querySelector(".app-content");
-  if (content) content.scrollTop = 0;
-  window.scrollTo(0, 0);
+  scrollMainTo(0);
   trackFeatureUsage(tabId);
   try {
     const nextHash = `#${tabId}`;
@@ -7464,13 +7487,15 @@ function initOpsCarousel(root) {
     (e) => {
       const dx = Math.abs(e.deltaX);
       const dy = Math.abs(e.deltaY);
-      const scroller = document.querySelector(".app-content");
       if (dx <= dy && !e.shiftKey) {
-        if (scroller) {
+        const scroller = getMainScrollHost();
+        if (scroller === document.scrollingElement || scroller === document.documentElement || scroller === document.body) {
+          window.scrollBy({ top: e.deltaY, left: 0, behavior: "auto" });
+        } else {
           scroller.scrollTop += e.deltaY;
-          e.preventDefault();
-          e.stopPropagation();
         }
+        e.preventDefault();
+        e.stopPropagation();
         return;
       }
       e.preventDefault();
