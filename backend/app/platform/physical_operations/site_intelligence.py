@@ -3,44 +3,44 @@ from __future__ import annotations
 
 from typing import Any
 
-from ._common import today_prefix
+from ._common import iso_ago, today_prefix
 
 
 def build_site_intelligence(db, company_id: int) -> dict[str, Any]:
-    since_30 = "datetime('now', '-30 day')"
+    since_30 = iso_ago(days=30)
     gate_rows = db.execute(
-        f"""
+        """
         SELECT COALESCE(NULLIF(TRIM(al.gate), ''), 'Unknown') AS gate,
                COUNT(*) AS total,
                SUM(CASE WHEN al.direction = 'check-in' THEN 1 ELSE 0 END) AS checkins
         FROM access_logs al
         JOIN workers w ON w.id = al.worker_id
-        WHERE w.company_id = ? AND al.timestamp >= {since_30}
+        WHERE w.company_id = ? AND al.timestamp >= ?
         GROUP BY gate ORDER BY total DESC LIMIT 20
         """,
-        (company_id,),
+        (company_id, since_30),
     ).fetchall()
     site_rows = db.execute(
-        f"""
+        """
         SELECT COALESCE(NULLIF(TRIM(w.site), ''), 'Unassigned') AS site,
                COUNT(DISTINCT w.id) AS workers,
                COUNT(al.id) AS access_events
         FROM workers w
-        LEFT JOIN access_logs al ON al.worker_id = w.id AND al.timestamp >= {since_30}
+        LEFT JOIN access_logs al ON al.worker_id = w.id AND al.timestamp >= ?
         WHERE w.company_id = ? AND w.deleted_at IS NULL
         GROUP BY site ORDER BY access_events ASC
         """,
-        (company_id,),
+        (since_30, company_id),
     ).fetchall()
     peak = db.execute(
-        f"""
+        """
         SELECT substr(al.timestamp, 12, 2) AS hour, COUNT(*) AS c
         FROM access_logs al
         JOIN workers w ON w.id = al.worker_id
-        WHERE w.company_id = ? AND al.direction = 'check-in' AND al.timestamp >= {since_30}
+        WHERE w.company_id = ? AND al.direction = 'check-in' AND al.timestamp >= ?
         GROUP BY hour ORDER BY c DESC LIMIT 1
         """,
-        (company_id,),
+        (company_id, since_30),
     ).fetchone()
     issues = []
     for s in site_rows:

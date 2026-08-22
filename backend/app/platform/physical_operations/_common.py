@@ -13,6 +13,21 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
+def iso_ago(
+    *,
+    days: int = 0,
+    hours: int = 0,
+    minutes: int = 0,
+) -> str:
+    """UTC ISO cutoff for SQL comparisons — works on SQLite and PostgreSQL.
+
+    Prefer binding this as a query parameter instead of SQLite-only
+    ``datetime('now', '-7 days')`` expressions (those crash on Postgres).
+    """
+    delta = timedelta(days=days, hours=hours, minutes=minutes)
+    return (datetime.now(timezone.utc) - delta).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
 def today_prefix(reference: datetime | None = None) -> str:
     """Calendar day in Europe/Berlin (access wall clock), not UTC."""
     now = reference if reference is not None else datetime.now(ACCESS_WALL_TZ)

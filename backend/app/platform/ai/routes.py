@@ -94,16 +94,31 @@ def register_ai_blueprint(flask_app: Flask) -> None:
                     "companyId": company_id,
                 }
             ), 403
-        pulse = build_operator_pulse(
-            db,
-            company_id,
-            role=role,
-            lang=lang,
-            surface=surface or None,
-            tab=tab or None,
-            path=path or None,
-        )
-        return jsonify(pulse)
+        try:
+            pulse = build_operator_pulse(
+                db,
+                company_id,
+                role=role,
+                lang=lang,
+                surface=surface or None,
+                tab=tab or None,
+                path=path or None,
+            )
+            return jsonify(pulse)
+        except Exception:
+            logger.exception("ai_operator_pulse failed for company %s", company_id)
+            return jsonify(
+                {
+                    "companyId": company_id,
+                    "lang": lang,
+                    "surface": surface or "general",
+                    "urgency": 0,
+                    "urgent": False,
+                    "recommendations": [],
+                    "snapshot": {},
+                    "error": "pulse_unavailable",
+                }
+            ), 200
 
     @ai_bp.post("/ai/operator/pulse/dispatch")
     @require_auth

@@ -7,7 +7,7 @@ from typing import Any
 
 from backend.app.platform.ai.intelligence import fraud_signals
 
-from ._common import now_iso
+from ._common import iso_ago, now_iso
 
 
 def _persist_alert(db, company_id: int, alert: dict) -> str:
@@ -65,20 +65,23 @@ def analyze_security(db, company_id: int, *, persist: bool = True) -> dict[str, 
                 "details": sig,
             }
         )
-    off_hours = db.execute(
-        """
-        SELECT al.worker_id, COUNT(*) AS c
-        FROM access_logs al
-        JOIN workers w ON w.id = al.worker_id
-        WHERE w.company_id = ?
-          AND (CAST(substr(al.timestamp, 12, 2) AS INTEGER) < 5
-               OR CAST(substr(al.timestamp, 12, 2) AS INTEGER) >= 22)
-          AND al.timestamp >= datetime('now', '-7 days')
-        GROUP BY al.worker_id
-        HAVING c >= 3
-        """,
-        (company_id,),
-    ).fetchall()
+    try:
+        off_hours = db.execute(
+            """
+            SELECT al.worker_id, COUNT(*) AS c
+            FROM access_logs al
+            JOIN workers w ON w.id = al.worker_id
+            WHERE w.company_id = ?
+              AND (CAST(substr(al.timestamp, 12, 2) AS INTEGER) < 5
+                   OR CAST(substr(al.timestamp, 12, 2) AS INTEGER) >= 22)
+              AND al.timestamp >= ?
+            GROUP BY al.worker_id
+            HAVING COUNT(*) >= 3
+            """,
+            (company_id, iso_ago(days=7)),
+        ).fetchall()
+    except Exception:
+        off_hours = []
     for r in off_hours:
         findings.append(
             {
@@ -89,17 +92,20 @@ def analyze_security(db, company_id: int, *, persist: bool = True) -> dict[str, 
                 "details": {"events": r["c"]},
             }
         )
-    gate_hop = db.execute(
-        """
-        SELECT al.worker_id, COUNT(DISTINCT TRIM(al.gate)) AS gates, COUNT(*) AS taps
-        FROM access_logs al
-        JOIN workers w ON w.id = al.worker_id
-        WHERE w.company_id = ? AND al.timestamp >= datetime('now', '-2 hours')
-        GROUP BY al.worker_id
-        HAVING gates >= 3 AND taps >= 6
-        """,
-        (company_id,),
-    ).fetchall()
+    try:
+        gate_hop = db.execute(
+            """
+            SELECT al.worker_id, COUNT(DISTINCT TRIM(al.gate)) AS gates, COUNT(*) AS taps
+            FROM access_logs al
+            JOIN workers w ON w.id = al.worker_id
+            WHERE w.company_id = ? AND al.timestamp >= ?
+            GROUP BY al.worker_id
+            HAVING COUNT(DISTINCT TRIM(al.gate)) >= 3 AND COUNT(*) >= 6
+            """,
+            (company_id, iso_ago(hours=2)),
+        ).fetchall()
+    except Exception:
+        gate_hop = []
     for r in gate_hop:
         findings.append(
             {

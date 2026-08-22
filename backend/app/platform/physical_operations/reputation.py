@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ._common import now_iso
+from ._common import iso_ago, now_iso
 
 
 def _grade(score: int) -> str:
@@ -20,13 +20,13 @@ def _grade(score: int) -> str:
 
 
 def compute_worker_reputation(db, company_id: int, worker_id: str) -> dict[str, Any]:
-    since = "datetime('now', '-30 days')"
+    since = iso_ago(days=30)
     checkins = db.execute(
-        f"""
+        """
         SELECT COUNT(*) AS c FROM access_logs al
-        WHERE al.worker_id = ? AND al.direction = 'check-in' AND al.timestamp >= {since}
+        WHERE al.worker_id = ? AND al.direction = 'check-in' AND al.timestamp >= ?
         """,
-        (worker_id,),
+        (worker_id, since),
     ).fetchone()
     ci = int((checkins["c"] if checkins else 0) or 0)
     attendance_score = min(40, ci)
@@ -40,24 +40,30 @@ def compute_worker_reputation(db, company_id: int, worker_id: str) -> dict[str, 
             compliance_score = 0
         if not str(w["compliance_signature_data"] or "").strip():
             compliance_score -= 10
-    expired = db.execute(
-        """
-        SELECT COUNT(*) AS c FROM worker_documents wd
-        WHERE wd.worker_id = ? AND wd.expiry_date IS NOT NULL AND wd.expiry_date < date('now')
-        """,
-        (worker_id,),
-    ).fetchone()
+    try:
+        from datetime import date
+
+        today = date.today().isoformat()
+        expired = db.execute(
+            """
+            SELECT COUNT(*) AS c FROM worker_documents wd
+            WHERE wd.worker_id = ? AND wd.expiry_date IS NOT NULL AND wd.expiry_date < ?
+            """,
+            (worker_id, today),
+        ).fetchone()
+    except Exception:
+        expired = None
     if int((expired["c"] if expired else 0) or 0) > 0:
         compliance_score -= 15
     compliance_score = max(0, compliance_score)
     late = db.execute(
-        f"""
+        """
         SELECT COUNT(*) AS c FROM access_logs al
         WHERE al.worker_id = ? AND al.direction = 'check-in'
           AND CAST(substr(al.timestamp, 12, 2) AS INTEGER) >= 10
-          AND al.timestamp >= {since}
+          AND al.timestamp >= ?
         """,
-        (worker_id,),
+        (worker_id, since),
     ).fetchone()
     late_count = int((late["c"] if late else 0) or 0)
     punctuality = max(0, 25 - min(25, late_count * 2))
@@ -65,9 +71,9 @@ def compute_worker_reputation(db, company_id: int, worker_id: str) -> dict[str, 
     taps = db.execute(
         """
         SELECT COUNT(*) AS c FROM access_logs al
-        WHERE al.worker_id = ? AND al.timestamp >= datetime('now', '-1 day')
+        WHERE al.worker_id = ? AND al.timestamp >= ?
         """,
-        (worker_id,),
+        (worker_id, iso_ago(days=1)),
     ).fetchone()
     if int((taps["c"] if taps else 0) or 0) > 40:
         fraud_penalty = 20

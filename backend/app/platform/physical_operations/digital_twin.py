@@ -6,6 +6,7 @@ from typing import Any
 from ._common import (
     count_on_site,
     geofence_site_index,
+    iso_ago,
     list_on_site_workers,
     resolve_map_coordinates,
     resolve_worker_map_coordinates,
@@ -21,12 +22,12 @@ def _gate_positions(db, company_id: str) -> list[dict]:
                MAX(al.timestamp) AS last_event
         FROM access_logs al
         JOIN workers w ON w.id = al.worker_id
-        WHERE w.company_id = ? AND al.timestamp >= datetime('now', '-1 day')
+        WHERE w.company_id = ? AND al.timestamp >= ?
         GROUP BY gate_id
         ORDER BY events_24h DESC
         LIMIT 50
         """,
-        (company_id,),
+        (company_id, iso_ago(days=1)),
     ).fetchall()
     gf = geofence_site_index(db, company_id)
     gates = []
@@ -131,11 +132,11 @@ def build_digital_twin(db, company_id: str) -> dict[str, Any]:
                w.first_name, w.last_name
         FROM access_logs al
         JOIN workers w ON w.id = al.worker_id
-        WHERE w.company_id = ? AND al.timestamp >= datetime('now', '-15 minutes')
+        WHERE w.company_id = ? AND al.timestamp >= ?
         ORDER BY al.timestamp DESC
         LIMIT 40
         """,
-        (company_id,),
+        (company_id, iso_ago(minutes=15)),
     ).fetchall()
     return {
         "layer": "digital_twin",

@@ -1,6 +1,7 @@
 """AI Operations Copilot — auto context from live operations data."""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from .command_center import build_command_center
@@ -70,17 +71,33 @@ def build_copilot_context(db, company_id: str, role: str = "company-admin") -> d
             active_emergency = build_emergency_status(db, row["id"], company_id)
     except Exception:
         pass
+
+    def _safe(label: str, fn, fallback):
+        try:
+            return fn()
+        except Exception:
+            logging.getLogger(__name__).exception("copilot context %s failed for %s", label, company_id)
+            return fallback
+
     return {
         "date": today,
-        "workersOnSite": count_on_site(db, company_id, today),
-        "onSiteWorkers": list_on_site_workers(db, company_id, today)[:30],
-        "siteIntelligence": build_site_intelligence(db, company_id),
-        "security": analyze_security(db, company_id, persist=False),
-        "digitalTwinSummary": build_digital_twin(db, company_id).get("summary"),
-        "reputationTop5": build_reputation_leaderboard(db, company_id, limit=20)["workers"][:5],
+        "workersOnSite": _safe("on_site", lambda: count_on_site(db, company_id, today), 0),
+        "onSiteWorkers": _safe("on_site_workers", lambda: list_on_site_workers(db, company_id, today)[:30], []),
+        "siteIntelligence": _safe("site_intelligence", lambda: build_site_intelligence(db, company_id), {}),
+        "security": _safe("security", lambda: analyze_security(db, company_id, persist=False), {"findings": [], "openAlerts": []}),
+        "digitalTwinSummary": _safe(
+            "digital_twin",
+            lambda: (build_digital_twin(db, company_id) or {}).get("summary"),
+            {},
+        ),
+        "reputationTop5": _safe(
+            "reputation",
+            lambda: (build_reputation_leaderboard(db, company_id, limit=20) or {}).get("workers", [])[:5],
+            [],
+        ),
         "activeEmergency": active_emergency,
-        "identity": build_identity_hub(db, company_id),
-        "commandCenter": build_command_center(db, company_id=company_id, role=role),
+        "identity": _safe("identity", lambda: build_identity_hub(db, company_id), {}),
+        "commandCenter": _safe("command_center", lambda: build_command_center(db, company_id=company_id, role=role), {}),
         "dailyBrief": _daily_brief_for_copilot(db, company_id),
     }
 
