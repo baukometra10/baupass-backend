@@ -123,6 +123,11 @@
       keyCache.clear();
       return true;
     } catch (error) {
+      const code = String(error?.code || error?.message || "").trim();
+      if (code === "support_session_read_only") {
+        identityReady = false;
+        return false;
+      }
       console.warn("[E2E] Admin identity bootstrap failed:", error?.message || error);
       identityReady = false;
       return false;
